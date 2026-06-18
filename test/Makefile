@@ -1,7 +1,7 @@
 PORT             = /dev/ttyUSB0
 BAUD_RATE        = 115200
 PROGRAMMER       = arduino
-PROJECT_NAME     = mk-test
+PROJECT_NAME     = test
 PROJECT_FILELIST = Filelist.$(PROJECT_NAME).mk
 MCU              = atmega328p
 F_CPU            = 16000000
