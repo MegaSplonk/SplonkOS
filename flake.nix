@@ -18,6 +18,7 @@
             pkgs.pkgsCross.avr.buildPackages.gcc
             pkgs.gnumake
             pkgs.avrdude
+            pkgs.picocom
           ];
         };
       }
