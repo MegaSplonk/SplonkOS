@@ -19,6 +19,7 @@
             pkgs.gnumake
             pkgs.avrdude
             pkgs.picocom
+            pkgs.bear
           ];
         };
       }
