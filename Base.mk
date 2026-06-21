@@ -81,7 +81,7 @@ ifeq ($(USE_LIB),1)
 IFLAGS += -I$(call relpath,$(BASE_DIRECTORY)/lib/include)
 endif
 ifeq ($(USE_LIB),1)
-LDFLAGS += -L$(call relpath,$(OBJ_DIR_BASE)/lib/) -lsplonk
+LDFLAGS += -L$(call relpath,$(OBJ_DIR)/lib/) -lsplonk
 endif
 
 
@@ -101,9 +101,6 @@ fclean: clean
 	@rm -rf $(OBJ_DIR_BASE)
 .PHONY: clean
 clean:
-ifeq ($(USE_LIB),1)
-	@$(MAKE) --no-print-directory -C $(BASE_DIRECTORY)/lib clean
-endif
 	@printf " RM $(OBJ_DIR)\n"
 	@rm -rf $(OBJ_DIR)
 
@@ -140,7 +137,7 @@ $(OBJ_DIR)/%.o: $(SRC_DIR)/%.c
 	@printf " CC $<\n"
 	@$(CC) $(CPPFLAGS) $(WFLAGS) $(CFLAGS) $(IFLAGS) -c $< -o $@
 
-$(ELF_FILE): $(OBJ) $(if $(filter 1,$(USE_LIB)), $(OBJ_DIR_BASE)/lib/libsplonk.a)
+$(ELF_FILE): $(OBJ) $(if $(filter 1,$(USE_LIB)), $(OBJ_DIR)/lib/libsplonk.a)
 	@printf " CCLD $@ $(if $(filter 1,$(USE_LIB)),[With Lib])\n"
 	@$(CC) $(CFLAGS) $(OBJ) $(LDFLAGS) -o $@
 
@@ -185,26 +182,25 @@ EXCLUDE := \
 
 
 export MCU
+export BOARD
 export F_CPU
 
-#lib: $(OBJ_DIR_BASE)/lib/libsplonk.a
-ifeq ($(USE_LIB),1)
-$(OBJ_DIR_BASE)/lib/libsplonk.a:
-	@$(MAKE) --no-print-directory -C $(BASE_DIRECTORY)/lib
-endif
+$(OBJ_DIR)/lib/libsplonk.a:
+	@$(MAKE) --no-print-directory -C $(BASE_DIRECTORY)/lib "OBJ_DIR_BASE=$(abspath $(OBJ_DIR))"
 
 $(ARCHIVE_FILE:.a=.d): $(OBJ)
 	@echo "$(abspath $(ARCHIVE_FILE)): \\" > $(ARCHIVE_FILE:.a=.d)
 	@cat $(DEP) | sed -e 's/^[^:]*: */  /;s/  / /g;s/ /\n/g;/^$$/d'| \
 	 xargs realpath | sort -u | xargs printf '%-78s\\\n' >> $@
-
+	@printf '%-78s\\\n' $(abspath $(PROJECT_MAKEFILE)) >> $@
+	@printf '%-78s\\\n' $(abspath $(PROJECT_FILELIST)) >> $@
 
 $(ARCHIVE_FILE): $(ARCHIVE_FILE:.a=.d) $(OBJ)
 	@printf " AR $@\n"
 	@$(AR) rcs $@ $^
 	
 ifeq ($(USE_LIB),1)
--include $(OBJ_DIR_BASE)/lib/libsplonk.d
+-include $(OBJ_DIR)/lib/libsplonk.d
 endif
 -include $(DEP);
 

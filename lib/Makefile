@@ -9,5 +9,8 @@ PROGRAMMER        = none
 USE_LIB           = 0
 OUTPUT_ARCHIVE    = 1
 
+MCU               ?= atmega32u4
+BOARD             ?= promicro
+
 include ../Base.mk
 
