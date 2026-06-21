@@ -1,9 +1,15 @@
-#include "lib/uart.h"
+#include "lib/proto/uart.h"
 
 #define BAUD_RATE  115200
 
 #define UBRR_VALUE ((F_CPU / (8UL * BAUD_RATE)) - 1)
 
+#ifdef MCU_atmega32u4
+#elifdef MCU_atmega328p
+# define UART_ENABLE
+#endif
+
+#ifdef UART_ENABLE
 // uart is 115200 baud rate, 8 bits per word, no parrity and 1 stop bit
 // 115200 8N1
 void uart_init(void) {
@@ -134,4 +140,4 @@ void uart_send_u16_hex(uint16_t val) {
 	buf[3]		= "0123456789abcdef"[(val >> 0) & 0x0F];
 	uart_sendstring(buf);
 }
-
+#endif

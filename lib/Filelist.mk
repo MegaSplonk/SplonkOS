@@ -1,4 +1,5 @@
 SRC_FILES =                                                                   \
-lib                                                                           \
 const                                                                         \
+lib                                                                           \
+proto/uart                                                                    \
 
