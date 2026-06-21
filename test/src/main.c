@@ -17,7 +17,7 @@
 
 // void delay_ms(uint16_t ms);
 
-static bool btn_pressed(pin cols[], int col) {
+static bool btn_pressed(const pin cols[], int col) {
   bool yes = pin_get(cols[col]);
   _delay_ms(50);
   if (yes && pin_get(cols[col]))
@@ -43,7 +43,7 @@ int main(void) {
         if (btn_pressed(cols, c))
           uart_tx('('), uart_send_u8(r), uart_tx(','), uart_send_u8(c), uart_tx(')'), uart_tx('\r'), uart_tx('\n');
         else
-          uart_tx(',' + c), uart_tx('\r');
+          uart_tx((char)(',' + c)), uart_tx('\r');
       }
       pin_set(rows[r], false);
     }
