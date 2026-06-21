@@ -23,7 +23,7 @@ void uart_send_u8_hex(uint8_t val);
 void uart_send_u16_hex(uint16_t val);
 
 
-static inline void print_hex_value(char c)
+static inline void print_hex_value(unsigned char c)
 {
 	uart_send_u8_hex(c);
 }

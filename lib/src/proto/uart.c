@@ -33,13 +33,13 @@ void uart_tx(char data) {
 	while (!(UCSR0A & _BV(UDRE0)))
 		;
 	// load data into transmit register
-	UDR0 = data;
+	UDR0 = (unsigned char)data;
 }
 
 char uart_rx(void) {
 	while (!(UCSR0A & _BV(RXC0)))
 		;
-	return UDR0;
+	return (char)UDR0;
 }
 
 void uart_sendstring(const char* str) {
@@ -51,8 +51,10 @@ void uart_sendstring(const char* str) {
 	}
 }
 void uart_send_u8(uint8_t val) {
-	if (val == 0)
-		return uart_tx('0');
+	if (val == 0){
+    uart_tx('0');
+		return;
+  }
 	char	buf[4]	= {0, 0, 0, 0};
 	uint8_t idx		= 0;
 	bool	print	= false;
@@ -62,7 +64,7 @@ void uart_send_u8(uint8_t val) {
 		uint8_t digit = val / modulus;
 		if (print || digit != 0) {
 			print	   = true;
-			buf[idx++] = '0' + digit;
+			buf[idx++] = (char)('0' + digit);
 		}
 		val		%= modulus;
 		modulus /= 10;
@@ -72,18 +74,20 @@ void uart_send_u8(uint8_t val) {
 }
 
 void uart_send_u16(uint16_t val) {
-	if (val == 0)
-		return uart_tx('0');
+	if (val == 0){
+    uart_tx('0');
+		return;
+  }
 	char	buf[6]	 = {0, 0, 0, 0, 0, 0};
 	uint8_t idx		 = 0;
 	bool	print	 = false;
 
 	uint16_t modulus = 10000;
 	while (modulus) {
-		uint8_t digit = val / modulus;
+		uint8_t digit = (uint8_t)(val / modulus);
 		if (print || digit != 0) {
 			print	   = true;
-			buf[idx++] = '0' + digit;
+			buf[idx++] = (char)('0' + digit);
 		}
 		val		%= modulus;
 		modulus /= 10;
@@ -92,30 +96,36 @@ void uart_send_u16(uint16_t val) {
 }
 
 void uart_send_i16(int16_t val) {
-	if (val == 0)
-		return uart_tx('0');
-	if (val == -32768)
-		return uart_sendstring("-32768");
+	if (val == 0){
+    uart_tx('0');
+		return;
+  }
+	if (val == -32768){
+    uart_sendstring("-32768");
+		return;
+  }
 	if (val < 0) {
 		uart_tx('-');
 		val = -val;
 	}
-	uart_send_u16(val);
+	uart_send_u16((uint16_t)val);
 }
 
 void uart_send_u32(uint32_t val) {
-	if (val == 0)
-		return uart_tx('0');
+	if (val == 0){
+    uart_tx('0');
+		return;
+  }
 	char	buf[11]	 = {};
 	uint8_t idx		 = 0;
 	bool	print	 = false;
 
 	uint32_t modulus = 1000000000;
 	while (modulus) {
-		uint8_t digit = val / modulus;
+		uint8_t digit = (uint8_t)(val / modulus);
 		if (print || digit != 0) {
 			print	   = true;
-			buf[idx++] = '0' + digit;
+			buf[idx++] = (char)('0' + digit);
 		}
 		val		%= modulus;
 		modulus /= 10;
