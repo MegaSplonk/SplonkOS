@@ -1,0 +1,10 @@
+---
+BasedOnStyle: LLVM
+AlignConsecutiveDeclarations:
+  Enabled: true
+AlignConsecutiveMacros:
+  Enabled: true
+IndentWidth: 4
+TabWidth: 4
+UseTab: Always
+

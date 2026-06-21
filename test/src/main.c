@@ -15,7 +15,7 @@
 
 void delay_ms(uint16_t ms);
 
-bool btn_pressed(int cols[], int col) {
+static bool btn_pressed(int cols[], int col) {
   bool yes = (PINC & _BV(cols[col]));
   delay_ms(50);
   if (yes && (PINC & _BV(cols[col])))
@@ -31,7 +31,7 @@ int main(void) {
 
   for (uint8_t r = 0; r < sizeof(rows) / sizeof(rows[0]); r++) 
     DDRD |= (_BV(rows[r]));
-  
+
   DDRC = 0;
   while (true) {
     for (uint8_t r = 0; r < sizeof(rows) / sizeof(rows[0]); r++) {

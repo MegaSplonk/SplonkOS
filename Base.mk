@@ -21,7 +21,7 @@ WFLAGS        = -Wc++-compat -Wenum-conversion -Wimplicit-fallthrough -Wpedantic
                 -Wuninitialized -Wdouble-promotion -Wfloat-equal \
                 -Wnull-dereference -Wformat=2
 CFLAGS        = --std=c23 -g -Os -mmcu=$(MCU) -ffunction-sections -fdata-sections
-CPPFLAGS      = -DF_CPU=$(F_CPU) -MMD
+CPPFLAGS      = -DF_CPU=$(F_CPU) -MMD -DMCU_$(MCU)=1 -DBOARD_$(BOARD)=1
 IFLAGS        = -I$(INC_DIR)
 LDFLAGS       = -Wl,--gc-sections
 AVRDUDE_FLAGS = -c$(PROGRAMMER) -P$(PORT) -b$(BAUD_RATE)
@@ -32,11 +32,15 @@ AVRDUDE_FLAGS = -c$(PROGRAMMER) -P$(PORT) -b$(BAUD_RATE)
 # PORT              = /dev/ttyACM0
 # BAUD_RATE         = 57600
 # PROGRAMMER        = avr109
+# MCU               = atemega32u4
+# BOARD             = promicro
 
 $(call check-var-defined,PROJECT_MAKEFILE)
 $(call check-var-defined,PORT)
 $(call check-var-defined,BAUD_RATE)
 $(call check-var-defined,PROGRAMMER)
+$(call check-var-defined,MCU)
+#$(call check-var-defined,BOARD)
 
 # DEFAULT PROJECT OPTIONS
 

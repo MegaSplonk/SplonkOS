@@ -6,6 +6,7 @@ BAUD_RATE        = 57600
 PROGRAMMER       = avr109
 MCU              = atmega32u4
 F_CPU            = 16000000
+BOARD            = promicro
 
 TARGET           = $(PROJECT_NAME)
 

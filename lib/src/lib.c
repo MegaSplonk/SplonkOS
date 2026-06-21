@@ -1,3 +1,4 @@
 #include "lib/lib.h"
+#include <stdint.h>
 
-int somefunction(void) { return -1; }
+#include <avr/io.h>
