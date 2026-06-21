@@ -20,6 +20,7 @@
             pkgs.avrdude
             pkgs.picocom
             pkgs.bear
+            pkgs.llvmPackages_22.clang-tools
           ];
         };
       }

@@ -6,6 +6,7 @@ BAUD_RATE        = 115200
 PROGRAMMER       = arduino
 MCU              = atmega328p
 F_CPU            = 16000000
+BOARD            = nano
 
 TARGET           = $(PROJECT_NAME)
 
