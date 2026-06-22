@@ -15,3 +15,6 @@ typedef int32_t	 i32;
 
 typedef uint64_t u64;
 typedef int64_t	 i64;
+
+#define tabsize(TAB) (sizeof(TAB) / sizeof(TAB[0]))
+#define _P(PORT, NB) ((pin){.port = PORT_##PORT, .pin = PIN_##NB, ._pad = 0})
