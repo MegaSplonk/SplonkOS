@@ -40,7 +40,7 @@ $(call check-var-defined,PORT)
 $(call check-var-defined,BAUD_RATE)
 $(call check-var-defined,PROGRAMMER)
 # $(call check-var-defined,MCU)
-#$(call check-var-defined,BOARD)
+# $(call check-var-defined,BOARD)
 
 # DEFAULT PROJECT OPTIONS
 

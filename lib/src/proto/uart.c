@@ -1,15 +1,11 @@
 #include "lib/proto/uart.h"
+#include "lib/config.h"
 
+#ifdef SPLONKLIB_ENABLE_UART
 #define BAUD_RATE  115200
 
 #define UBRR_VALUE ((F_CPU / (8UL * BAUD_RATE)) - 1)
 
-#ifdef MCU_atmega32u4
-#elifdef MCU_atmega328p
-# define UART_ENABLE
-#endif
-
-#ifdef UART_ENABLE
 // uart is 115200 baud rate, 8 bits per word, no parrity and 1 stop bit
 // 115200 8N1
 void uart_init(void) {
