@@ -38,3 +38,8 @@
 #define D0 (_P(D, 0))
 
 #define LED_BUILTIN (_P(B, 5))
+// SPI
+#define MISO D12
+#define MOSI D11
+#define SCLK D13
+#define SS D10

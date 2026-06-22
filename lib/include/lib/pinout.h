@@ -1,8 +1,8 @@
 #pragma once
 
-#ifdef BOARD_promicro
+#if defined(BOARD_promicro)
 #include "lib/pinout/promicro.h"
-#elifdef BOARD_nano
+#elif defined(BOARD_nano)
 #include "lib/pinout/nano.h"
 #else
 #error "Board not defined or not known by splonklib"
