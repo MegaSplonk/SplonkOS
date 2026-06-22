@@ -1,11 +1,11 @@
 PROJECTS = usb test
 
+.PHONY: all
 all:
-	@$(foreach p,$(PROJECTS),\
-		printf "Building: $(p) [only hex]\n";\
-		$(MAKE) --no-print-directory -C $(p) hex;\
-	)
+	$(MAKE) -j --no-print-directory .allhex
 
+.PHONY: fclean clean
+fclean: clean
 clean:
 	@$(foreach p,$(PROJECTS),\
 		printf "Clean: $(p)\n";\
@@ -13,11 +13,13 @@ clean:
 	)
 
 
+.PHONY: bear
 bear:
 	@printf "Rebuilding everything to get compile commands\n"
-	@bear -- make --no-print-directory .ccdb 'relpath=$$(1)'
+	@bear -- make -j --no-print-directory .ccdb 'relpath=$$(1)'
 	@printf "Done !\n"
 
+.PHONY: .ccdb
 .ccdb:
 	@$(foreach p,$(PROJECTS),\
 		printf "Clean: $(p)\n";\
@@ -25,5 +27,12 @@ bear:
 	)
 	@$(foreach p,$(PROJECTS),\
 		printf "Clean: $(p)\n";\
+		$(MAKE) --no-print-directory -C $(p) hex;\
+	)
+
+.PHONY: .allhex
+.allhex:
+	@$(foreach p,$(PROJECTS),\
+		printf "Building: $(p) [only hex]\n";\
 		$(MAKE) --no-print-directory -C $(p) hex;\
 	)
