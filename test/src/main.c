@@ -23,7 +23,8 @@ constexpr uint8_t height = tabsize(rows);
 constexpr uint8_t size = width * height;
 rgb				  leds[size] = {};
 uint8_t			  brightness[size] = {};
-const uint8_t led_matrix_idx[] = {0,1,2,3,4,5,6,7,8,9,10,11,12, 13, 14,15};
+const uint8_t	  led_matrix_idx[] = {0, 1, 2,	3,	4,	5,	6,	7,
+									  8, 9, 10, 11, 12, 13, 14, 15};
 // void delay_ms(uint16_t ms);
 
 static bool btn_pressed(pin p) {
@@ -42,9 +43,9 @@ static void check_cols(uint8_t r) {
 		if (btn_pressed(cols[c])) {
 			uart_tx('('), uart_send_u8(r), uart_tx(','), uart_send_u8(c),
 				uart_tx(')');
-      uint8_t idx = led_matrix_idx[c * width + r];
-      uart_tx('('), uart_send_u8(idx),
-				uart_tx(')'), uart_tx('\r'), uart_tx('\n');
+			uint8_t idx = led_matrix_idx[c * width + r];
+			uart_tx('('), uart_send_u8(idx), uart_tx(')'), uart_tx('\r'),
+				uart_tx('\n');
 			leds[idx] = (rgb){0, 0, 16};
 			brightness[idx] = 31;
 		} else {

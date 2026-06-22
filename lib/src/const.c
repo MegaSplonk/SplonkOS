@@ -39,7 +39,6 @@ u8_reg const PORTS_IN[_PORT_LAST + 1] = {
 #endif
 };
 
-
 u8_reg const PORTS_OUT[_PORT_LAST + 1] = {
 #ifdef PORTA
 	&PORTA,
@@ -77,7 +76,6 @@ u8_reg const PORTS_OUT[_PORT_LAST + 1] = {
 	nullptr,
 #endif
 };
-
 
 u8_reg const PORTS_DIR[_PORT_LAST + 1] = {
 #ifdef DDRA

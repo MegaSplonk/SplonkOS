@@ -42,4 +42,4 @@
 #define MISO D12
 #define MOSI D11
 #define SCLK D13
-#define SS D10
+#define SS	 D10

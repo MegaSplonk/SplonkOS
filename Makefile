@@ -36,3 +36,7 @@ bear:
 		printf "Building: $(p) [only hex]\n";\
 		$(MAKE) --no-print-directory -C $(p) hex;\
 	)
+
+.PHONY: format
+format:
+	tree -iFf  | rg '\.[ch]$$' | xargs clang-format -i
