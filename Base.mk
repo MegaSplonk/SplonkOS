@@ -16,7 +16,7 @@ MAKEFLAGS += --no-builtin-rules
 # TOOLS
 CC            = avr-gcc
 OBJCOPY       = avr-objcopy
-AR            = avr-ar
+AR            = avr-gcc-ar
 
 # FLAGS
 WFLAGS        = -Wc++-compat -Wenum-conversion -Wimplicit-fallthrough -Wpedantic \
@@ -26,10 +26,10 @@ WFLAGS        = -Wc++-compat -Wenum-conversion -Wimplicit-fallthrough -Wpedantic
                 -Wsign-conversion -Wcast-align -Wcast-qual -Wwrite-strings \
                 -Wuninitialized -Wdouble-promotion -Wfloat-equal \
                 -Wnull-dereference -Wformat=2
-CFLAGS        = --std=c23 -g -Os -mmcu=$(MCU) -ffunction-sections -fdata-sections
+CFLAGS        = --std=c23 -g -Os -mmcu=$(MCU) -ffunction-sections -fdata-sections -flto
 CPPFLAGS      = -DF_CPU=$(F_CPU) -MMD -DMCU_$(MCU)=1 -DBOARD_$(BOARD)=1
 IFLAGS        = -I$(INC_DIR)
-LDFLAGS       = -Wl,--gc-sections
+LDFLAGS       = -Wl,--gc-sections -Wl,-flto
 AVRDUDE_FLAGS = -c$(PROGRAMMER) -P$(PORT) -b$(BAUD_RATE)
 
 # PROJ OPTIONS
