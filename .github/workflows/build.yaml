@@ -1,0 +1,37 @@
+name: Build AVR (changed project)
+
+on:
+  pull_request:
+
+jobs:
+  build-changes:
+    runs-on: ubuntu-latest
+
+    outputs:
+      projects: ${{ steps.detect.outputs.projects }}
+
+    steps:
+
+      - uses: jirutka/setup-alpine@v1
+        with:
+          packages: gcc-avr avr-libc avrdude make clang22-extra-tools git coreutils
+
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Fetch base branch
+        run: git fetch origin ${{ github.event.pull_request.base.ref }}
+      - name: Compute merge base
+        run: |
+          echo "MERGE_BASE=$(git merge-base origin/${{ github.event.pull_request.base.ref }} HEAD)" >> $GITHUB_ENV
+
+      - id: detect
+        name: Select project to rebuild
+        shell: alpine.sh {0}
+        run: |
+          exec sh scripts/detect-changes.sh
+      - name: Build changed projects
+        if: steps.detect.outputs.projects != ''
+        shell: alpine.sh {0}
+        run: |
+          make PROJECTS="${{ steps.detect.outputs.projects }}"

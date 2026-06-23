@@ -12,7 +12,8 @@
     flake-utils.lib.eachDefaultSystem (
       system: let
         pkgs = nixpkgs.legacyPackages.${system};
-      in {
+      in rec {
+        devShells.default = devShell;
         devShell = pkgs.mkShellNoCC {
           packages = [
             pkgs.pkgsCross.avr.buildPackages.gcc
