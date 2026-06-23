@@ -1,0 +1,22 @@
+name: Check Format
+
+on:
+  pull_request:
+
+jobs:
+  check-format:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: jirutka/setup-alpine@v1
+        with:
+          packages: make clang22-extra-tools git
+
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      
+      - name: Check Formatting
+        shell: alpine.sh {0}
+        run: |
+          make check-format

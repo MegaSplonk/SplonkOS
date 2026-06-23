@@ -1,4 +1,5 @@
 PROJECTS = usb test
+GLOBAL_DEPS = lib Base.mk .clang-format .github Makefile flake.nix flake.lock
 
 .PHONY: all
 all:
@@ -48,3 +49,15 @@ bear:
 .PHONY: format
 format:
 	tree -iFf  | rg '\.[ch]$$' | xargs clang-format -i
+
+.PHONY: list-projects
+list-projects:
+	@echo "$(PROJECTS)"
+
+.PHONY: list-global-deps
+list-global-deps:
+	@echo "$(GLOBAL_DEPS)"
+
+.PHONY: check-format
+check-format:
+	@clang-format --Werror --dry-run $$(git ls-files | grep -E '\.(c|h)$$')
