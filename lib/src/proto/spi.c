@@ -3,10 +3,12 @@
 #include "lib/pinout.h"
 #include "lib/proto/uart.h"
 
+#ifdef SPLONKLIB_ENABLE_SPI
+
 void spi_init(void) {
-	pin_output(MOSI);
-	pin_output(SCLK);
-	pin_output(SS);
+	pin_output((pin)MOSI);
+	pin_output((pin)SCLK);
+	pin_output((pin)SS);
 
 	SPCR = _BV(SPE) | _BV(MSTR) | _BV(SPR1) | _BV(SPR0);
 }
@@ -23,3 +25,5 @@ bool spi_write(uint8_t data) {
 
 	return false;
 }
+
+#endif

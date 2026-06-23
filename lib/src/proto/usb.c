@@ -7,7 +7,7 @@
 
 void usb_enable(void) {
 	USBCON |= _BV(USBE);
-	USBCON &= ~_BV(FRZCLK);
+	USBCON &= (uint8_t)~_BV(FRZCLK);
 }
 
 #endif
