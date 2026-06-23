@@ -2,7 +2,9 @@ PROJECTS = usb test
 
 .PHONY: all
 all:
-	$(MAKE) -j --no-print-directory .allhex
+	@$(MAKE) -j --no-print-directory .allhex
+
+re: fclean all
 
 .PHONY: fclean clean
 fclean: clean
@@ -12,22 +14,28 @@ clean:
 		$(MAKE) --no-print-directory -C $(p) clean;\
 	)
 
+filelist:
+	@$(foreach p,$(PROJECTS) lib,\
+		printf "Filelist: $(p)\n";\
+		$(MAKE) --no-print-directory -C $(p) filelist;\
+	)
+
 
 .PHONY: bear
 bear:
 	@printf "Rebuilding everything to get compile commands\n"
-	@bear -- make -j --no-print-directory .ccdb 'relpath=$$(1)'
+	@bear -- make -j --no-print-directory .ccdb
 	@printf "Done !\n"
 
 .PHONY: .ccdb
 .ccdb:
 	@$(foreach p,$(PROJECTS),\
 		printf "Clean: $(p)\n";\
-		$(MAKE) --no-print-directory -C $(p) clean;\
+		$(MAKE) USE_ABSOLUTE_PATH=1 --no-print-directory -C $(p) clean;\
 	)
 	@$(foreach p,$(PROJECTS),\
 		printf "Clean: $(p)\n";\
-		$(MAKE) --no-print-directory -C $(p) hex;\
+		$(MAKE) USE_ABSOLUTE_PATH=1 --no-print-directory -C $(p) hex;\
 	)
 
 .PHONY: .allhex

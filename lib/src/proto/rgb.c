@@ -1,6 +1,9 @@
 #include "lib/proto/rgb.h"
+#include "lib/config.h"
 #include "lib/lib.h"
 #include "lib/proto/spi.h"
+
+#ifdef SPLONKLIB_ENABLE_SPI
 
 void led_set_colors(rgb col[], uint8_t brightness[], uint8_t length) {
 	// start frame
@@ -23,3 +26,5 @@ void led_set_colors(rgb col[], uint8_t brightness[], uint8_t length) {
 	// 	spi_write(0x00);  // 8 more clock cycles
 	// }
 }
+
+#endif

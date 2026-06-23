@@ -1,5 +1,11 @@
-check-var-defined = $(if $(strip $($1)),,$(error "$1" is not defined))
-relpath           = $(shell realpath --relative-to="$(CURDIR)" "$(1)")
+check-var-defined      = $(if $(strip $($1)),,$(error "$1" is not defined))
+relpath                = $(shell 	realpath -m --relative-to="$(or $(2),$(CURDIR))" "$(1)")
+
+ifeq ($(USE_ABSOLUTE_PATH),1)
+relpath                = $(abspath $(1))
+override SOURCE_PREFIX =
+endif
+
 BASE_MAKEFILE    := $(call relpath,$(abspath $(lastword $(MAKEFILE_LIST))))
 BASE_DIRECTORY   := $(call relpath,$(dir $(BASE_MAKEFILE)))
 
@@ -56,12 +62,16 @@ TIMEOUT          ?= 30
 SERIAL_PORT      ?= $(PORT)
 SERIAL_BAUD_RATE ?= $(BAUD_RATE)
 
-OBJ_DIR_BASE     ?= $(call relpath,$(BASE_DIRECTORY)/build/)
+OBJ_DIR_BASE     ?= $(BASE_DIRECTORY)/build/
 SRC_DIR          ?= $(call relpath,$(PROJECT_ROOT)/src)
 INC_DIR          ?= $(call relpath,$(PROJECT_ROOT)/include)
 
 USE_LIB          ?= 1
 OUTPUT_ARCHIVE   ?= 0
+SOURCE_PREFIX    ?=
+
+override OBJ_DIR_BASE := $(call relpath, $(OBJ_DIR_BASE))
+
 
 -include $(PROJECT_FILELIST)
 
@@ -134,7 +144,7 @@ endif
 
 $(OBJ_DIR)/%.o: $(SRC_DIR)/%.c 
 	@mkdir -p $(shell dirname $@)
-	@printf " CC $<\n"
+	@printf " CC $(SOURCE_PREFIX)$<\n"
 	@$(CC) $(CPPFLAGS) $(WFLAGS) $(CFLAGS) $(IFLAGS) -c $< -o $@
 
 $(ELF_FILE): $(OBJ) $(if $(filter 1,$(USE_LIB)), $(OBJ_DIR)/lib/libsplonk.a)
@@ -155,6 +165,10 @@ filelist:
 		| sort \
 		| while read f; do printf '%-78s\\\n' "$$f"; done >> "$(PROJECT_FILELIST)"
 	@echo "" >> "$(PROJECT_FILELIST)"
+	@printf "Filelist: $(PROJECT_NAME)\n"
+ifeq ($(USE_LIB),1)
+	@$(MAKE) --no-print-directory -C $(BASE_DIRECTORY)/lib filelist
+endif
 
 .PHONY: serial
 serial:
@@ -186,7 +200,9 @@ export BOARD
 export F_CPU
 
 $(OBJ_DIR)/lib/libsplonk.a:
-	@$(MAKE) --no-print-directory -C $(BASE_DIRECTORY)/lib "OBJ_DIR_BASE=$(abspath $(OBJ_DIR))"
+	@$(MAKE) --no-print-directory -C $(BASE_DIRECTORY)/lib \
+		"OBJ_DIR_BASE=$(call relpath,$(abspath $(OBJ_DIR)),$(BASE_DIRECTORY)/lib)" \
+		"SOURCE_PREFIX=$(BASE_DIRECTORY)/lib/"
 
 $(ARCHIVE_FILE:.a=.d): $(OBJ)
 	@echo "$(abspath $(ARCHIVE_FILE)): \\" > $(ARCHIVE_FILE:.a=.d)

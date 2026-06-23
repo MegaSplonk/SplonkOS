@@ -1,7 +1,8 @@
 SRC_FILES =                                                                   \
-const                                                                         \
 lib                                                                           \
+pin                                                                           \
 proto/rgb                                                                     \
 proto/spi                                                                     \
 proto/uart                                                                    \
+proto/usb                                                                     \
 
