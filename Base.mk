@@ -19,7 +19,8 @@ OBJCOPY       = avr-objcopy
 AR            = avr-gcc-ar
 
 # FLAGS
-WFLAGS        = -Wc++-compat -Wenum-conversion -Wimplicit-fallthrough -Wpedantic \
+WERROR       ?= 
+WFLAGS        = $(WERROR) -Wc++-compat -Wenum-conversion -Wimplicit-fallthrough -Wpedantic \
                 -Wextra -Wall -Wshadow -Wpadded -Wconversion -Wstrict-prototypes \
                 -Wmissing-declarations -Wstrict-prototypes -Wundef \
                 -Wmissing-prototypes -Wold-style-definition -Winline \
