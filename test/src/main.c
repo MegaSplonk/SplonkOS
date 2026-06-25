@@ -64,7 +64,7 @@ static void check_cols(uint8_t r) {
 static uint8_t read_pot(uint8_t start, uint8_t end) {
 	uint16_t d_pot = adc_read_pin_10bit(ADC_ADC0);
 	// uart_send_u16(d_pot), uart_sendstring("         "), uart_tx('\r');
-	return (uint8_t)(d_pot * (end - start + 1) / 1024);
+	return (uint8_t)(d_pot * (uint8_t)(end - start + 1) / 1024);
 }
 
 static void check_pot() {
