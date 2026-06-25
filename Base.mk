@@ -70,7 +70,7 @@ USE_LIB          ?= 1
 OUTPUT_ARCHIVE   ?= 0
 SOURCE_PREFIX    ?=
 
-override OBJ_DIR_BASE := $(call relpath, $(OBJ_DIR_BASE))
+override OBJ_DIR_BASE := $(call relpath,$(OBJ_DIR_BASE))
 
 
 -include $(PROJECT_FILELIST)
