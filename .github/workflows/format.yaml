@@ -8,15 +8,16 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: jirutka/setup-alpine@v1
-        with:
-          packages: make clang22-extra-tools git
+      - name: Setup Toolchain
+        shell: bash
+        run: |
+          curl -sL https://github.com/Maix0/SplonkChain/releases/download/v0.1.0/splonkchain.tar.gz | sudo tar xzf /dev/stdin -C /usr/ --strip-components=1
 
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       
       - name: Check Formatting
-        shell: alpine.sh {0}
+        shell: bash
         run: |
           make check-format
