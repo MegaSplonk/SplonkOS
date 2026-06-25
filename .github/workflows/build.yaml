@@ -34,4 +34,4 @@ jobs:
         if: steps.detect.outputs.projects != ''
         shell: alpine.sh {0}
         run: |
-          make PROJECTS="${{ steps.detect.outputs.projects }}"
+          make -k PROJECTS="${{ steps.detect.outputs.projects }}" WERROR=-Werror
