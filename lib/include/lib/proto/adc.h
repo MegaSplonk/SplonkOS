@@ -2,8 +2,9 @@
 #define ADC_H
 
 #include <avr/io.h>
+#include <stdint.h>
 
-typedef enum e_adc_ref {
+typedef enum e_adc_ref : uint8_t {
 	ADC_AREF = 0,
 	ADC_AVCC = _BV(REFS0),
 	ADC_INT = _BV(REFS0) | _BV(REFS1),
@@ -11,13 +12,13 @@ typedef enum e_adc_ref {
 	_ADC_REF_MASK = _BV(REFS0) | _BV(REFS1),
 } e_adc_ref;
 
-typedef enum e_adc_size {
+typedef enum e_adc_size : uint8_t {
 	ADC_10BIT = 0,
 	ADC_8BIT = _BV(ADLAR),
 	_ADC_SIZE_MASK = _BV(ADLAR),
 } e_adc_size;
 
-typedef enum e_adc_prescaler {
+typedef enum e_adc_prescaler : uint8_t {
 	ADC_PRESCALER_2 = _BV(ADPS0),
 	ADC_PRESCALER_4 = _BV(ADPS1),
 	ADC_PRESCALER_8 = _BV(ADPS1) | _BV(ADPS0),
@@ -30,7 +31,7 @@ typedef enum e_adc_prescaler {
 
 } e_adc_prescaler;
 
-typedef enum e_adc_input {
+typedef enum e_adc_input : uint8_t {
 	ADC_ADC0 = 0,
 	ADC_ADC1 = _BV(MUX0),
 	ADC_ADC2 = _BV(MUX1),
@@ -46,7 +47,8 @@ typedef enum e_adc_input {
 } e_adc_input;
 
 static inline uint8_t adc_read_pin(e_adc_input input) {
-	ADMUX = (ADMUX & ~(_ADC_INPUT_MASK | _ADC_SIZE_MASK)) | input | _BV(ADLAR);
+	ADMUX = (ADMUX & (uint8_t)~(_ADC_INPUT_MASK | _ADC_SIZE_MASK)) | input |
+			_BV(ADLAR);
 	ADCSRA |= _BV(ADSC);
 
 	while (ADCSRA & _BV(ADSC))
@@ -55,7 +57,7 @@ static inline uint8_t adc_read_pin(e_adc_input input) {
 }
 
 static inline uint16_t adc_read_pin_10bit(e_adc_input input) {
-	ADMUX = (ADMUX & ~(_ADC_SIZE_MASK | _ADC_INPUT_MASK)) |
+	ADMUX = (ADMUX & (uint8_t)~(_ADC_SIZE_MASK | _ADC_INPUT_MASK)) |
 			(input & _ADC_INPUT_MASK);
 	ADCSRA |= _BV(ADSC);
 
@@ -65,7 +67,7 @@ static inline uint16_t adc_read_pin_10bit(e_adc_input input) {
 }
 
 static inline void adc_init(e_adc_ref v_ref, e_adc_prescaler prescaler) {
-	ADMUX = (ADMUX & ~(_ADC_REF_MASK)) | v_ref;
+	ADMUX = (ADMUX & (uint8_t)~(_ADC_REF_MASK)) | v_ref;
 
 	ADCSRA = _BV(ADEN) | (prescaler & _ADC_PRESCALER_MASK);
 
