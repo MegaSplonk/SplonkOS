@@ -20,7 +20,7 @@ AR            = avr-gcc-ar
 
 # FLAGS
 WERROR       ?= 
-WFLAGS        = $(WERROR) -Wc++-compat -Wenum-conversion -Wimplicit-fallthrough -Wpedantic \
+WFLAGS        = $(WERROR) -Wenum-conversion -Wimplicit-fallthrough -Wpedantic \
                 -Wextra -Wall -Wshadow -Wpadded -Wconversion -Wstrict-prototypes \
                 -Wmissing-declarations -Wstrict-prototypes -Wundef \
                 -Wmissing-prototypes -Wold-style-definition -Winline \
@@ -28,7 +28,8 @@ WFLAGS        = $(WERROR) -Wc++-compat -Wenum-conversion -Wimplicit-fallthrough 
                 -Wuninitialized -Wdouble-promotion -Wfloat-equal \
                 -Wnull-dereference -Wformat=2
 CFLAGS        = --std=c23 -g -Os -mmcu=$(MCU) -ffunction-sections -fdata-sections -flto
-CPPFLAGS      = -DF_CPU=$(F_CPU) -MMD -DMCU_$(MCU)=1 -DBOARD_$(BOARD)=1
+CPPFLAGS      = -include$(BASE_DIRECTORY)/lib/include/lib/config.h \
+                -DF_CPU=$(F_CPU) -MMD -DMCU_$(MCU)=1 -DBOARD_$(BOARD)=1
 IFLAGS        = -I$(INC_DIR)
 LDFLAGS       = -Wl,--gc-sections -Wl,-flto
 AVRDUDE_FLAGS = -c$(PROGRAMMER) -P$(PORT) -b$(BAUD_RATE)

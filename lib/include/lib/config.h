@@ -6,6 +6,7 @@
 #define SPLONKLIB_ENABLE_SPI
 #define SPLONKLIB_ENABLE_I2C
 // the atmega32u4 has uart, but it is weird and not wired to the USB.
+#define SPLONKLIB_ENABLE_EC11
 
 #endif
 
@@ -14,5 +15,6 @@
 #define SPLONKLIB_ENABLE_UART
 #define SPLONKLIB_ENABLE_SPI
 #define SPLONKLIB_ENABLE_I2C
+#define SPLONKLIB_ENABLE_EC11
 
 #endif

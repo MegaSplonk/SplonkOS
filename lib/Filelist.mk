@@ -1,4 +1,5 @@
 SRC_FILES =                                                                   \
+ec11                                                                          \
 lib                                                                           \
 pin                                                                           \
 proto/rgb                                                                     \

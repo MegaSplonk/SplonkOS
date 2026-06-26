@@ -1,4 +1,4 @@
-PROJECTS = usb test
+PROJECTS = usb test test-ec11
 GLOBAL_DEPS = lib Base.mk .clang-format .github Makefile flake.nix flake.lock
 
 .PHONY: all
