@@ -1,0 +1,44 @@
+name: Setup The Splonkchain Toolchain
+description: >
+  Setup a Toolchain with avr-gcc 15.2.0 and clang-format
+author: Maix0
+inputs:
+  version:
+    default: v0.2.0
+  url:
+    default: https://github.com/Maix0/SplonkChain/releases/download/
+  archivedir:
+    default: /opt/splonkchain/
+  dir:
+    default: /opt/avr
+runs:
+  using: composite
+  steps:
+    - name: Cache Toolchain
+      id: cache-toolchain
+      uses: actions/cache@v6
+      env:
+        cache-name: cache-toolchain
+      with:
+        path: ${{ inputs.dir }}
+        key: ${{ runner.os }}-${{ env.cache-name }}-${{ inputs.version }}
+
+
+    - name: Download Toolchain
+      if: ${{ steps.cache-toolchain.outputs.cache-hit != 'true' }}
+      shell: bash
+      run: |
+        set -x 
+        sudo mkdir -p "${{ inputs.archivedir }}"
+        sudo curl -sL "${{ inputs.url }}/${{ inputs.version }}/splonkchain.tar.bz2" -o "${{ inputs.archivedir }}/splonkchain.tar.bz2"
+
+    - name: Unpack Toolchain
+      if: ${{ steps.cache-toolchain.outputs.cache-hit != 'true' }}
+      shell: bash
+      run: |
+        sudo mkdir -p "${{ inputs.dir }}"
+        sudo tar --strip-components=1 -xjf "${{ inputs.archivedir }}/splonkchain.tar.bz2" -C "${{ inputs.dir }}"
+    
+    - name: Added Toolchain to Path
+      shell: bash
+      run: echo "${{ inputs.dir }}/bin" >> "$GITHUB_PATH"
