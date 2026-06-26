@@ -7,11 +7,25 @@ jobs:
   check-format:
     runs-on: ubuntu-latest
 
+    env:
+      SPLONKCHAIN_URL: https://github.com/Maix0/SplonkChain/releases/download/v0.1.0/splonkchain.tar.gz
+      SPLONKCHAIN_ARCHIVE: /opt/splonkchain/splonkchain-v0.1.0.tar.gz
+      SPLONKCHAIN_DIR: /opt/avr
+      SPLONKCHAIN_COMPRESS: -z
+
     steps:
-      - name: Setup Toolchain
+      - name: Download Toolchain
         shell: bash
         run: |
-          curl -sL https://github.com/Maix0/SplonkChain/releases/download/v0.1.0/splonkchain.tar.gz | sudo tar xzf /dev/stdin -C /usr/ --strip-components=1
+          sudo mkdir -p "$(dirname "$SPLONKCHAIN_ARCHIVE")"
+          sudo curl -sL "$SPLONKCHAIN_URL" -o "$SPLONKCHAIN_ARCHIVE"
+
+      - name: Unpack Toolchain
+        shell: bash
+        run: |
+          sudo mkdir -p "$SPLONKCHAIN_DIR"
+          sudo tar --strip-components=1 "$SPLONKCHAIN_COMPRESS" -xf "$SPLONKCHAIN_ARCHIVE" -C "$SPLONKCHAIN_DIR"
+          echo "$SPLONKCHAIN_DIR/bin" >> "$GITHUB_PATH"
 
       - uses: actions/checkout@v7
         with:
