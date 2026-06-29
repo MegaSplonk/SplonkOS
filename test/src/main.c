@@ -1,5 +1,4 @@
 #include "lib/pinout.h"
-#include "lib/proto/adc.h"
 #include "lib/proto/rgb.h"
 #include "lib/proto/uart.h"
 #include <avr/io.h>
@@ -61,24 +60,9 @@ static void check_cols(uint8_t r) {
 	return;
 }
 
-static uint8_t read_pot(uint8_t start, uint8_t end) {
-	uint16_t d_pot = adc_read_pin_10bit(ADC_ADC0);
-	// uart_send_u16(d_pot), uart_sendstring("         "), uart_tx('\r');
-	return (uint8_t)(d_pot * (uint8_t)(end - start + 1) / 1024);
-}
-
-static void check_pot() {
-	uint8_t d_clamped = read_pot(0, size);
-	// uart_send_u16(d_clamped), uart_sendstring("         "), uart_tx('\r');
-	for (uint8_t i = 0, j = d_clamped > i; i<size; i++, j = d_clamped> i)
-		brightness[i] = j ? 15 : 1, leds[i] = j ? RED : OFF;
-	led_set_colors(leds, brightness, size);
-}
-
 int main(void) {
 	uart_init();
 	spi_init();
-	adc_init(ADC_AVCC, ADC_PRESCALER_64);
 
 	for (uint8_t r = 0; r < sizeof(rows) / sizeof(rows[0]); r++)
 		pin_output(rows[r]), pin_set(rows[r], false);
@@ -95,7 +79,6 @@ int main(void) {
 			check_cols(r);
 			pin_set(rows[r], false);
 		}
-		check_pot();
 	}
 
 	return 0;
