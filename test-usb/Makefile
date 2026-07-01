@@ -8,6 +8,9 @@ MCU              = atmega32u4
 F_CPU            = 16000000
 BOARD            = promicro
 
+SERIAL_PORT      = /dev/ttyUSB0
+SERIAL_BAUD_RATE = 57600
+
 TARGET           = $(PROJECT_NAME)
 
 BASE_MAKEFILE    = $(dir $(PROJECT_MAKEFILE))/../Base.mk
