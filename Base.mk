@@ -29,6 +29,7 @@ WFLAGS        = $(WERROR) -Wenum-conversion -Wimplicit-fallthrough -Wpedantic \
                 -Wnull-dereference -Wformat=2
 CFLAGS        = --std=c23 -g -Os -mmcu=$(MCU) -ffunction-sections -fdata-sections -flto
 CPPFLAGS      = -include$(BASE_DIRECTORY)/lib/include/lib/config.h \
+                -include$(BASE_DIRECTORY)/lib/include/lib/lib.h \
                 -DF_CPU=$(F_CPU) -MMD -DMCU_$(MCU)=1 -DBOARD_$(BOARD)=1
 IFLAGS        = -I$(INC_DIR)
 LDFLAGS       = -Wl,--gc-sections -Wl,-flto
