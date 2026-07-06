@@ -24,7 +24,15 @@ typedef struct grb_input_output {
 	}
 
 t_error grb_read(grb *rb, void *buf, usize len, usize *r_bytes);
+
 t_error grb_write(grb *rb, const void *buf, usize len, usize *w_bytes);
-bool	grb_empty(const grb *rb);
-bool	grb_full(const grb *rb);
-usize	grb_count(const grb *rb);
+
+bool grb_empty(const grb *rb);
+
+bool grb_full(const grb *rb);
+
+usize grb_count(const grb *rb);
+
+usize grb_size(const grb *rb);
+
+usize grb_avail(const grb *rb);

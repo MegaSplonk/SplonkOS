@@ -39,3 +39,7 @@ bool grb_empty(const grb *rb) { return rb->count == 0; }
 bool grb_full(const grb *rb) { return rb->count == rb->buf_size; }
 
 usize grb_count(const grb *rb) { return rb->count; }
+
+usize grb_size(const grb *rb) { return rb->buf_size; }
+
+usize grb_avail(const grb *rb) { return rb->buf_size - rb->count; }
