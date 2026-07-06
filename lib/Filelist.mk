@@ -3,6 +3,7 @@ ec11                                                                          \
 grb                                                                           \
 lib                                                                           \
 pin                                                                           \
+proto/i2c                                                                     \
 proto/rgb                                                                     \
 proto/spi                                                                     \
 proto/uart                                                                    \
