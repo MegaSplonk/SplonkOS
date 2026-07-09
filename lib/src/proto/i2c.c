@@ -10,6 +10,10 @@
 #define I2C_CLOCK_SPEED ((F_CPU / I2C_CLOCK) - 16) / 2
 
 GRBIO_INIT(i2c_io, i2c_in, i2c_out, 64, 64)
+// Own grbio dedicated to outbound general call data
+// or inbound addressed or general call data
+
+i2c_peer peers[I2C_MAX_PEERS] = {{0, &i2c_io}};
 
 static void print_status_reg(const char *prefix);
 
@@ -32,11 +36,37 @@ static void i2c_wait_int() {
 		;
 }
 
+// define an 'initial' addr that devices can use temporarily?
+// just have the devices ask the main mcu using general call?
+// other way around, have the main mcu ask the devices with gc?
+// devices stop listening to gc after main mcu finds them?
+void i2c_set_addr(u8 addr, bool answer_gc) {
+	// need to set Slave Receive address here,
+	// and with the LSB we can choose to respond (1) to the General Call or
+	// ignore it (0)
+	TWAR = (addr << 1) | answer_gc;
+}
+
 void i2c_init(void) {
 	// clear the status registers
 	TWSR = 0x00;
 	// set the i2c clock speed
 	TWBR = I2C_CLOCK_SPEED;
+}
+
+// remember to set a slave address before listening
+void i2c_listen(void) {
+	// TWEN must be written to one to enable the TWI.
+	// The TWEA bit must be written to one to enable the
+	// acknowledgement of the device’s own slave address or the general call
+	// address
+	//     SET SLAVE |  ENABLE  ;
+	TWCR = _BV(TWEA) | _BV(TWEN);
+}
+
+void i2c_ignore(void) {
+	// While TWEA is zero, the TWI does not acknowledge its own slave address.
+	TWCR &= (u8)~_BV(TWEA);
 }
 
 t_error i2c_start(void) {
@@ -61,6 +91,10 @@ t_error i2c_select(uint8_t addr, uint8_t rw) {
 
 	i2c_wait_int();
 	return i2c_check_sla_ack();
+	// status code can either be sla ack, sla nack or arbitration lost
+	// -> nack: send stop since slave unreachable
+	// -> lost arbitration: either get addressed as slave or wait and then send
+	// start again
 }
 
 t_error i2c_write(uint8_t data) {
@@ -71,6 +105,10 @@ t_error i2c_write(uint8_t data) {
 
 	i2c_wait_int();
 	return i2c_check_data_ack();
+	// status code can either be data ack, data nack or arbitration lost
+	// -> nack: send data again? stop transmission?
+	// -> lost arbitration: either get addressed as slave or wait and then send
+	// start again
 }
 
 uint8_t i2c_read_ack(void) {
@@ -82,6 +120,7 @@ uint8_t i2c_read_ack(void) {
 uint8_t i2c_read_nack(void) {
 	TWCR = _BV(TWINT) | _BV(TWEN);
 	i2c_wait_int();
+	// need to handle case when other master nacks
 	return TWDR;
 }
 
@@ -92,17 +131,22 @@ t_error i2c_send(u8 addr, u8 *data, usize len) {
 	t_error e = SUCCESS;
 	for (usize i = 0; e == SUCCESS && i < len; i++)
 		e = i2c_write(data[i]); // TODO - check bus errors?
+	if (e)
+		switch (TW_STATUS) {
+		case (TW_MT_DATA_NACK):
+			break;
+		case (TW_MT_ARB_LOST):
+			return ERROR;
+		};
 	i2c_stop();
 	return SUCCESS;
 }
 
 t_error i2c_query(u8 addr, u8 *data, usize *len) {
-	if (!*len || i2c_start() || i2c_select(addr, TW_WRITE))
+	// if (!*len || i2c_start() || i2c_select(addr, TW_WRITE))
+	// 	return ERROR;
+	if (!*len || i2c_start() || i2c_select(addr, TW_READ))
 		return ERROR;
-
-	i2c_start(); // repeated start
-	print_status_reg("[I2C] Start - ");
-	i2c_select(addr, TW_READ);
 	print_status_reg("[I2C] Selct - ");
 	for (usize i = 0; i < *len; i++) {
 		data[i] = i + 1 == *len ? i2c_read_nack() : i2c_read_ack();
@@ -138,32 +182,53 @@ t_error i2c_query_async(grbio *gio, u8 addr, u8 *data, usize len) {
 	return grb_read(&g->input, data, len, &useless);
 }
 
-void i2c_poll(grbio *gio, u8 addr) {
-	grbio *g = gio ? gio : &i2c_io;
-	// iterate over table of grbio's?
-	if (grb_empty(&g->output) && grb_full(&g->input))
-		return;
+void i2c_poll(void) {
+	// iterate over table of grbio's? yes
 
 	// add Slave Recv check here
+	// big switch case?
 
-	if (i2c_start() != SUCCESS)
-		return;
+	for (usize peer = 0; peer < I2C_MAX_PEERS; peer++) {
+		grbio *g = peers[peer].io;
+		u8	   addr = peers[peer].addr;
 
-	if (!grb_empty(&g->output)) {
-		if (i2c_select(addr, TW_WRITE))
+		if (grb_empty(&g->output) && grb_full(&g->input))
+			continue;
+
+		if (i2c_start() != SUCCESS) // repeated start to keep bus
 			return;
 
-		t_error e = SUCCESS;
+		// need to handle query/MR here
 
-		for (usize i = 0; e == SUCCESS && !grb_empty(&g->output); i++) {
-			u8	  data;
-			usize useless;
-			grb_read(&g->output, &data, 1, &useless);
-			e = i2c_write(data); // TODO - check bus errors?
+		if (!grb_empty(&g->output)) {
+			if (i2c_select(addr, TW_WRITE))
+				switch (TW_STATUS) {
+				case (TW_MT_SLA_NACK):
+					continue;
+				case (TW_MT_ARB_LOST):
+					return;
+				};
+
+			t_error e = SUCCESS;
+
+			for (usize i = 0; e == SUCCESS && !grb_empty(&g->output); i++) {
+				u8	  data;
+				usize useless;
+				grb_read(&g->output, &data, 1, &useless);
+				e = i2c_write(data); // TODO - check bus errors?
+				if (e)
+					switch (TW_STATUS) {
+					case (TW_MT_DATA_NACK):
+						break;
+					case (TW_MT_ARB_LOST):
+						return;
+					};
+			}
 		}
 	}
 
 	i2c_stop();
+	// release bus after addressing everyone
 }
 
 #ifdef SPLONKLIB_ENABLE_UART
