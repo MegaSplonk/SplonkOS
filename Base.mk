@@ -17,6 +17,18 @@ CC            = avr-gcc
 OBJCOPY       = avr-objcopy
 AR            = avr-gcc-ar
 
+FUCKNIXOS_LDFLAGS = 
+ifeq ($(MCU), attiny1614)
+    FUCKNIXOS_LDFLAGS = $(shell $(CC) -print-search-dirs \
+        | grep '^libraries: =' \
+        | sed 's/^libraries: =//' \
+        | tr : '\n' \
+        | grep 'avrxmega2' \
+        | sed 's/avrxmega2/avrxmega3/' \
+        | xargs printf '-B%s\n'\
+    )
+endif
+
 # FLAGS
 WERROR       ?= 
 WFLAGS        = $(WERROR) -Wenum-conversion -Wimplicit-fallthrough -Wpedantic \
@@ -26,12 +38,13 @@ WFLAGS        = $(WERROR) -Wenum-conversion -Wimplicit-fallthrough -Wpedantic \
                 -Wsign-conversion -Wcast-align -Wcast-qual -Wwrite-strings \
                 -Wuninitialized -Wdouble-promotion -Wfloat-equal \
                 -Wnull-dereference -Wformat=2
-CFLAGS        = --std=c23 -g3 -mmcu=$(MCU) -ffunction-sections -fdata-sections -Os -flto
-CPPFLAGS      = -include$(BASE_DIRECTORY)/lib/include/lib/config.h \
-                -include$(BASE_DIRECTORY)/lib/include/lib/lib.h \
-                -DF_CPU=$(F_CPU) -MMD -DMCU_$(MCU)=1 -DBOARD_$(BOARD)=1
-IFLAGS        = -I$(INC_DIR)
-LDFLAGS       = -Wl,--gc-sections -Wl,-flto
+CFLAGS        = -std=c23 -g3 -Os -mmcu=$(MCU) $(CFLAGS_ADD) # -flto -ffunction-sections -fdata-sections
+CPPFLAGS      = $(if $(filter 1,$(USE_LIB)),\
+                   -include$(BASE_DIRECTORY)/lib/include/lib/config.h \
+                   -include$(BASE_DIRECTORY)/lib/include/lib/lib.h) \
+                -DF_CPU=$(F_CPU) -MMD -DMCU_$(MCU)=1 -DBOARD_$(BOARD)=1 $(CPPFLAGS_ADD)
+IFLAGS        = -I$(INC_DIR) $(IFLAGS_ADD)
+LDFLAGS       = $(FUCKNIXOS_LDFLAGS) -Wl,--gc-sections -Wl,-flto $(LDFLAGS_ADD)
 AVRDUDE_FLAGS = -c$(PROGRAMMER) -P$(PORT) -b$(BAUD_RATE)
 
 # PROJ OPTIONS
