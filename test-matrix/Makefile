@@ -1,5 +1,5 @@
 PROJECT_MAKEFILE := $(abspath $(lastword $(MAKEFILE_LIST)))
-PROJECT_NAME     = test
+PROJECT_NAME     = test-matrix
 
 PORT             = /dev/ttyUSB0
 BAUD_RATE        = 115200
