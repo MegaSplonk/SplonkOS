@@ -2,28 +2,35 @@
 #include "lib/lib.h"
 
 t_error grb_read(grb *rb, void *buf, usize len, usize *r_bytes) {
-	if (!rb || !buf || !r_bytes)
+	if (!rb || (!buf && len != 0))
 		return ERROR;
-	*r_bytes = 0;
-	for (u16 i = 0; rb->count && i < len; i++) {
+	usize read = 0;
+	for (usize i = 0; rb->count && i < len; i++) {
 		((u8 *)buf)[i] = rb->buffer[rb->start];
 		rb->count--;
 		rb->start = (rb->start + 1) % rb->buf_size;
-		(*r_bytes)++;
+		read++;
 	}
+	if (r_bytes)
+		*r_bytes = read;
 	return SUCCESS;
 }
 
 t_error grb_write(grb *rb, void *buf, usize len, usize *w_bytes) {
-	if (!rb || !buf || !w_bytes)
+	if (!rb || (!buf && len != 0))
 		return ERROR;
-	*w_bytes = 0;
-	for (u16 i = 0; i < len; i++) {
+	usize write = 0;
+	for (usize i = 0; i < len; i++) {
 		rb->buffer[rb->end] = ((u8 *)buf)[i];
-		rb->count = (rb->count + 1) % (rb->buf_size + 1);
 		rb->end = (rb->end + 1) % rb->buf_size;
-		(*w_bytes)++;
+		if (rb->count < rb->buf_size)
+			rb->count++;
+		else
+			rb->start = (rb->start + 1) % rb->buf_size;
+		write++;
 	}
+	if (w_bytes)
+		*w_bytes = write;
 	return SUCCESS;
 }
 

@@ -1,50 +1,126 @@
 #include "lib/proto/uart.h"
 #include "lib/config.h"
+#include "lib/grb.h"
+#include <avr/interrupt.h>
 
-#ifdef SPLONKLIB_ENABLE_UART
-#define BAUD_RATE 115200
+#if defined(SPLONKLIB_ENABLE_UART)
 
+#if defined(MCU_atmega328p)
+
+#define BAUD_RATE  115200
 #define UBRR_VALUE ((F_CPU / (8UL * BAUD_RATE)) - 1)
+
+#define UART_RXC	RXC0
+#define UART_RXCIE	RXCIE0
+#define UART_RXEN	RXEN0
+#define UART_TXEN	TXEN0
+#define UART_TX_DDR DDRD
+#define UART_TX_NUM PD1
+#define UART_U2X	U2X0
+#define UART_UBRRH	UBRR0H
+#define UART_UBRRL	UBRR0L
+#define UART_UCSRA	UCSR0A
+#define UART_UCSRB	UCSR0B
+#define UART_UCSRC	UCSR0C
+#define UART_UCSZ0	UCSZ00
+#define UART_UCSZ1	UCSZ01
+#define UART_UDR	UDR0
+#define UART_UDRE	UDRE0
+#define UART_UDRIE	UDRIE0
+
+#elif defined(MCU_atmega32u4)
+
+#define BAUD_RATE  9600
+#define UBRR_VALUE ((F_CPU / (8UL * BAUD_RATE)) - 1)
+
+#define UART_RXC  RXC1
+#define UART_RXEN RXEN1
+#define UART_TXEN TXEN1
+
+#define UART_U2X U2X1
+
+#define UART_TX_DDR DDRD
+#define UART_TX_NUM PD3
+
+#define UART_UBRRH UBRR1H
+#define UART_UBRRL UBRR1L
+
+#define UART_UCSRA UCSR1A
+#define UART_UCSRB UCSR1B
+#define UART_UCSRC UCSR1C
+
+#define UART_UCSZ0 UCSZ10
+#define UART_UCSZ1 UCSZ11
+
+#define UART_UDR  UDR1
+#define UART_UDRE UDRE1
+
+#define UART_UDRIE UDRIE1
+#define UART_RXCIE RXCIE1
+#define UART_TXCIE TXCIE1
+
+#define UART_UDRE_INTERUPT USART1_UDRE_vect
+#define UART_TX_INTERUPT   USART1_TX_vect
+#define UART_RX_INTERUPT   USART1_RX_vect
+
+#endif
+
+GRBIO_INIT(UART_BUF, UART_IBUF, UART_OBUF, 512, 512);
+
+void uart_poll(void) {
+	if ((UART_UCSRA & _BV(UART_UDRE))) {
+		u8	  val;
+		usize do_tx = 0;
+		(void)grb_read(&UART_BUF.output, &val, 1, &do_tx);
+		if (do_tx) {
+			uart_tx(val);
+		}
+	}
+	if (UART_UCSRA & _BV(UART_RXC)) {
+		u8 val;
+		val = UART_UDRE;
+		(void)grb_write(&UART_BUF.input, &val, 1, nullptr);
+	}
+}
 
 // uart is 115200 baud rate, 8 bits per word, no parrity and 1 stop bit
 // 115200 8N1
 void uart_init(void) {
 	// Set baud rate
-	UBRR0H = (uint8_t)(UBRR_VALUE >> 8);
-	UBRR0L = (uint8_t)(UBRR_VALUE);
+	UART_UBRRH = (uint8_t)(UBRR_VALUE >> 8);
+	UART_UBRRL = (uint8_t)(UBRR_VALUE);
 
-	UCSR0A |= _BV(U2X0);
+	UART_UCSRA |= _BV(UART_U2X);
 	// Enable transmitter
-	UCSR0B = _BV(TXEN0) | _BV(RXEN0);
+	UART_UCSRB = _BV(UART_TXEN) | _BV(UART_RXEN) |
+				 // enable interrupts
+				 0; //_BV(UART_RXCIE) | _BV(UART_TXCIE);
 
 	// Set frame format: 8 data bits, no parity, 1 stop bit
-	UCSR0C = _BV(UCSZ01) | _BV(UCSZ00);
-
-	// Set TX (PD1) as output
-	DDRD |= _BV(PD1);
+	UART_UCSRC = _BV(UART_UCSZ1) | _BV(UART_UCSZ0);
 }
 
-void uart_tx(char data) {
-	// wait for transmit buffer to be empty
-	while (!(UCSR0A & _BV(UDRE0)))
+void uart_tx(u8 data) {
+	while (!(UART_UCSRA & _BV(UART_UDRE)))
 		;
 	// load data into transmit register
-	UDR0 = (unsigned char)data;
+	UART_UDR = data;
 }
 
-char uart_rx(void) {
-	while (!(UCSR0A & _BV(RXC0)))
+u8 uart_rx(void) {
+	// FIXME: use UART_BUF's grb to read
+	while (!(UART_UCSRA & _BV(UART_RXC)))
 		;
-	return (char)UDR0;
+	return UART_UDR;
 }
 
 void uart_sendstring(const char *str) {
+	usize len = 0;
 	if (!str)
 		return;
-	while (*str) {
-		uart_tx(*str);
-		str++;
-	}
+	while (str[len])
+		len++;
+	(void)grb_write(&UART_BUF.output, (const void *)str, len, nullptr);
 }
 void uart_send_u8(uint8_t val) {
 	if (val == 0) {
@@ -146,4 +222,29 @@ void uart_send_u16_hex(uint16_t val) {
 	buf[3] = "0123456789abcdef"[(val >> 0) & 0x0F];
 	uart_sendstring(buf);
 }
+
+// one day i'll make these work :D
+// the hope is that they will just work in the background, and you just
+// read/write to the uart's grb meaning that the data "magically"
+// appears/disapears
+ISR(UART_TX_INTERUPT) {
+	// u8	  value = 'F';
+	// usize r;
+
+	//(void)grb_read(&UART_BUF.output, &value, 1, &r);
+	// if (r == 1)
+	while (!(UART_UCSRA & _BV(UART_UDRE)))
+		;
+	// load data into transmit register
+	UART_UDR = 'F';
+}
+
+ISR(UART_RX_INTERUPT) {
+	// u8	  value;
+	// usize w;
+	//
+	// value = UART_UDR;
+	//(void)grb_write(&UART_BUF.input, &value, 1, &w);
+}
+
 #endif

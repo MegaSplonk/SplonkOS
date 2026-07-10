@@ -157,7 +157,7 @@ $(ELF_FILE): $(OBJ) $(if $(filter 1,$(USE_LIB)), $(OBJ_DIR)/lib/libsplonk.a)
 
 $(HEX_FILE): $(ELF_FILE)
 	@printf " OBJCOPY $@\n"
-	@$(OBJCOPY) -j .text -j .data -O ihex $< $@
+	@$(OBJCOPY) -O ihex $< $@
 
 .PHONY: filelist
 filelist:
