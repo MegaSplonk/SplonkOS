@@ -1,6 +1,7 @@
 #ifdef SPLONKLIB_ENABLE_EC11
 
 #include "lib/ec11.h"
+#include <avr/io.h>
 
 // the macro is here if we ever want to pack those 4 value into a single byte
 // each value is at most 2 bit (3 state: 0 and -/+1)

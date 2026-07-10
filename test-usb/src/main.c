@@ -1,27 +1,31 @@
 #include <avr/io.h>
 #include <util/delay.h>
 
+#include "lib/lib.h"
 #include "lib/pin.h"
 #include "lib/pinout.h"
+#include "lib/proto/uart.h"
+
+u32 milis = 0;
 
 int main(void) {
-	pin		leds[3] = {D16, D10, D14};
-	uint8_t phases[] = {
-		0b000, 0b100, 0b010, 0b001, 0b011, 0b111, 0b110, 0b100,
-	};
+	uart_init();
 
-	for (uint8_t i = 0; i < tabsize(leds); i++)
-		pin_output(leds[i]);
-	for (uint8_t i = 0; i < tabsize(leds); i++)
-		pin_set(leds[i], false);
-	uint8_t p = 0;
-
-	while (true) {
-		_delay_ms(500);
-		for (uint8_t i = 0; i < tabsize(leds); i++)
-			pin_set(leds[i], phases[p] & _BV(i));
-		p++;
-		p %= tabsize(phases);
-	};
+	debug_print("Start");
+	u16 i = 0;
+	// welcome home fake timers
+	// i'll have to make you one day
+	// aka next pr
+	u32 timer_print = milis + 500;
+	while (1) {
+		_delay_ms(1);
+		milis++;
+		if (timer_print < milis) {
+			timer_print = milis + 500;
+			debug_print("HELLO %hu !!!!", i++);
+		}
+		uart_poll();
+	}
+	debug_print("End");
 	return 0;
 }
