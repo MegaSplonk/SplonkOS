@@ -1,5 +1,5 @@
 PROJECT_MAKEFILE := $(abspath $(lastword $(MAKEFILE_LIST)))
-PROJECT_NAME     = usb
+PROJECT_NAME     = test-usb
 
 PORT             = /dev/ttyACM0
 BAUD_RATE        = 57600
