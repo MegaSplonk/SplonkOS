@@ -7,4 +7,5 @@ proto/rgb                                                                     \
 proto/spi                                                                     \
 proto/uart                                                                    \
 proto/usb                                                                     \
+time                                                                          \
 
