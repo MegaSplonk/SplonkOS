@@ -38,6 +38,24 @@ bool timer_wait(timer_t *timer, milis_t delay) {
 #define TIMER_INTERUPT_BITS			(_BV(OCIE0A))
 #define TIMER_INTERUPT_VECTOR		TIMER0_COMPA_vect
 
+#elif defined(MCU_atmega328p)
+
+#define TIMER_CONTROL_REGA			TCCR0A
+#define TIMER_CONTROL_REGB			TCCR0B
+#define TIMER_INTERUPT_REG			TIMSK0
+#define TIMER_CTC_TOP				OCR0A
+#define TIMER_CTC_OUTPUT_NONE		(0)
+#define TIMER_CTC_MODE				(_BV(WGM01))
+#define TIMER_CLOCK_PRESCALER_VALUE 256UL
+#define TIMER_CLOCK_TARGET_HZ		1000UL
+#define TIMER_CLOCK_PRESCALER		(_BV(CS02)) // Clk/256
+#define TIMER_INTERUPT_BITS			(_BV(OCIE0A))
+#define TIMER_INTERUPT_VECTOR		TIMER0_COMPA_vect
+
+#else
+
+#error "Unknown MCU for timer purposes"
+
 #endif
 
 #define TIMER_TOP                                                              \
