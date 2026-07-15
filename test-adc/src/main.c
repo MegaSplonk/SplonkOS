@@ -6,9 +6,7 @@
 static uint8_t read_pot(uint8_t start, uint8_t end) {
 	uint16_t d_pot = adc_read_pin_10bit(ADC_ADC0);
 	// uart_send_u16(d_pot), uart_sendstring("         \n"), uart_tx('\r');
-	return (
-		uint8_t)(((uint32_t)d_pot * ((uint16_t)end - (uint16_t)start + 1u)) /
-				 1024u);
+	return (uint8_t)(((uint32_t)d_pot * ((uint16_t)end - (uint16_t)start + 1u)) / 1024u);
 }
 
 static void check_pot() {

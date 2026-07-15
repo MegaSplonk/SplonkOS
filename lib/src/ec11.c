@@ -50,7 +50,7 @@ void ec11_init(struct ec11 *self, pin a, pin b, pin btn) {
 
 enum ec11_rot ec11_poll(struct ec11 *self, bool *button) {
 	struct ec11_state now = read_state(self);
-	enum ec11_rot delta = transition_table[(self->state.rot << 2) | (now.rot)];
+	enum ec11_rot	  delta = transition_table[(self->state.rot << 2) | (now.rot)];
 
 	self->state = now;
 	if (button != nullptr)

@@ -12,7 +12,7 @@ typedef struct rgb {
 	uint8_t b;
 } rgb;
 
-void led_set_colors(rgb col[], uint8_t brightness[], uint8_t length);
+void			   led_set_colors(rgb col[], uint8_t brightness[], uint8_t length);
 static inline void led_set_color(rgb col, uint8_t brightness) {
 	led_set_colors(&col, &brightness, 1);
 }

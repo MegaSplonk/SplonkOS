@@ -166,9 +166,7 @@ void pin_input(pin p) {
 	*port &= ~(uint8_t)_BV(p.pin);
 }
 
-static_assert(_PORT_LAST <= 0b111,
-			  "enum e_port must only have members up to 7");
-static_assert(_PIN_LAST <= 0b111,
-			  "enum e_pinnum must only have members up to 7");
+static_assert(_PORT_LAST <= 0b111, "enum e_port must only have members up to 7");
+static_assert(_PIN_LAST <= 0b111, "enum e_pinnum must only have members up to 7");
 static_assert(sizeof(struct pin) == sizeof(uint8_t),
 			  "struct pin size must be the same as a uint8_t");
