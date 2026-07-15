@@ -112,14 +112,8 @@ void uart_init(void) {
 	timer_ontick_register(T_ONTICK_SLOT_UART, uart_ontick_reenable_udre_int);
 }
 
-void uart_disable_udre_int(void) {
-	uart_tx('.');
-	UART_UCSRB &= (u8)~_BV(UART_UDRIE);
-}
-void uart_enable_udre_int(void) {
-	uart_tx('@');
-	UART_UCSRB |= _BV(UART_UDRIE);
-}
+void uart_disable_udre_int(void) { UART_UCSRB &= (u8)~_BV(UART_UDRIE); }
+void uart_enable_udre_int(void) { UART_UCSRB |= _BV(UART_UDRIE); }
 
 void uart_tx(u8 data) {
 	// load data into transmit register
@@ -244,13 +238,8 @@ void uart_send_u16_hex(uint16_t val) {
 	uart_sendstring(buf);
 }
 
-// one day i'll make these work :D
-// the hope is that they will just work in the background, and you just
-// read/write to the uart's grb meaning that the data "magically"
-// appears/disapears
 ISR(UART_UDRE_INTERUPT) {
 	u8 value = 'F';
-	// usize r = 0;
 
 	if (grb_empty(&UART_BUF.output)) {
 		uart_disable_udre_int();

@@ -90,11 +90,6 @@ void timer_init(void) {
 }
 
 ISR(TIMER_INTERUPT_VECTOR) {
-	// MILIS++;
-	// if (MILIS % 500 == 0) {
-	//	pin_toggle((pin){.port = PORT_D, .pin = PIN_5, ._pad = 0});
-	//	uart_tx('P');
-	// }
 	for (usize i = 0; i < tabsize(ONTICK_FUNCS); i++) {
 		if (ONTICK_FUNCS[i])
 			ONTICK_FUNCS[i]();
