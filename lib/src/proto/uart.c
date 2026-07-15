@@ -250,7 +250,7 @@ void uart_send_u16_hex(uint16_t val) {
 // appears/disapears
 ISR(UART_UDRE_INTERUPT) {
 	u8	  value = 'F';
-	usize r = 0;
+	// usize r = 0;
 
 	if (grb_empty(&UART_BUF.output)) {
 		uart_disable_udre_int();

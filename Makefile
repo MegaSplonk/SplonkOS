@@ -1,4 +1,4 @@
-PROJECTS = test-usb test-matrix test-ec11 test-adc
+PROJECTS = test-usb test-matrix test-ec11 test-adc test-nano
 GLOBAL_DEPS = lib Base.mk .clang-format .github Makefile flake.nix flake.lock
 
 .PHONY: all
@@ -16,7 +16,7 @@ clean:
 	)
 
 filelist:
-	@$(foreach p,$(PROJECTS) lib,\
+	@$(foreach p,$(PROJECTS),\
 		printf "Filelist: $(p)\n";\
 		$(MAKE) --no-print-directory -C $(p) filelist;\
 	)

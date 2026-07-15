@@ -1,16 +1,10 @@
-PROJECT_MAKEFILE := $(abspath $(lastword $(MAKEFILE_LIST)))
-PROJECT_NAME      = lib
-TARGET            = splonk
+SRC_DIR=./src/
 
-PORT              = /dev/null
-BAUD_RATE         = 0
-PROGRAMMER        = none
-
-USE_LIB           = 0
-OUTPUT_ARCHIVE    = 1
-
-MCU               ?= atmega32u4
-BOARD             ?= promicro
-
-include ../Base.mk
-
+filelist:
+	@printf '%-78s\\\n' "LIB_SRC_FILES =" > ./Filelist.mk
+	@find "./src/" -type f -name '*.c' \
+		| sed -e 's|^./src/||' -e 's|\.c$$||' \
+		| sort \
+		| while read f; do printf '%-78s\\\n' "$$f"; done >> ./Filelist.mk
+	@echo "" >> ./Filelist.mk
+	@printf "Filelist: lib\n"
