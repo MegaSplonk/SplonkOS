@@ -73,6 +73,7 @@ OUTPUT_ARCHIVE   ?= 0
 
 LIB_DIR           = $(BASE_DIRECTORY)/lib
 LIB_SRC_DIR       = $(call relpath,$(LIB_DIR)/src/)
+LIB_FILELIST      = $(LIB_DIR)/Filelist.mk
 
 override OBJ_DIR_BASE := $(call relpath,$(OBJ_DIR_BASE))
 
@@ -89,7 +90,7 @@ OBJ=$(addsuffix .o,$(addprefix $(OBJ_DIR)/,$(SRC_FILES)))
 DEP=$(addsuffix .d,$(addprefix $(OBJ_DIR)/,$(SRC_FILES)))
 
 
-LIB_SRC=$(addsuffix .c,$(addprefix $(LIB_SRC_DIR),$(LIB_SRC_FILES)))
+LIB_SRC=$(addsuffix .c,$(addprefix $(LIB_SRC_DIR), $(LIB_SRC_FILES)))
 LIB_OBJ=$(addsuffix .o,$(addprefix $(OBJ_DIR)/lib/,$(LIB_SRC_FILES)))
 LIB_DEP=$(addsuffix .d,$(addprefix $(OBJ_DIR)/lib/,$(LIB_SRC_FILES)))
 
@@ -163,7 +164,7 @@ $(OBJ_DIR)/lib/%.o: $(LIB_SRC_DIR)/%.c
 
 $(ELF_FILE): $(OBJ) $(LIB_OBJ)
 	@printf " CCLD $@ $(if $(filter 1,$(USE_LIB)),[With Lib])\n"
-	$(CC) $(CFLAGS) $^ $(LDFLAGS) -o $@
+	@$(CC) $(CFLAGS) $^ $(LDFLAGS) -o $@
 
 
 $(HEX_FILE): $(ELF_FILE)
@@ -179,12 +180,8 @@ filelist:
 		| sort \
 		| while read f; do printf '%-78s\\\n' "$$f"; done >> "$(PROJECT_FILELIST)"
 	@echo "" >> "$(PROJECT_FILELIST)"
-	@printf '%-78s\\\n' "LIB_SRC_FILES =" >> "$(PROJECT_FILELIST)"
-	find "$(LIB_SRC_DIR)" -type f -name '*.c' \
-		| sed -e 's|^$(LIB_SRC_DIR)||' -e 's|\.c$$||' \
-		| sort \
-		| while read f; do printf '%-78s\\\n' "$$f"; done >> "$(PROJECT_FILELIST)"
-	@echo "" >> "$(PROJECT_FILELIST)"
+	@echo "-include $(LIB_DIR)/Filelist.mk" >> "$(PROJECT_FILELIST)"
+	@$(MAKE) --no-print-directory -C $(LIB_DIR) filelist
 	@printf "Filelist: $(PROJECT_NAME)\n"
 
 .PHONY: serial
@@ -217,6 +214,6 @@ export MCU
 export BOARD
 export F_CPU
 
-include $(DEP)
-include $(LIB_DEP)
+-include $(DEP)
+-include $(LIB_DEP)
 
