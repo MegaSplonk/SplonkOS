@@ -47,8 +47,7 @@ typedef enum e_adc_input : uint8_t {
 } e_adc_input;
 
 static inline uint8_t adc_read_pin(e_adc_input input) {
-	ADMUX = (ADMUX & (uint8_t)~(_ADC_INPUT_MASK | _ADC_SIZE_MASK)) | input |
-			_BV(ADLAR);
+	ADMUX = (ADMUX & (uint8_t)~(_ADC_INPUT_MASK | _ADC_SIZE_MASK)) | input | _BV(ADLAR);
 	ADCSRA |= _BV(ADSC);
 
 	while (ADCSRA & _BV(ADSC))
@@ -57,8 +56,7 @@ static inline uint8_t adc_read_pin(e_adc_input input) {
 }
 
 static inline uint16_t adc_read_pin_10bit(e_adc_input input) {
-	ADMUX = (ADMUX & (uint8_t)~(_ADC_SIZE_MASK | _ADC_INPUT_MASK)) |
-			(input & _ADC_INPUT_MASK);
+	ADMUX = (ADMUX & (uint8_t)~(_ADC_SIZE_MASK | _ADC_INPUT_MASK)) | (input & _ADC_INPUT_MASK);
 	ADCSRA |= _BV(ADSC);
 
 	while (ADCSRA & _BV(ADSC))

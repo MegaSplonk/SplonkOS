@@ -28,8 +28,7 @@ bool timer_wait(timer_t *timer, milis_t delay) {
 	return current >= timer->resolve_at;
 }
 
-t_error timer_ontick_register(enum e_timer_ontick_slot slot,
-							  t_ontick_func			   func) {
+t_error timer_ontick_register(enum e_timer_ontick_slot slot, t_ontick_func func) {
 	if (slot >= __T_ONTICK_SLOT_LAST)
 		return ERROR;
 	ONTICK_FUNCS[(usize)slot] = func;
@@ -70,8 +69,7 @@ t_error timer_ontick_register(enum e_timer_ontick_slot slot,
 
 #endif
 
-#define TIMER_TOP                                                              \
-	(F_CPU / (TIMER_CLOCK_PRESCALER_VALUE * TIMER_CLOCK_TARGET_HZ) - 1UL)
+#define TIMER_TOP (F_CPU / (TIMER_CLOCK_PRESCALER_VALUE * TIMER_CLOCK_TARGET_HZ) - 1UL)
 static_assert(TIMER_TOP < 255U, "TIMER_TOP can't be over 255");
 
 static void inc_milis(void) { MILIS++; }

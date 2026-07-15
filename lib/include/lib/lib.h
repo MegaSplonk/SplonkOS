@@ -31,17 +31,17 @@ typedef enum : u8 {
 
 extern char FMT_BUF[256];
 
-#define debug_print(...)                                                       \
-	do {                                                                       \
-		int16_t n = snprintf(FMT_BUF, sizeof(FMT_BUF),                         \
-							 "[%s:%i] %s: ", __FILE__, __LINE__, __func__);    \
-                                                                               \
-		if (n < 0 || (uint16_t)n >= sizeof(FMT_BUF)) {                         \
-			uart_sendstring("FAILED TO FORMAT\r\n");                           \
-			break;                                                             \
-		}                                                                      \
-                                                                               \
-		snprintf(&FMT_BUF[n], sizeof(FMT_BUF) - (uint16_t)n, __VA_ARGS__);     \
-		uart_sendstring(FMT_BUF);                                              \
-		uart_sendstring("\r\n");                                               \
+#define debug_print(...)                                                                           \
+	do {                                                                                           \
+		int16_t n =                                                                                \
+			snprintf(FMT_BUF, sizeof(FMT_BUF), "[%s:%i] %s: ", __FILE__, __LINE__, __func__);      \
+                                                                                                   \
+		if (n < 0 || (uint16_t)n >= sizeof(FMT_BUF)) {                                             \
+			uart_sendstring("FAILED TO FORMAT\r\n");                                               \
+			break;                                                                                 \
+		}                                                                                          \
+                                                                                                   \
+		snprintf(&FMT_BUF[n], sizeof(FMT_BUF) - (uint16_t)n, __VA_ARGS__);                         \
+		uart_sendstring(FMT_BUF);                                                                  \
+		uart_sendstring("\r\n");                                                                   \
 	} while (0)
