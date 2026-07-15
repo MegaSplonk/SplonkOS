@@ -1,6 +1,7 @@
 #include "lib/proto/uart.h"
 #include "lib/config.h"
 #include "lib/grb.h"
+#include "lib/time.h"
 #include <avr/interrupt.h>
 
 #if defined(SPLONKLIB_ENABLE_UART)
@@ -27,6 +28,10 @@
 #define UART_UDR	UDR0
 #define UART_UDRE	UDRE0
 #define UART_UDRIE	UDRIE0
+
+#define UART_UDRE_INTERUPT USART_UDRE_vect
+#define UART_TX_INTERUPT   USART_TX_vect
+#define UART_RX_INTERUPT   USART_RX_vect
 
 #elif defined(MCU_atmega32u4)
 
@@ -65,21 +70,27 @@
 
 #endif
 
-GRBIO_INIT(UART_BUF, UART_IBUF, UART_OBUF, 512, 512);
+GRBIO_INIT(UART_BUF, UART_IBUF, UART_OBUF, 128, 128);
 
 void uart_poll(void) {
 	if ((UART_UCSRA & _BV(UART_UDRE))) {
 		u8	  val;
 		usize do_tx = 0;
 		(void)grb_read(&UART_BUF.output, &val, 1, &do_tx);
-		if (do_tx) {
-			uart_tx(val);
+		if (do_tx == 1) {
+			UART_UDR = val;
 		}
 	}
 	if (UART_UCSRA & _BV(UART_RXC)) {
 		u8 val;
-		val = UART_UDRE;
+		val = UART_UDR;
 		(void)grb_write(&UART_BUF.input, &val, 1, nullptr);
+	}
+}
+
+static void uart_ontick_reenable_udre_int(void) {
+	if (!(UART_UCSRB & _BV(UART_UDRIE)) && !grb_empty(&UART_BUF.output)) {
+		uart_enable_udre_int();
 	}
 }
 
@@ -94,16 +105,26 @@ void uart_init(void) {
 	// Enable transmitter
 	UART_UCSRB = _BV(UART_TXEN) | _BV(UART_RXEN) |
 				 // enable interrupts
-				 0; //_BV(UART_RXCIE) | _BV(UART_TXCIE);
+				 _BV(UART_RXCIE) | _BV(UART_UDRIE);
 
 	// Set frame format: 8 data bits, no parity, 1 stop bit
 	UART_UCSRC = _BV(UART_UCSZ1) | _BV(UART_UCSZ0);
+	timer_ontick_register(T_ONTICK_SLOT_UART, uart_ontick_reenable_udre_int);
+}
+
+void uart_disable_udre_int(void) {
+	uart_tx('.');
+	UART_UCSRB &= (u8)~_BV(UART_UDRIE);
+}
+void uart_enable_udre_int(void) {
+	uart_tx('@');
+	UART_UCSRB |= _BV(UART_UDRIE);
 }
 
 void uart_tx(u8 data) {
+	// load data into transmit register
 	while (!(UART_UCSRA & _BV(UART_UDRE)))
 		;
-	// load data into transmit register
 	UART_UDR = data;
 }
 
@@ -227,24 +248,25 @@ void uart_send_u16_hex(uint16_t val) {
 // the hope is that they will just work in the background, and you just
 // read/write to the uart's grb meaning that the data "magically"
 // appears/disapears
-ISR(UART_TX_INTERUPT) {
-	// u8	  value = 'F';
-	// usize r;
+ISR(UART_UDRE_INTERUPT) {
+	u8	  value = 'F';
+	usize r = 0;
 
-	//(void)grb_read(&UART_BUF.output, &value, 1, &r);
-	// if (r == 1)
-	while (!(UART_UCSRA & _BV(UART_UDRE)))
-		;
-	// load data into transmit register
-	UART_UDR = 'F';
+	if (grb_empty(&UART_BUF.output)) {
+		uart_disable_udre_int();
+		return;
+	}
+
+	(void)grb_read(&UART_BUF.output, &value, 1, nullptr);
+	UART_UDR = value;
 }
 
 ISR(UART_RX_INTERUPT) {
-	// u8	  value;
-	// usize w;
-	//
-	// value = UART_UDR;
-	//(void)grb_write(&UART_BUF.input, &value, 1, &w);
+	u8	  value;
+	usize w;
+
+	value = UART_UDR;
+	(void)grb_write(&UART_BUF.input, &value, 1, &w);
 }
 
 #endif

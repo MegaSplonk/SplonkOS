@@ -3,7 +3,6 @@ relpath                = $(shell 	realpath -m --relative-to="$(or $(2),$(CURDIR)
 
 ifeq ($(USE_ABSOLUTE_PATH),1)
 relpath                = $(abspath $(1))
-override SOURCE_PREFIX =
 endif
 
 BASE_MAKEFILE    := $(call relpath,$(abspath $(lastword $(MAKEFILE_LIST))))
@@ -27,7 +26,7 @@ WFLAGS        = $(WERROR) -Wenum-conversion -Wimplicit-fallthrough -Wpedantic \
                 -Wsign-conversion -Wcast-align -Wcast-qual -Wwrite-strings \
                 -Wuninitialized -Wdouble-promotion -Wfloat-equal \
                 -Wnull-dereference -Wformat=2
-CFLAGS        = --std=c23 -g -Os -mmcu=$(MCU) -ffunction-sections -fdata-sections -flto
+CFLAGS        = --std=c23 -g3 -mmcu=$(MCU) -ffunction-sections -fdata-sections -Os -flto
 CPPFLAGS      = -include$(BASE_DIRECTORY)/lib/include/lib/config.h \
                 -include$(BASE_DIRECTORY)/lib/include/lib/lib.h \
                 -DF_CPU=$(F_CPU) -MMD -DMCU_$(MCU)=1 -DBOARD_$(BOARD)=1
@@ -71,12 +70,17 @@ INC_DIR          ?= $(call relpath,$(PROJECT_ROOT)/include)
 
 USE_LIB          ?= 1
 OUTPUT_ARCHIVE   ?= 0
-SOURCE_PREFIX    ?=
+
+LIB_DIR           = $(BASE_DIRECTORY)/lib
+LIB_SRC_DIR       = $(call relpath,$(LIB_DIR)/src/)
 
 override OBJ_DIR_BASE := $(call relpath,$(OBJ_DIR_BASE))
 
 
 -include $(PROJECT_FILELIST)
+ifeq ($(USE_LIB),1)
+-include $(LIB_FILELIST)
+endif
 
 OBJ_DIR = $(OBJ_DIR_BASE)/$(PROJECT_NAME)
 
@@ -84,19 +88,19 @@ SRC=$(addsuffix .c,$(addprefix $(SRC_DIR)/,$(SRC_FILES)))
 OBJ=$(addsuffix .o,$(addprefix $(OBJ_DIR)/,$(SRC_FILES)))
 DEP=$(addsuffix .d,$(addprefix $(OBJ_DIR)/,$(SRC_FILES)))
 
+
+LIB_SRC=$(addsuffix .c,$(addprefix $(LIB_SRC_DIR),$(LIB_SRC_FILES)))
+LIB_OBJ=$(addsuffix .o,$(addprefix $(OBJ_DIR)/lib/,$(LIB_SRC_FILES)))
+LIB_DEP=$(addsuffix .d,$(addprefix $(OBJ_DIR)/lib/,$(LIB_SRC_FILES)))
+
 ELF_FILE     = $(OBJ_DIR)/$(TARGET).elf
 HEX_FILE     = $(OBJ_DIR)/$(TARGET).hex
-ARCHIVE_FILE = $(OBJ_DIR)/lib$(TARGET).a
 
 .DEFAULT_GOAL = all
 
 ifeq ($(USE_LIB),1)
 IFLAGS += -I$(call relpath,$(BASE_DIRECTORY)/lib/include)
 endif
-ifeq ($(USE_LIB),1)
-LDFLAGS += -L$(call relpath,$(OBJ_DIR)/lib/) -lsplonk
-endif
-
 
 ifeq ($(OUTPUT_ARCHIVE), 0)
 all: flash
@@ -145,14 +149,21 @@ endif
 	@avrdude -V -D -p $(MCU) -U flash:w:$(HEX_FILE):i $(AVRDUDE_FLAGS)
 
 
-$(OBJ_DIR)/%.o: $(SRC_DIR)/%.c 
-	@mkdir -p $(shell dirname $@)
-	@printf " CC $(SOURCE_PREFIX)$<\n"
-	@$(CC) $(CPPFLAGS) $(WFLAGS) $(CFLAGS) $(IFLAGS) -c $< -o $@
+define cc_obj
+	mkdir -p $(shell dirname $@)
+	printf " CC $<\n"
+	$(CC) $(CPPFLAGS) $(WFLAGS) $(CFLAGS) $(IFLAGS) -c $< -o $@
+endef
 
-$(ELF_FILE): $(OBJ) $(if $(filter 1,$(USE_LIB)), $(OBJ_DIR)/lib/libsplonk.a)
+$(OBJ_DIR)/%.o: $(SRC_DIR)/%.c
+	@$(cc_obj)
+
+$(OBJ_DIR)/lib/%.o: $(LIB_SRC_DIR)/%.c
+	@$(cc_obj)
+
+$(ELF_FILE): $(OBJ) $(LIB_OBJ)
 	@printf " CCLD $@ $(if $(filter 1,$(USE_LIB)),[With Lib])\n"
-	@$(CC) $(CFLAGS) $(OBJ) $(LDFLAGS) -o $@
+	$(CC) $(CFLAGS) $^ $(LDFLAGS) -o $@
 
 
 $(HEX_FILE): $(ELF_FILE)
@@ -168,10 +179,13 @@ filelist:
 		| sort \
 		| while read f; do printf '%-78s\\\n' "$$f"; done >> "$(PROJECT_FILELIST)"
 	@echo "" >> "$(PROJECT_FILELIST)"
+	@printf '%-78s\\\n' "LIB_SRC_FILES =" >> "$(PROJECT_FILELIST)"
+	find "$(LIB_SRC_DIR)" -type f -name '*.c' \
+		| sed -e 's|^$(LIB_SRC_DIR)||' -e 's|\.c$$||' \
+		| sort \
+		| while read f; do printf '%-78s\\\n' "$$f"; done >> "$(PROJECT_FILELIST)"
+	@echo "" >> "$(PROJECT_FILELIST)"
 	@printf "Filelist: $(PROJECT_NAME)\n"
-ifeq ($(USE_LIB),1)
-	@$(MAKE) --no-print-directory -C $(BASE_DIRECTORY)/lib filelist
-endif
 
 .PHONY: serial
 serial:
@@ -186,6 +200,7 @@ EXCLUDE := \
 	SHELL \
 	check-var-defined \
 	relpath \
+	cc_obj
 
 
 .PHONY: .vars
@@ -202,24 +217,6 @@ export MCU
 export BOARD
 export F_CPU
 
-$(OBJ_DIR)/lib/libsplonk.a:
-	@$(MAKE) --no-print-directory -C $(BASE_DIRECTORY)/lib \
-		"OBJ_DIR_BASE=$(call relpath,$(abspath $(OBJ_DIR)),$(BASE_DIRECTORY)/lib)" \
-		"SOURCE_PREFIX=$(BASE_DIRECTORY)/lib/"
-
-$(ARCHIVE_FILE:.a=.d): $(OBJ)
-	@echo "$(abspath $(ARCHIVE_FILE)): \\" > $(ARCHIVE_FILE:.a=.d)
-	@cat $(DEP) | sed -e 's/^[^:]*: */  /;s/  / /g;s/ /\n/g;/^$$/d'| \
-	 xargs realpath | sort -u | xargs printf '%-78s\\\n' >> $@
-	@printf '%-78s\\\n' $(abspath $(PROJECT_MAKEFILE)) >> $@
-	@printf '%-78s\\\n' $(abspath $(PROJECT_FILELIST)) >> $@
-
-$(ARCHIVE_FILE): $(ARCHIVE_FILE:.a=.d) $(OBJ)
-	@printf " AR $@\n"
-	@$(AR) rcs $@ $^
-	
-ifeq ($(USE_LIB),1)
--include $(OBJ_DIR)/lib/libsplonk.d
-endif
--include $(DEP);
+include $(DEP)
+include $(LIB_DEP)
 
