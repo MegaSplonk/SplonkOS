@@ -29,7 +29,7 @@ typedef enum : u8 {
 
 #include <stdio.h>
 
-extern char FMT_BUF[1024];
+extern char FMT_BUF[256];
 
 #define debug_print(...)                                                       \
 	do {                                                                       \

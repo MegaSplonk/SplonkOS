@@ -3,4 +3,4 @@
 
 #include <avr/io.h>
 
-char FMT_BUF[1024] = {};
+char FMT_BUF[256] = {};
