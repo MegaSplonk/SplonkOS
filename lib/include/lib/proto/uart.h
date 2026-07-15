@@ -25,4 +25,7 @@ static inline void print_hex_value(uint8_t c) { uart_send_u8_hex(c); }
 
 u8 uart_rx(void);
 
+void uart_disable_udre_int(void);
+void uart_enable_udre_int(void);
+
 #endif

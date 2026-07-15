@@ -1,9 +1,13 @@
+#include "lib/pin.h"
+#include "lib/proto/uart.h"
 #define SPLONKLIB_MILIS_CONST
 #include "lib/time.h"
 #include <avr/interrupt.h>
 #include <util/atomic.h>
 
 volatile milis_t MILIS = 0;
+// this is a list of hooks that will be called every tick
+static t_ontick_func ONTICK_FUNCS[__T_ONTICK_SLOT_LAST] = {};
 
 milis_t uptime(void) {
 	milis_t m;
@@ -22,6 +26,14 @@ bool timer_wait(timer_t *timer, milis_t delay) {
 	if (timer->resolve_at == 0)
 		timer->resolve_at = current + delay;
 	return current >= timer->resolve_at;
+}
+
+t_error timer_ontick_register(enum e_timer_ontick_slot slot,
+							  t_ontick_func			   func) {
+	if (slot >= __T_ONTICK_SLOT_LAST)
+		return ERROR;
+	ONTICK_FUNCS[(usize)slot] = func;
+	return SUCCESS;
 }
 
 #if defined(MCU_atmega32u4)
@@ -62,7 +74,10 @@ bool timer_wait(timer_t *timer, milis_t delay) {
 	(F_CPU / (TIMER_CLOCK_PRESCALER_VALUE * TIMER_CLOCK_TARGET_HZ) - 1UL)
 static_assert(TIMER_TOP < 255U, "TIMER_TOP can't be over 255");
 
+static void inc_milis(void) { MILIS++; }
+
 void timer_init(void) {
+	(void)timer_ontick_register(T_ONTICK_SLOT_MILIS, inc_milis);
 	TIMER_CONTROL_REGB = 0;
 	TIMER_CTC_TOP = (u8)TIMER_TOP;
 	TIMER_CONTROL_REGA = TIMER_CTC_OUTPUT_NONE | TIMER_CTC_MODE;
@@ -75,6 +90,13 @@ void timer_init(void) {
 }
 
 ISR(TIMER_INTERUPT_VECTOR) {
-	MILIS++;
-	// maybe we want to reset if MILIS is near the MAX (aka to not overflow);
+	// MILIS++;
+	// if (MILIS % 500 == 0) {
+	//	pin_toggle((pin){.port = PORT_D, .pin = PIN_5, ._pad = 0});
+	//	uart_tx('P');
+	// }
+	for (usize i = 0; i < tabsize(ONTICK_FUNCS); i++) {
+		if (ONTICK_FUNCS[i])
+			ONTICK_FUNCS[i]();
+	}
 }

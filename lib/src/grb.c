@@ -16,12 +16,12 @@ t_error grb_read(grb *rb, void *buf, usize len, usize *r_bytes) {
 	return SUCCESS;
 }
 
-t_error grb_write(grb *rb, void *buf, usize len, usize *w_bytes) {
+t_error grb_write(grb *rb, const void *buf, usize len, usize *w_bytes) {
 	if (!rb || (!buf && len != 0))
 		return ERROR;
 	usize write = 0;
 	for (usize i = 0; i < len; i++) {
-		rb->buffer[rb->end] = ((u8 *)buf)[i];
+		rb->buffer[rb->end] = ((const u8 *)buf)[i];
 		rb->end = (rb->end + 1) % rb->buf_size;
 		if (rb->count < rb->buf_size)
 			rb->count++;
@@ -34,8 +34,8 @@ t_error grb_write(grb *rb, void *buf, usize len, usize *w_bytes) {
 	return SUCCESS;
 }
 
-bool grb_empty(grb *rb) { return rb->count == 0; }
+bool grb_empty(const grb *rb) { return rb->count == 0; }
 
-bool grb_full(grb *rb) { return rb->count == rb->buf_size; }
+bool grb_full(const grb *rb) { return rb->count == rb->buf_size; }
 
-usize grb_count(grb *rb) { return rb->count; }
+usize grb_count(const grb *rb) { return rb->count; }
