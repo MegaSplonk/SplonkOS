@@ -20,9 +20,9 @@ typedef struct grb_input_output {
 	__VA_ARGS__ uint8_t IBUF[ILEN] = {};                                       \
 	__VA_ARGS__ uint8_t OBUF[OLEN] = {};                                       \
 	__VA_ARGS__ grbio	IONAME = {                                             \
-		  .input = GRB_INIT(IBUF),                                             \
-		  .output = GRB_INIT(OBUF),                                            \
-	  }
+		.input = GRB_INIT(IBUF),                                               \
+		.output = GRB_INIT(OBUF),                                              \
+	}
 
 t_error grb_read(grb *rb, void *buf, usize len, usize *r_bytes);
 t_error grb_write(grb *rb, const void *buf, usize len, usize *w_bytes);

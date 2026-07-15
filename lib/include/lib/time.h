@@ -34,4 +34,5 @@ enum e_timer_ontick_slot {
 	__T_ONTICK_SLOT_LAST,
 };
 
-t_error timer_ontick_register(enum e_timer_ontick_slot slot, t_ontick_func func);
+t_error timer_ontick_register(enum e_timer_ontick_slot slot,
+							  t_ontick_func			   func);
