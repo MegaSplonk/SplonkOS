@@ -1,0 +1,24 @@
+name: Build AVR
+
+on:
+  pull_request:
+
+jobs:
+  check-filelist:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Check up to date filelist
+        shell: bash
+        run: |
+          make filelist
+          CHANGED_FILES="$(git status --porcelain | grep "Filelist.mk" || true)"
+          if [ -n "$CHANGED_FILES" ]; then 
+            echo "Some files changed after a \`make filelist\`"
+            echo "$CHANGED_FILES"
+            exit 1;
+          else 
+            exit 0;
+          fi
