@@ -249,7 +249,7 @@ void uart_send_u16_hex(uint16_t val) {
 // read/write to the uart's grb meaning that the data "magically"
 // appears/disapears
 ISR(UART_UDRE_INTERUPT) {
-	u8	  value = 'F';
+	u8 value = 'F';
 	// usize r = 0;
 
 	if (grb_empty(&UART_BUF.output)) {
