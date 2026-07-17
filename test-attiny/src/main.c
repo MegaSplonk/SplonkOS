@@ -8,7 +8,7 @@ int main(void) {
 	PORTB.DIRSET = LED_PIN;
 
 	while (true) {
-		_delay_ms(500);
+		_delay_ms(1000);
 		PORTB.OUTTGL |= LED_PIN;
 	};
 }
