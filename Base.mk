@@ -38,7 +38,7 @@ WFLAGS        = $(WERROR) -Wenum-conversion -Wimplicit-fallthrough -Wpedantic \
                 -Wsign-conversion -Wcast-align -Wcast-qual -Wwrite-strings \
                 -Wuninitialized -Wdouble-promotion -Wfloat-equal \
                 -Wnull-dereference -Wformat=2
-CFLAGS        = -std=c23 -g3 -Os -mmcu=$(MCU) $(CFLAGS_ADD) # -flto -ffunction-sections -fdata-sections
+CFLAGS        = -std=c23 -g3 -Os -mmcu=$(MCU) $(CFLAGS_ADD) -flto -ffunction-sections -fdata-sections
 CPPFLAGS      = $(if $(filter 1,$(USE_LIB)),\
                    -include$(BASE_DIRECTORY)/lib/include/lib/config.h \
                    -include$(BASE_DIRECTORY)/lib/include/lib/lib.h) \
@@ -160,7 +160,7 @@ ifeq ($(MCU),atmega32u4)
 	@stty -F $(PORT) speed 1200 >/dev/null
 endif
 	@printf " FLASH[$(MCU)] $(HEX_FILE)\n"
-	@avrdude -V -D -p $(MCU) -U flash:w:$(HEX_FILE):i $(AVRDUDE_FLAGS)
+	@avrdude -p $(MCU) $(AVRDUDE_FLAGS) -U flash:w:$(HEX_FILE):i
 
 
 define cc_obj
