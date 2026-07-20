@@ -1,6 +1,6 @@
 #pragma once
 
-#ifdef MCU_atmega32u4
+#if defined(MCU_atmega32u4)
 
 #define SPLONKLIB_ENABLE_USB
 #define SPLONKLIB_ENABLE_SPI
@@ -9,13 +9,15 @@
 #define SPLONKLIB_ENABLE_EC11
 #define SPLONKLIB_ENABLE_UART
 
-#endif
-
-#ifdef MCU_atmega328p
+#elif defined(MCU_atmega328p)
 
 #define SPLONKLIB_ENABLE_UART
 #define SPLONKLIB_ENABLE_SPI
 #define SPLONKLIB_ENABLE_I2C
+#define SPLONKLIB_ENABLE_EC11
+
+#elif defined(MCU_attiny1614)
+
 #define SPLONKLIB_ENABLE_EC11
 
 #endif

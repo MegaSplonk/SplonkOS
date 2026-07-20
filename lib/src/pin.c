@@ -4,6 +4,7 @@
 #include "lib/pin.h"
 #include <avr/io.h>
 
+#if defined(MCU_atmega32u4) || defined(MCU_atmega328p)
 u8_reg const PORTS_IN[_PORT_LAST + 1] = {
 #ifdef PINA
 	&PINA,
@@ -117,6 +118,123 @@ u8_reg const PORTS_DIR[_PORT_LAST + 1] = {
 	nullptr,
 #endif
 };
+
+#elif defined(MCU_attiny1614)
+
+u8_reg const PORTS_IN[_PORT_LAST + 1] = {
+#ifdef PORTA
+	&PORTA.IN,
+#else
+	nullptr,
+#endif
+
+#ifdef PORTB
+	&PORTB.IN,
+#else
+	nullptr,
+#endif
+
+#ifdef PORTC
+	&PORTC.IN,
+#else
+	nullptr,
+#endif
+
+#ifdef PORTD
+	&PORTD.IN,
+#else
+	nullptr,
+#endif
+
+#ifdef PORTE
+	&PORTE.IN,
+#else
+	nullptr,
+#endif
+
+#ifdef PORTF
+	&PORTF.IN,
+#else
+	nullptr,
+#endif
+};
+
+u8_reg const PORTS_OUT[_PORT_LAST + 1] = {
+#ifdef PORTA
+	&PORTA.OUT,
+#else
+	nullptr,
+#endif
+
+#ifdef PORTB
+	&PORTB.OUT,
+#else
+	nullptr,
+#endif
+
+#ifdef PORTC
+	&PORTC.OUT,
+#else
+	nullptr,
+#endif
+
+#ifdef PORTD
+	&PORTD.OUT,
+#else
+	nullptr,
+#endif
+
+#ifdef PORTE
+	&PORTE.OUT,
+#else
+	nullptr,
+#endif
+
+#ifdef PORTF
+	&PORTF.OUT,
+#else
+	nullptr,
+#endif
+};
+
+u8_reg const PORTS_DIR[_PORT_LAST + 1] = {
+#ifdef PORTA
+	&PORTA.DIR,
+#else
+	nullptr,
+#endif
+
+#ifdef PORTB
+	&PORTB.DIR,
+#else
+	nullptr,
+#endif
+
+#ifdef PORTC
+	&PORTC.DIR,
+#else
+	nullptr,
+#endif
+
+#ifdef PORTD
+	&PORTD.DIR,
+#else
+	nullptr,
+#endif
+
+#ifdef PORTE
+	&PORTE.DIR,
+#else
+	nullptr,
+#endif
+
+#ifdef PORTF
+	&PORTF.DIR,
+#else
+	nullptr,
+#endif
+};
+#endif
 
 bool pin_get(pin p) {
 	u8_reg port = nullptr;

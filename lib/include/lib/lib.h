@@ -45,3 +45,5 @@ extern char FMT_BUF[256];
 		uart_sendstring(FMT_BUF);                                                                  \
 		uart_sendstring("\r\n");                                                                   \
 	} while (0)
+
+void mcu_init(void);

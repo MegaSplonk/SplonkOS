@@ -5,25 +5,33 @@
 #include <avr/io.h>
 #include <util/delay.h>
 
-/*
-// PROMICRO
+#if defined(BOARD_promicro)
 #define R_BTN D9
 #define R_A	  D10
 #define R_B	  D16
 
 #define R_A_LED D6
 #define R_B_LED D7
-*/
 
-///*
-// NANO
+#elif defined(BOARD_nano)
+
 #define R_BTN D10
 #define R_A	  D11
 #define R_B	  D12
 
 #define R_A_LED D3
 #define R_B_LED D4
-// */
+
+#elif defined(BOARD_attiny)
+
+#define R_BTN P2
+#define R_A	  P3
+#define R_B	  P4
+
+#define R_A_LED P5
+#define R_B_LED P6
+
+#endif
 
 int main(void) {
 	// uart_init();

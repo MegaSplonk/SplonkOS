@@ -12,7 +12,6 @@ TARGET           = $(PROJECT_NAME)
 
 BASE_MAKEFILE    = $(dir $(PROJECT_MAKEFILE))/../Base.mk
 
-
-USE_LIB = 0
+# USE_LIB        = 0
 
 include $(BASE_MAKEFILE)
