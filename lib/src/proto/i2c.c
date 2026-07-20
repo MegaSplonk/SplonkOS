@@ -3,6 +3,7 @@
 
 #include "lib/config.h"
 #include "lib/grb.h"
+#include "lib/lib.h"
 #include "lib/proto/i2c.h"
 
 #ifdef SPLONKLIB_ENABLE_I2C
@@ -13,7 +14,9 @@ GRBIO_INIT(i2c_io, i2c_in, i2c_out, 64, 64)
 // Own grbio dedicated to outbound general call data
 // or inbound addressed or general call data
 
-i2c_peer peers[I2C_MAX_PEERS] = {{0, &i2c_io}};
+i2c_peer peers[I2C_MAX_PEERS] = {{0, &i2c_io, 0}};
+
+i2c_state state = {};
 
 static void print_status_reg(const char *prefix);
 
@@ -62,11 +65,17 @@ void i2c_listen(void) {
 	// address
 	//     SET SLAVE |  ENABLE  ;
 	TWCR = _BV(TWEA) | _BV(TWEN);
+	state.mode = TW_YE;
+}
+
+bool i2c_is_listening() {
+	return ((TWCR & (_BV(TWEA) | _BV(TWEN))) == (_BV(TWEA) | _BV(TWEN)));
 }
 
 void i2c_ignore(void) {
 	// While TWEA is zero, the TWI does not acknowledge its own slave address.
 	TWCR &= (u8)~_BV(TWEA);
+	state.mode = TW_UH;
 }
 
 t_error i2c_start(void) {
@@ -160,9 +169,8 @@ t_error i2c_query(u8 addr, u8 *data, usize *len) {
 
 // ASYNC STUFF
 
-t_error i2c_send_async(grbio *gio, u8 addr, u8 *data, usize len) {
-	grbio *g = gio ? gio : &i2c_io;
-	(void)addr; // use a table of grbio's, one for each addr?
+t_error i2c_send_async(i2c_peer *p, u8 *data, usize len) {
+	grbio *g = p->io;
 
 	if (grb_full(&g->output) || grb_avail(&g->output) < len)
 		return ERROR;
@@ -171,64 +179,315 @@ t_error i2c_send_async(grbio *gio, u8 addr, u8 *data, usize len) {
 	return grb_write(&g->output, data, len, &useless);
 }
 
-t_error i2c_query_async(grbio *gio, u8 addr, u8 *data, usize len) {
-	grbio *g = gio ? gio : &i2c_io;
-	(void)addr; // use a table of grbio's, one for each addr?
+t_error i2c_query_async(i2c_peer *p, u8 *data, usize len) {
+	grbio *g = p->io;
 
-	if (grb_empty(&g->input) || grb_count(&g->input) < len)
+	if (grb_empty(&g->input) || grb_count(&g->input) < len) {
+		p->query = true;
 		return ERROR;
+	}
+	p->query = false;
 
 	usize useless;
 	return grb_read(&g->input, data, len, &useless);
 }
 
-void i2c_poll(void) {
-	// iterate over table of grbio's? yes
+static t_error i2c_write_async(i2c_peer *p) {
+	grbio *g = p->io;
+	if (grb_empty(&g->output))
+		return ERROR;
+	u8	  data;
+	usize useless;
+	grb_read(&g->output, &data, 1, &useless);
+	// set data to write
+	TWDR = data;
+	//     CLR INT    | ENABLE   ;
+	TWCR = _BV(TWINT) | _BV(TWEN);
+	i2c_wait_int(); // wait?
+	return SUCCESS;
+}
 
-	// add Slave Recv check here
-	// big switch case?
+static t_error i2c_read_async(i2c_peer *p) {
+	grbio *g = p->io;
+	if (grb_full(&g->input))
+		return ERROR;
+	TWCR = _BV(TWINT) | _BV(TWEN) | (grb_avail(&g->input) == 1 ? 0 : _BV(TWEA));
+	i2c_wait_int();
+	usize useless;
+	u8	  data = TWDR;
+	return grb_write(&g->input, &data, 1, &useless);
+}
 
+static void find_peer() {
 	for (usize peer = 0; peer < I2C_MAX_PEERS; peer++) {
 		grbio *g = peers[peer].io;
-		u8	   addr = peers[peer].addr;
 
-		if (grb_empty(&g->output) && grb_full(&g->input))
+		if (!g || (grb_empty(&g->output) && !peers[peer].query))
 			continue;
 
-		if (i2c_start() != SUCCESS) // repeated start to keep bus
-			return;
-
-		// need to handle query/MR here
-
-		if (!grb_empty(&g->output)) {
-			if (i2c_select(addr, TW_WRITE))
-				switch (TW_STATUS) {
-				case (TW_MT_SLA_NACK):
-					continue;
-				case (TW_MT_ARB_LOST):
-					return;
-				};
-
-			t_error e = SUCCESS;
-
-			for (usize i = 0; e == SUCCESS && !grb_empty(&g->output); i++) {
-				u8	  data;
-				usize useless;
-				grb_read(&g->output, &data, 1, &useless);
-				e = i2c_write(data); // TODO - check bus errors?
-				if (e)
-					switch (TW_STATUS) {
-					case (TW_MT_DATA_NACK):
-						break;
-					case (TW_MT_ARB_LOST):
-						return;
-					};
-			}
-		}
+		state.peer_idx = peer;
+		return;
 	}
+	state.peer_idx = 0;
+}
 
-	i2c_stop();
-	// release bus after addressing everyone
+static void i2c_keep_or_rel_bus() {
+	find_peer();
+	grbio *g = peers[state.peer_idx].io;
+	if (!grb_empty(&g->output)) {
+		state.mode = TW_MT;
+	} else if (peers[state.peer_idx].query) {
+		state.mode = TW_MR;
+	} else {
+		if (state.mode != TW_MR && state.mode != TW_MT)
+			i2c_stop();
+		return;
+	}
+	i2c_start();
+}
+
+static void handle_bus_error() {
+	// To recover from a bus error, the TWSTO Flag must set
+	// and TWINT must be cleared by writing a logic one to it
+	TWCR |= _BV(TWINT) | _BV(TWSTO);
+	i2c_wait_int(); // Never wait for int? So that polling is truly 'async'?
+}
+
+static bool hear_ye_hear_ye() {
+	if (!i2c_is_listening())
+		return false;
+	// TWINT is set to signify something happened while listening
+	return (TWCR & _BV(TWINT));
+}
+
+void i2c_poll(void) {
+	switch (TW_STATUS) {
+	case (TW_START): {
+		// data = "start condition transmitted";
+		// cool bro now select a Slave
+		i2c_select(peers[state.peer_idx].addr,
+				   state.mode == TW_MR ? TW_READ : TW_WRITE);
+		break;
+	}
+	case (TW_REP_START): {
+		// data = "repeated start condition transmitted";
+		// cool bro now select a slave
+		i2c_select(peers[state.peer_idx].addr,
+				   state.mode == TW_MR ? TW_READ : TW_WRITE);
+		break;
+	}
+	case (TW_MT_SLA_ACK): {
+		// data = "SLA+W transmitted, ACK received";
+		state.mode = TW_MT;
+		// ok now either load a data byte
+		// or set TWSTA or set TWSTO or both
+		// and set TWINT
+		if (i2c_write_async(&peers[state.peer_idx]))
+			i2c_keep_or_rel_bus();
+		break;
+	}
+	case (TW_MT_SLA_NACK): {
+		// data = "SLA+W transmitted, NACK received";
+		// ok now either load a data byte
+		// (apparently you can still load data after a NACK?)
+		// (you can talk to a wall, cool)
+		// or set TWSTA or set TWSTO or both
+		// and set TWINT
+		if (i2c_write_async(&peers[state.peer_idx]))
+			i2c_keep_or_rel_bus();
+		break;
+	}
+	case (TW_MT_DATA_ACK): {
+		// data = "data transmitted, ACK received";
+		// ok now either load a data byte
+		// or set TWSTA or set TWSTO or both
+		// and set TWINT
+		if (i2c_write_async(&peers[state.peer_idx]))
+			i2c_keep_or_rel_bus();
+		break;
+	}
+	case (TW_MT_DATA_NACK): {
+		// data = "data transmitted, NACK received";
+		// ok now either load a data byte
+		// (apparently you can still load data after a NACK?)
+		// (you can talk to a wall, cool)
+		// or set TWSTA or set TWSTO or both
+		// and set TWINT
+		i2c_keep_or_rel_bus();
+		break;
+	}
+	case (TW_MT_ARB_LOST): {
+		// data = "arbitration lost in SLA+W or data";
+		// just set TWINT to accept fate
+		// can optionally set TWSTA to try and get a START asap
+		i2c_keep_or_rel_bus();
+		break;
+	}
+	case (TW_MR_SLA_ACK): {
+		// data = "SLA+R transmitted, ACK received";
+		state.mode = TW_MR;
+		// Either read one byte and send ACK by setting TWEA to 1
+		// Or read and send NACK by setting TWEA to 0
+		i2c_read_async(&peers[state.peer_idx]);
+		break;
+	}
+	case (TW_MR_SLA_NACK): {
+		// data = "SLA+R transmitted, NACK received";
+		// Either send Repeated start or Stop or both
+		i2c_keep_or_rel_bus();
+		break;
+	}
+	case (TW_MR_DATA_ACK): {
+		// data = "data received, ACK returned";
+		// Either read one byte and send ACK by setting TWEA to 1
+		// Or read and send NACK by setting TWEA to 0
+		i2c_read_async(&peers[state.peer_idx]);
+		break;
+	}
+	case (TW_MR_DATA_NACK): {
+		// data = "data received, NACK returned";
+		// Either send Repeated start or Stop or both
+		i2c_keep_or_rel_bus();
+		break;
+	}
+	case (TW_ST_SLA_ACK): {
+		// data = "SLA+R received, ACK returned";
+		state.mode = TW_ST;
+		// Load data byte and either set TWEA to signify more data is coming
+		// or unset it to signify last byte (in which case NACK is expected from
+		// master)
+		if (i2c_write_async(&peers[state.peer_idx]))
+			i2c_keep_or_rel_bus();
+		break;
+	}
+	case (TW_ST_ARB_LOST_SLA_ACK): {
+		// data = "arbitration lost in SLA+RW, SLA+R received, ACK returned";
+		state.mode = TW_ST;
+		state.peer_idx = 0;
+		// Load data byte and either set TWEA to signify more data is coming
+		// or unset it to signify last byte (in which case NACK is expected)
+		if (i2c_write_async(&peers[state.peer_idx]))
+			i2c_keep_or_rel_bus();
+		break;
+	}
+	case (TW_ST_DATA_ACK): {
+		// data = "data transmitted, ACK received";
+		// Load data byte and either set TWEA to signify more data is coming
+		// or unset it to signify last byte (in which case NACK is expected)
+		if (i2c_write_async(&peers[state.peer_idx]))
+			i2c_keep_or_rel_bus();
+		break;
+	}
+	case (TW_ST_DATA_NACK): {
+		// data = "data transmitted, NACK received";
+		i2c_keep_or_rel_bus();
+		break;
+	}
+	case (TW_ST_LAST_DATA): {
+		// data = "last data byte transmitted, ACK received";
+		// Can either keep listening
+		// Or stop listening
+		// Or prepare to send start asap while not listening
+		// Or prepare to send start asap while listening
+		i2c_keep_or_rel_bus();
+		break;
+	}
+	case (TW_SR_SLA_ACK): {
+		// data = "SLA+W received, ACK returned";
+		state.mode = TW_SR;
+		state.peer_idx = 0;
+		// Either read one byte and send ACK by setting TWEA to 1
+		// Or read and send NACK by setting TWEA to 0
+		i2c_read_async(&peers[state.peer_idx]);
+		break;
+	}
+	case (TW_SR_ARB_LOST_SLA_ACK): {
+		// data = "arbitration lost in SLA+RW, SLA+W received, ACK returned";
+		state.mode = TW_SR;
+		state.peer_idx = 0;
+		// Either read one byte and send ACK by setting TWEA to 1
+		// Or read and send NACK by setting TWEA to 0
+		i2c_read_async(&peers[state.peer_idx]);
+		break;
+	}
+	case (TW_SR_GCALL_ACK): {
+		// data = "general call received, ACK returned";
+		state.mode = TW_SR;
+		state.peer_idx = 0;
+		// Either read one byte and send ACK by setting TWEA to 1
+		// Or read and send NACK by setting TWEA to 0
+		i2c_read_async(&peers[state.peer_idx]);
+		break;
+	}
+	case (TW_SR_DATA_ACK): {
+		// data = "data received, ACK returned";
+		// Either read one byte and send ACK by setting TWEA to 1
+		// Or read and send NACK by setting TWEA to 0
+		i2c_read_async(&peers[state.peer_idx]);
+		break;
+	}
+	case (TW_SR_ARB_LOST_GCALL_ACK): {
+		// data = "arbitration lost in SLA+RW, general call received, ACK "
+		// "returned";
+		// Either read one byte and send ACK by setting TWEA to 1
+		// Or read and send NACK by setting TWEA to 0
+		i2c_read_async(&peers[state.peer_idx]);
+		break;
+	}
+	case (TW_SR_DATA_NACK): {
+		// data = "data received, NACK returned";
+		// Can either keep listening
+		// Or stop listening
+		// Or prepare to send start asap while not listening
+		// Or prepare to send start asap while listening
+		i2c_keep_or_rel_bus();
+		break;
+	}
+	case (TW_SR_GCALL_DATA_ACK): {
+		// data = "general call data received, ACK returned";
+		// Either read one byte and send ACK by setting TWEA to 1
+		// Or read and send NACK by setting TWEA to 0
+		i2c_read_async(&peers[state.peer_idx]);
+		break;
+	}
+	case (TW_SR_GCALL_DATA_NACK): {
+		// data = "general call data received, NACK returned";
+		// Can either keep listening
+		// Or stop listening
+		// Or prepare to send start asap while not listening
+		// Or prepare to send start asap while listening
+		i2c_keep_or_rel_bus();
+		break;
+	}
+	case (TW_SR_STOP): {
+		// data = "stop or repeated start condition received while selected";
+		// Either listen or don't, and/or get a START asap or don't.
+		i2c_keep_or_rel_bus();
+		break;
+	}
+	case (TW_NO_INFO): {
+		// data = "no state information available";
+		switch (state.mode) {
+		case (TW_YE): {
+			if (hear_ye_hear_ye())
+				break;
+			[[fallthrough]];
+		}
+		case (TW_UH): {
+			i2c_keep_or_rel_bus();
+			break;
+		}
+		default:
+			break;
+		}
+		break;
+	}
+	case (TW_BUS_ERROR): {
+		// data = "illegal start or stop condition";
+		handle_bus_error();
+		break;
+	}
+	}
 }
 
 #ifdef SPLONKLIB_ENABLE_UART
@@ -319,12 +578,12 @@ static void print_status_reg(const char *prefix) {
 		break;
 	}
 	case (TW_SR_DATA_ACK): {
-		data = "general call received, ACK returned";
+		data = "data received, ACK returned";
 		break;
 	}
 	case (TW_SR_ARB_LOST_GCALL_ACK): {
-		data =
-			"arbitration lost in SLA+RW, general call received, ACK returned";
+		data = "arbitration lost in SLA+RW, general call received, ACK "
+			   "returned";
 		break;
 	}
 	case (TW_SR_DATA_NACK): {
