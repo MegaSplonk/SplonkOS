@@ -35,33 +35,19 @@ t_error timer_ontick_register(enum e_timer_ontick_slot slot, t_ontick_func func)
 	return SUCCESS;
 }
 
-#if defined(MCU_atmega32u4)
+#if defined(MCU_atmega32u4) || defined(MCU_atmega328p)
 
-#define TIMER_CONTROL_REGA			TCCR0A
-#define TIMER_CONTROL_REGB			TCCR0B
-#define TIMER_INTERUPT_REG			TIMSK0
-#define TIMER_CTC_TOP				OCR0A
-#define TIMER_CTC_OUTPUT_NONE		(0)
-#define TIMER_CTC_MODE				(_BV(WGM01))
 #define TIMER_CLOCK_PRESCALER_VALUE 256UL
 #define TIMER_CLOCK_TARGET_HZ		1000UL
-#define TIMER_CLOCK_PRESCALER		(_BV(CS02)) // Clk/256
-#define TIMER_INTERUPT_BITS			(_BV(OCIE0A))
 #define TIMER_INTERUPT_VECTOR		TIMER0_COMPA_vect
+#define TIMER_TOP_MAX				255L
 
-#elif defined(MCU_atmega328p)
+#elif defined(MCU_attiny1614)
 
-#define TIMER_CONTROL_REGA			TCCR0A
-#define TIMER_CONTROL_REGB			TCCR0B
-#define TIMER_INTERUPT_REG			TIMSK0
-#define TIMER_CTC_TOP				OCR0A
-#define TIMER_CTC_OUTPUT_NONE		(0)
-#define TIMER_CTC_MODE				(_BV(WGM01))
-#define TIMER_CLOCK_PRESCALER_VALUE 256UL
+#define TIMER_CLOCK_PRESCALER_VALUE 2UL
 #define TIMER_CLOCK_TARGET_HZ		1000UL
-#define TIMER_CLOCK_PRESCALER		(_BV(CS02)) // Clk/256
-#define TIMER_INTERUPT_BITS			(_BV(OCIE0A))
-#define TIMER_INTERUPT_VECTOR		TIMER0_COMPA_vect
+#define TIMER_INTERUPT_VECTOR		TCB0_INT_vect
+#define TIMER_TOP_MAX				65535UL
 
 #else
 
@@ -70,20 +56,29 @@ t_error timer_ontick_register(enum e_timer_ontick_slot slot, t_ontick_func func)
 #endif
 
 #define TIMER_TOP (F_CPU / (TIMER_CLOCK_PRESCALER_VALUE * TIMER_CLOCK_TARGET_HZ) - 1UL)
-static_assert(TIMER_TOP < 255U, "TIMER_TOP can't be over 255");
+static_assert(TIMER_TOP < TIMER_TOP_MAX, "TIMER_TOP can't be over TIMER_TOP_MAX");
 
 static void inc_milis(void) { MILIS++; }
 
 void timer_init(void) {
 	(void)timer_ontick_register(T_ONTICK_SLOT_MILIS, inc_milis);
-	TIMER_CONTROL_REGB = 0;
-	TIMER_CTC_TOP = (u8)TIMER_TOP;
-	TIMER_CONTROL_REGA = TIMER_CTC_OUTPUT_NONE | TIMER_CTC_MODE;
+#if defined(MCU_atmega32u4) || defined(MCU_atmega328p)
 
-	TIMER_INTERUPT_REG = TIMER_INTERUPT_BITS;
+	TCCR0B = 0;
+	OCR0A = (u8)TIMER_TOP;
+	TCCR0A = _BV(WGM01);
+	TIMSK0 = _BV(OCIE0A);
+	TCCR0B = _BV(CS02);
 
-	// this has to remain at the end. this launches the timer !
-	TIMER_CONTROL_REGB = TIMER_CLOCK_PRESCALER;
+#elif defined(MCU_attiny1614)
+
+	TCB0.CTRLA = 0;
+	TCB0.CTRLB = TCB_CNTMODE_INT_gc;
+	TCB0.CCMP = TIMER_TOP;
+	TCB0.INTCTRL = TCB_CAPT_bm;
+	TCB0.CTRLA = TCB_CLKSEL_CLKDIV2_gc | TCB_ENABLE_bm;
+
+#endif
 	sei();
 }
 
@@ -92,4 +87,7 @@ ISR(TIMER_INTERUPT_VECTOR) {
 		if (ONTICK_FUNCS[i])
 			ONTICK_FUNCS[i]();
 	}
+#if defined(MCU_attiny1614)
+	TCB0.INTFLAGS = TCB_CAPT_bm;
+#endif
 }
