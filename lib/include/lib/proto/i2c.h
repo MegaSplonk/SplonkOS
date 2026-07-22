@@ -14,6 +14,9 @@
 
 #define I2C_MAX_PEERS 7
 
+// register something like:
+// typedef void (*i2c_peer_input_func)(grb*);
+
 typedef struct i2c_peer {
 	u8	   addr;
 	grbio *io;
@@ -52,6 +55,7 @@ uint8_t i2c_read_ack(void);
 t_error i2c_send(uint8_t addr, u8 *data, usize len);
 t_error i2c_query(uint8_t addr, u8 *data, usize *len);
 
+t_error i2c_register_peer(i2c_peer **p, grbio *io, u8 addr);
 t_error i2c_send_async(i2c_peer *p, u8 *data, usize len);
 t_error i2c_query_async(i2c_peer *p, u8 *data, usize len);
 void	i2c_poll(void);
