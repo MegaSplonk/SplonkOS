@@ -29,6 +29,8 @@ typedef void (*t_ontick_func)(void);
 enum e_timer_ontick_slot {
 	T_ONTICK_SLOT_MILIS,
 	T_ONTICK_SLOT_UART,
+	T_ONTICK_SLOT_I2C,
+	T_ONTICK_SLOT_I2C_PEER,
 	T_ONTICK_SLOT_USER1,
 	T_ONTICK_SLOT_USER2,
 	__T_ONTICK_SLOT_LAST,
