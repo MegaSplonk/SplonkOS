@@ -4,6 +4,7 @@ PROJECTS =                                                                     \
 	test-ec11                                                                  \
 	test-matrix                                                                \
 	test-nano                                                                  \
+	test-rgb                                                                   \
 	test-usb                                                                   \
 
 GLOBAL_DEPS = lib Base.mk .clang-format .github Makefile flake.nix flake.lock
