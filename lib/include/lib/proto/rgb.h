@@ -1,9 +1,9 @@
 #pragma once
 
 #include "lib/config.h"
-#ifdef SPLONKLIB_ENABLE_SPI
+#include "lib/pin.h"
 
-#include "lib/proto/spi.h"
+#ifdef SPLONKLIB_ENABLE_LED
 #include <avr/io.h>
 
 typedef struct rgb {
@@ -12,9 +12,16 @@ typedef struct rgb {
 	uint8_t b;
 } rgb;
 
-void			   led_set_colors(rgb col[], uint8_t brightness[], uint8_t length);
-static inline void led_set_color(rgb col, uint8_t brightness) {
-	led_set_colors(&col, &brightness, 1);
-}
+typedef struct led_config {
+	rgb	 *buffer;
+	usize buffer_len;
+	u8	  brightness;
+	pin	  data;
+	pin	  clock;
+} led_config;
+
+t_error led_init(led_config config);
+t_error led_set_brightness(u8 brightness);
+t_error led_update(void);
 
 #endif
