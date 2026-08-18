@@ -92,7 +92,7 @@
 
 #endif
 
-GRBIO_INIT(UART_BUF, UART_IBUF, UART_OBUF, 128, 128);
+GRBIO_INIT(UART_BUF, UART_IBUF, UART_OBUF, 64, 256);
 
 #if defined(UART_OLD_REG)
 
@@ -133,11 +133,16 @@ void uart_init(void) {
 
 	// Set frame format: 8 data bits, no parity, 1 stop bit
 	UART_UCSRC = _BV(UART_UCSZ1) | _BV(UART_UCSZ0);
-	timer_ontick_register(T_ONTICK_SLOT_UART, uart_ontick_reenable_udre_int);
+	// timer_ontick_register(T_ONTICK_SLOT_UART, uart_ontick_reenable_udre_int);
 }
 
-void uart_disable_udre_int(void) { UART_UCSRB &= (u8)~_BV(UART_UDRIE); }
-void uart_enable_udre_int(void) { UART_UCSRB |= _BV(UART_UDRIE); }
+void uart_disable_udre_int(void) { 
+  // uart_tx('.');
+  UART_UCSRB &= (u8)~_BV(UART_UDRIE); }
+void uart_enable_udre_int(void) { 
+
+  // uart_tx('@');
+  UART_UCSRB |= _BV(UART_UDRIE); }
 
 void uart_tx(u8 data) {
 	// load data into transmit register
