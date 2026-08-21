@@ -23,7 +23,7 @@
 
 #endif
 
-GRBIO_INIT(i2c_io, i2c_in, i2c_out, 64, 64);
+GRBIO_INIT(i2c_io, i2c_in, i2c_out, 32, 32);
 // Own grbio dedicated to outbound general call data
 // or inbound addressed or general call data
 
@@ -46,7 +46,7 @@ void i2c_set_addr(u8 addr, bool answer_gc) {
 
 void i2c_init(void) {
 	// clear the status registers
-	TWSR = 0x00;
+	TWSR =  _BV(TWPS1) | _BV(TWPS0); // SHIT WAS GETTING STUCK BECAUSE THE PRESCALER WASNT BIG ENOUGH
 	// set the i2c clock speed
 	TWBR = I2C_CLOCK_SPEED;
 
@@ -76,19 +76,19 @@ t_error i2c_start(void) {
 	//     CLR INT    | SET MASTER |  ENABLE   | INTERRUPT;
 	TWCR = _BV(TWINT) | _BV(TWSTA) | _BV(TWEN) | _BV(TWIE);
 
-	debug_print("start %d", state.mode);
+	debug_print("start %d", state.peer_idx);
 	return SUCCESS;
 }
 
 void i2c_stop(void) {
-	//     CLR INT    | ENABLE    |  STOP     ;
-	TWCR = _BV(TWINT) | _BV(TWEN) | _BV(TWSTO);
+	//     CLR INT    | ENABLE    |  STOP     | INTERRUPT;
+	TWCR = _BV(TWINT) | _BV(TWEN) | _BV(TWSTO)| _BV(TWIE);
 	debug_print("stop %d", state.mode);
 }
 
 void i2c_int(void) {
-	//     CLR INT    | ENABLE   ;
-	TWCR = _BV(TWINT) | _BV(TWEN);
+	//     CLR INT    | ENABLE    | INTERRUPT;
+	TWCR = _BV(TWINT) | _BV(TWEN) | _BV(TWIE);
 }
 
 t_error i2c_select(uint8_t addr, uint8_t rw) {
@@ -256,11 +256,6 @@ static void find_peer() {
 	state.peer_idx = 0;
 }
 
-static void back_to_passive() {
-	i2c_listen();
-	state.mode = TW_YE;
-}
-
 static void i2c_keep_or_rel_bus() {
 	find_peer();
 	grbio *g = peers[state.peer_idx].io;
@@ -272,27 +267,32 @@ static void i2c_keep_or_rel_bus() {
 		i2c_start();
 	} else if (state.mode == TW_MR || state.mode == TW_MT) {
 		i2c_stop();
-		back_to_passive();
+		i2c_listen();
 	} else if (state.mode == TW_ST || state.mode == TW_SR) {
-		back_to_passive();
+		i2c_listen();
 	}
 }
 
 static void handle_bus_error() {
 	// To recover from a bus error, the TWSTO Flag must set
 	// and TWINT must be cleared by writing a logic one to it
-	TWCR |= _BV(TWINT) | _BV(TWSTO);
-	back_to_passive();
+	TWCR = _BV(TWINT) | _BV(TWEN) | _BV(TWSTO) | _BV(TWIE);
 }
 
 void i2c_poll(void) {
-	if (state.mode == TW_UH || state.mode == TW_YE)
+  if (timeout == 0 && (state.mode == TW_UH || state.mode == TW_YE))
 		i2c_keep_or_rel_bus();
-  static int test = 0;
-  if (test++ > 1000) {
-    test = 0;
-    debug_print("%d I%d I%d O%d", TWCR, grb_count(&peers[0].io->input), grb_count(&peers[state.peer_idx].io->input), grb_count(&peers[state.peer_idx].io->output));
-  }
+  // if (test++ > 1000) {
+  //   test = 0;
+  //   debug_print("%d %d %d I%d I%d O%d", TW_STATUS, TWCR, state.mode, grb_count(&peers[0].io->input), grb_count(&peers[state.peer_idx].io->input), grb_count(&peers[state.peer_idx].io->output));
+  //   // print_status_reg("poll: ");
+  //   if (TWCR == 37 && reset++ > 5) {
+  //     reset = 0;
+  //     i2c_listen();
+  //     timeout = 10;
+  //   }
+  //   if (timeout) timeout--;
+  // }
 }
 
 ISR(TWI_INTERRUPT) {
@@ -327,14 +327,14 @@ ISR(TWI_INTERRUPT) {
 	case (TW_MT_SLA_NACK): {
 		data = "SLA+W tx, NACK rx";
 		debug_print("%s", data);
-		peers[state.peer_idx].nack = 10000;
+		peers[state.peer_idx].nack = 10;
 		// ok now either load a data byte
 		// (apparently you can still load data after a NACK?)
 		// (you can talk to a wall, cool)
 		// or set TWSTA or set TWSTO or both
 		// and set TWINT
 		i2c_stop();
-		back_to_passive();
+		i2c_listen();
 		break;
 	}
 	case (TW_MT_DATA_ACK): {
@@ -358,7 +358,7 @@ ISR(TWI_INTERRUPT) {
 		// or set TWSTA or set TWSTO or both
 		// and set TWINT
 		i2c_stop();
-		back_to_passive();
+		i2c_listen();
 		break;
 	}
 	case (TW_MT_ARB_LOST): {
@@ -367,7 +367,7 @@ ISR(TWI_INTERRUPT) {
 		// just set TWINT to accept fate
 		// can optionally set TWSTA to try and get a START asap
 		i2c_int();
-		back_to_passive();
+		i2c_listen();
 		break;
 	}
 	case (TW_MR_SLA_ACK): {
@@ -386,7 +386,7 @@ ISR(TWI_INTERRUPT) {
 		peers[state.peer_idx].nack = 10000;
 		// Either send Repeated start or Stop or both
 		i2c_stop();
-		back_to_passive();
+		i2c_listen();
 		break;
 	}
 	case (TW_MR_DATA_ACK): {
@@ -402,7 +402,7 @@ ISR(TWI_INTERRUPT) {
 		debug_print("%s", data);
 		// Either send Repeated start or Stop or both
 		i2c_stop();
-		back_to_passive();
+		i2c_listen();
 		break;
 	}
 	case (TW_ST_SLA_ACK): {
