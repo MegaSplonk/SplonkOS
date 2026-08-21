@@ -66,22 +66,21 @@ int main(void) {
 	timer_ontick_register(T_ONTICK_SLOT_I2C_SELF, self_input_to_uart);
 	debug_print("I'm alive %p, %d, %p", (void *)peer1, peer1->addr, (void *)peer1->io);
 	timer_t t = timer_reset();
-	timer_t tp = timer_reset();
+	// timer_t tp = timer_reset();
 
 
 	while (true) {
     // if (timer_wait(&tp, 1)) {
     //   tp = timer_reset();
       // peer1_input_to_uart();
-    uart_poll();
+    // uart_poll();
     // i2c_poll();
     // }
-		if (timer_wait(&t, 10000 + DELAY)) {
+		if (timer_wait(&t, 4000 + DELAY)) {
       t = timer_reset();
 			char *yeah = "Hello!" MSG;
 			i2c_send_async(peer1, (u8 *)yeah, 10);
 	    // debug_print("I'm alive %p, %d, %p", (void *)peer1, peer1->addr, (void *)peer1->io);
-      // i2c_send(peer1->addr, (u8 *)yeah, 10);
 		}
 	}
 

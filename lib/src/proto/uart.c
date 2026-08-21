@@ -34,9 +34,9 @@
 #define UART_UDRE	UDRE0
 #define UART_UDRIE	UDRIE0
 
-#define UART_UDRE_INTERUPT USART_UDRE_vect
-#define UART_TX_INTERUPT   USART_TX_vect
-#define UART_RX_INTERUPT   USART_RX_vect
+#define UART_UDRE_INTERRUPT USART_UDRE_vect
+#define UART_TX_INTERRUPT   USART_TX_vect
+#define UART_RX_INTERRUPT   USART_RX_vect
 
 #define UART_OLD_REG
 
@@ -74,9 +74,9 @@
 #define UART_RXCIE RXCIE1
 #define UART_TXCIE TXCIE1
 
-#define UART_UDRE_INTERUPT USART1_UDRE_vect
-#define UART_TX_INTERUPT   USART1_TX_vect
-#define UART_RX_INTERUPT   USART1_RX_vect
+#define UART_UDRE_INTERRUPT USART1_UDRE_vect
+#define UART_TX_INTERRUPT   USART1_TX_vect
+#define UART_RX_INTERRUPT   USART1_RX_vect
 
 #define UART_OLD_REG
 
@@ -118,7 +118,7 @@ static void uart_ontick_reenable_udre_int(void) {
 	}
 }
 
-// uart is 115200 baud rate, 8 bits per word, no parrity and 1 stop bit
+// uart is 115200 baud rate, 8 bits per word, no parity and 1 stop bit
 // 115200 8N1
 void uart_init(void) {
 	// Set baud rate
@@ -133,7 +133,7 @@ void uart_init(void) {
 
 	// Set frame format: 8 data bits, no parity, 1 stop bit
 	UART_UCSRC = _BV(UART_UCSZ1) | _BV(UART_UCSZ0);
-	// timer_ontick_register(T_ONTICK_SLOT_UART, uart_ontick_reenable_udre_int);
+	timer_ontick_register(T_ONTICK_SLOT_UART, uart_ontick_reenable_udre_int);
 }
 
 void uart_disable_udre_int(void) { 
@@ -170,7 +170,7 @@ ISR(UART_UDRE_INTERUPT) {
 	UART_UDR = value;
 }
 
-ISR(UART_RX_INTERUPT) {
+ISR(UART_RX_INTERRUPT) {
 	u8	  value;
 	usize w;
 

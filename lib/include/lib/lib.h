@@ -31,6 +31,7 @@ typedef enum : u8 {
 
 extern char FMT_BUF[256];
 
+#ifndef DEBUG
 #define debug_print(...)                                                                           \
 	do {                                                                                           \
 		int16_t n =                                                                                \
@@ -46,5 +47,8 @@ extern char FMT_BUF[256];
 		uart_sendstring(FMT_BUF);                                                                  \
 		uart_sendstring("\r\n");                                                                   \
 	} while (0)
+#else
+#define debug_print(...)
+#endif
 
 void mcu_init(void);
