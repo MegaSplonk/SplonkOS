@@ -32,7 +32,7 @@ static void peer_input_to_uart(i2c_peer *peer, const char *identifier) {
 
 	u8 data[65];
   usize read_bytes = 0;
-  if (grb_count(&peer->io->input) >= 10) {
+  if (grb_count(&peer->io->input)) {
     grb_read(&peer->io->input, data, 64, &read_bytes);
     data[read_bytes] = 0;
     if (read_bytes) {
