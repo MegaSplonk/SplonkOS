@@ -2,18 +2,21 @@
 #include "lib/grb.h"
 #include "lib/lib.h"
 #include "lib/proto/uart.h"
+#include <util/atomic.h>
 
 #if defined(SPLONKLIB_ENABLE_UART)
 
 extern grbio UART_BUF;
 
 void uart_sendstring(const char *str) {
-	usize len = 0;
-	if (!str)
-		return;
-	while (str[len])
-		len++;
-	(void)grb_write(&UART_BUF.output, (const void *)str, len, nullptr);
+	ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {
+		usize len = 0;
+		if (!str)
+			return;
+		while (str[len])
+			len++;
+		(void)grb_write(&UART_BUF.output, (const void *)str, len, nullptr);
+	}
 }
 void uart_send_u8(uint8_t val) {
 	if (val == 0) {

@@ -38,8 +38,10 @@ int main(void) {
 	struct ec11 ec;
 	ec11_init(&ec, (pin)R_A, (pin)R_B, (pin)R_BTN);
 
+#if defined(R_A_LED) || defined(R_B_LED)
 	enum ec11_rot last_rot = ROT_NONE;
-	bool		  btn_prev = false;
+#endif
+	bool btn_prev = false;
 #ifdef R_A_LED
 	pin_output((pin)R_A_LED);
 	pin_set((pin)R_A_LED, false);
@@ -50,24 +52,32 @@ int main(void) {
 #endif
 	while (true) {
 		bool btn_cur = false;
+#if defined(R_A_LED) || defined(R_B_LED)
 		bool rot_changed = false;
+#endif
 		switch (ec11_poll(&ec, &btn_cur)) {
 		case (ROT_A):
 			uart_sendstring("CW\r\n");
+#if defined(R_A_LED) || defined(R_B_LED)
 			rot_changed = (last_rot != ROT_A);
 			last_rot = ROT_A;
+#endif
 			break;
 		case (ROT_B):
 			uart_sendstring("CCW\r\n");
+#if defined(R_A_LED) || defined(R_B_LED)
 			rot_changed = (last_rot != ROT_B);
 			last_rot = ROT_B;
+#endif
 			break;
 		case (ROT_NONE):
 			break;
 		}
 		if (!btn_prev && btn_cur) {
+#if defined(R_A_LED) || defined(R_B_LED)
 			rot_changed = (last_rot != ROT_NONE);
 			last_rot = ROT_NONE;
+#endif
 			uart_sendstring("\r\n");
 		}
 

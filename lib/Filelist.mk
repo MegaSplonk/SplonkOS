@@ -6,7 +6,7 @@ pin                                                                           \
 proto/rgb                                                                     \
 proto/spi                                                                     \
 proto/uart                                                                    \
-proto/uart_bis                                                                \
+proto/uart_send                                                               \
 proto/usb                                                                     \
 time                                                                          \
 
