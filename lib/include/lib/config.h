@@ -24,5 +24,6 @@
 #elif defined(MCU_attiny1614)
 
 #define SPLONKLIB_ENABLE_EC11
+#define SPLONKLIB_ENABLE_UART
 
 #endif

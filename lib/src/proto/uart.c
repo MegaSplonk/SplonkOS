@@ -1,14 +1,19 @@
 #include "lib/proto/uart.h"
 #include "lib/config.h"
 #include "lib/grb.h"
+#include "lib/pinout.h"
 #include "lib/time.h"
 #include <avr/interrupt.h>
+#include <avr/io.h>
 
 #if defined(SPLONKLIB_ENABLE_UART)
 
 #if defined(MCU_atmega328p)
 
-#define BAUD_RATE  115200
+#if !defined(BAUD_RATE)
+#define BAUD_RATE 115200
+#endif
+
 #define UBRR_VALUE ((F_CPU / (8UL * BAUD_RATE)) - 1)
 
 #define UART_RXC	RXC0
@@ -33,9 +38,14 @@
 #define UART_TX_INTERUPT   USART_TX_vect
 #define UART_RX_INTERUPT   USART_RX_vect
 
+#define UART_OLD_REG
+
 #elif defined(MCU_atmega32u4)
 
-#define BAUD_RATE  9600
+#if !defined(BAUD_RATE)
+#define BAUD_RATE 57600
+#endif
+
 #define UBRR_VALUE ((F_CPU / (8UL * BAUD_RATE)) - 1)
 
 #define UART_RXC  RXC1
@@ -68,9 +78,23 @@
 #define UART_TX_INTERUPT   USART1_TX_vect
 #define UART_RX_INTERUPT   USART1_RX_vect
 
+#define UART_OLD_REG
+
+#elif defined(MCU_attiny1614)
+
+#if !defined(BAUD_RATE)
+#define BAUD_RATE 57600
+#endif
+
+#define UART_NEW_REG
+
+#define UART_TX_PIN P7
+
 #endif
 
 GRBIO_INIT(UART_BUF, UART_IBUF, UART_OBUF, 128, 128);
+
+#if defined(UART_OLD_REG)
 
 void uart_poll(void) {
 	if ((UART_UCSRA & _BV(UART_UDRE))) {
@@ -129,115 +153,6 @@ u8 uart_rx(void) {
 	return UART_UDR;
 }
 
-void uart_sendstring(const char *str) {
-	usize len = 0;
-	if (!str)
-		return;
-	while (str[len])
-		len++;
-	(void)grb_write(&UART_BUF.output, (const void *)str, len, nullptr);
-}
-void uart_send_u8(uint8_t val) {
-	if (val == 0) {
-		uart_tx('0');
-		return;
-	}
-	char	buf[4] = {0, 0, 0, 0};
-	uint8_t idx = 0;
-	bool	print = false;
-
-	uint8_t modulus = 100;
-	while (modulus) {
-		uint8_t digit = val / modulus;
-		if (print || digit != 0) {
-			print = true;
-			buf[idx++] = (char)('0' + digit);
-		}
-		val %= modulus;
-		modulus /= 10;
-	}
-
-	uart_sendstring(buf);
-}
-
-void uart_send_u16(uint16_t val) {
-	if (val == 0) {
-		uart_tx('0');
-		return;
-	}
-	char	buf[6] = {0, 0, 0, 0, 0, 0};
-	uint8_t idx = 0;
-	bool	print = false;
-
-	uint16_t modulus = 10000;
-	while (modulus) {
-		uint8_t digit = (uint8_t)(val / modulus);
-		if (print || digit != 0) {
-			print = true;
-			buf[idx++] = (char)('0' + digit);
-		}
-		val %= modulus;
-		modulus /= 10;
-	}
-	uart_sendstring(buf);
-}
-
-void uart_send_i16(int16_t val) {
-	if (val == 0) {
-		uart_tx('0');
-		return;
-	}
-	if (val == -32768) {
-		uart_sendstring("-32768");
-		return;
-	}
-	if (val < 0) {
-		uart_tx('-');
-		val = -val;
-	}
-	uart_send_u16((uint16_t)val);
-}
-
-void uart_send_u32(uint32_t val) {
-	if (val == 0) {
-		uart_tx('0');
-		return;
-	}
-	char	buf[11] = {};
-	uint8_t idx = 0;
-	bool	print = false;
-
-	uint32_t modulus = 1000000000;
-	while (modulus) {
-		uint8_t digit = (uint8_t)(val / modulus);
-		if (print || digit != 0) {
-			print = true;
-			buf[idx++] = (char)('0' + digit);
-		}
-		val %= modulus;
-		modulus /= 10;
-	}
-	uart_sendstring(buf);
-}
-
-void uart_send_u8_hex(uint8_t val) {
-	char buf[3] = {0, 0, 0};
-	buf[0] = "0123456789abcdef"[(val >> 4) & 0x0F];
-	buf[1] = "0123456789abcdef"[(val >> 0) & 0x0F];
-
-	uart_sendstring(buf);
-}
-
-void uart_send_u16_hex(uint16_t val) {
-	char buf[5] = {0, 0, 0, 0, 0};
-
-	buf[0] = "0123456789abcdef"[(val >> 12) & 0x0F];
-	buf[1] = "0123456789abcdef"[(val >> 8) & 0x0F];
-	buf[2] = "0123456789abcdef"[(val >> 4) & 0x0F];
-	buf[3] = "0123456789abcdef"[(val >> 0) & 0x0F];
-	uart_sendstring(buf);
-}
-
 ISR(UART_UDRE_INTERUPT) {
 	u8 value = 'F';
 
@@ -257,5 +172,82 @@ ISR(UART_RX_INTERUPT) {
 	value = UART_UDR;
 	(void)grb_write(&UART_BUF.input, &value, 1, &w);
 }
+
+#elif defined(UART_NEW_REG)
+
+static void uart_ontick_reenable_udre_int(void) {
+	if (!(USART0.CTRLA & USART_DREIE_bm) && !grb_empty(&UART_BUF.output)) {
+		uart_enable_udre_int();
+	}
+}
+
+void uart_poll(void) {
+	if ((USART0.STATUS & _BV(USART_DREIF_bm))) {
+		u8	  val;
+		usize do_tx = 0;
+		(void)grb_read(&UART_BUF.output, &val, 1, &do_tx);
+		if (do_tx == 1) {
+			USART0.TXDATAL = val;
+		}
+	}
+	if (USART0.STATUS & _BV(USART_RXCIF_bm)) {
+		u8 val;
+		val = USART0.RXDATAL;
+		(void)grb_write(&UART_BUF.input, &val, 1, nullptr);
+	}
+}
+
+void uart_init(void) {
+	u8 sreg = SREG;
+	SREG &= (u8) ~(_BV(SREG_I));
+
+	pin_output((pin)UART_TX_PIN);
+
+	USART0.BAUD = (u16)(((u32)F_CPU * 64) / (u32)(8 * (u32)BAUD_RATE));
+	USART0.CTRLA = USART_RXCIE_bm;
+	USART0.CTRLB = USART_RXEN_bm | USART_TXEN_bm | USART_RXMODE_CLK2X_gc;
+	USART0.CTRLC = USART_CHSIZE_8BIT_gc;
+
+	timer_ontick_register(T_ONTICK_SLOT_UART, uart_ontick_reenable_udre_int);
+
+	SREG = sreg;
+}
+void uart_disable_udre_int(void) { USART0.CTRLA &= (u8)~USART_DREIE_bm; }
+
+void uart_enable_udre_int(void) { USART0.CTRLA |= USART_DREIE_bm; }
+
+void uart_tx(u8 data) {
+	while (!(USART0.STATUS & USART_DREIF_bm))
+		;
+	USART0.TXDATAL = data;
+}
+
+u8 uart_rx(void) {
+	while (!(USART0.STATUS & USART_RXCIF_bm))
+		;
+	return USART0.RXDATAL;
+}
+
+ISR(USART0_RXC_vect) {
+	u8	  value;
+	usize w;
+
+	value = USART0.RXDATAL;
+	(void)grb_write(&UART_BUF.input, &value, 1, &w);
+}
+
+ISR(USART0_DRE_vect) {
+	u8 value = 'F';
+
+	if (grb_empty(&UART_BUF.output)) {
+		uart_disable_udre_int();
+		return;
+	}
+
+	(void)grb_read(&UART_BUF.output, &value, 1, nullptr);
+	USART0.TXDATAL = value;
+}
+
+#endif
 
 #endif

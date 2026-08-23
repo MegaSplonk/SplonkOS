@@ -19,7 +19,7 @@ MCU              = atmega32u4
 F_CPU            = 16000000
 else ifeq ($(BOARD),attiny)
 PORT             = /dev/ttyUSB0
-BAUD_RATE        = 115200
+BAUD_RATE        = 57600
 PROGRAMMER       = serialupdi
 MCU              = attiny1614
 F_CPU            = 20000000UL

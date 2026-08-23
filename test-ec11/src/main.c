@@ -2,6 +2,7 @@
 #include "lib/pin.h"
 #include "lib/pinout.h"
 #include "lib/proto/uart.h"
+#include "lib/time.h"
 #include <avr/io.h>
 #include <util/delay.h>
 
@@ -24,38 +25,40 @@
 
 #elif defined(BOARD_attiny)
 
-#define R_BTN P2
-#define R_A	  P3
-#define R_B	  P4
-
-#define R_A_LED P5
-#define R_B_LED P6
+#define R_BTN P13
+#define R_A	  P12
+#define R_B	  P11
 
 #endif
 
 int main(void) {
-	// uart_init();
+	uart_init();
+	timer_init();
 
 	struct ec11 ec;
 	ec11_init(&ec, (pin)R_A, (pin)R_B, (pin)R_BTN);
 
 	enum ec11_rot last_rot = ROT_NONE;
 	bool		  btn_prev = false;
+#ifdef R_A_LED
 	pin_output((pin)R_A_LED);
-	pin_output((pin)R_B_LED);
 	pin_set((pin)R_A_LED, false);
+#endif
+#ifdef R_B_LED
+	pin_output((pin)R_B_LED);
 	pin_set((pin)R_B_LED, false);
+#endif
 	while (true) {
 		bool btn_cur = false;
 		bool rot_changed = false;
 		switch (ec11_poll(&ec, &btn_cur)) {
 		case (ROT_A):
-			// uart_sendstring("CW\r\n");
+			uart_sendstring("CW\r\n");
 			rot_changed = (last_rot != ROT_A);
 			last_rot = ROT_A;
 			break;
 		case (ROT_B):
-			// uart_sendstring("CCW\r\n");
+			uart_sendstring("CCW\r\n");
 			rot_changed = (last_rot != ROT_B);
 			last_rot = ROT_B;
 			break;
@@ -65,9 +68,10 @@ int main(void) {
 		if (!btn_prev && btn_cur) {
 			rot_changed = (last_rot != ROT_NONE);
 			last_rot = ROT_NONE;
-			// uart_sendstring("\r\n");
+			uart_sendstring("\r\n");
 		}
 
+#if defined(R_A_LED) && defined(R_B_LED)
 		if (rot_changed) {
 			switch (last_rot) {
 			case (ROT_A): {
@@ -87,8 +91,8 @@ int main(void) {
 			};
 			}
 		}
+#endif
 		btn_prev = btn_cur;
-		_delay_ms(1);
 	}
 
 	return 0;
