@@ -27,7 +27,7 @@ GRBIO_INIT(i2c_io, i2c_in, i2c_out, 32, 32);
 // Own grbio dedicated to outbound general call data
 // or inbound addressed or general call data
 
-static i2c_peer peers[I2C_MAX_PEERS] = {{0, &i2c_io, 0}};
+static i2c_peer peers[I2C_MAX_PEERS] = {{0, &i2c_io, 0, 0}};
 
 i2c_state state = {};
 
@@ -72,97 +72,31 @@ void i2c_ignore(void) {
 	state.mode = TW_UH;
 }
 
-t_error i2c_start(void) {
+static void i2c_start(void) {
 	//     CLR INT    | SET MASTER |  ENABLE   | INTERRUPT;
 	TWCR = _BV(TWINT) | _BV(TWSTA) | _BV(TWEN) | _BV(TWIE);
-
-	debug_print("start %d", state.peer_idx);
-	return SUCCESS;
+	// debug_print("start %d", state.peer_idx);
 }
 
-void i2c_stop(void) {
+static void i2c_stop(void) {
 	//     CLR INT    | ENABLE    |  STOP     | INTERRUPT;
 	TWCR = _BV(TWINT) | _BV(TWEN) | _BV(TWSTO)| _BV(TWIE);
-	debug_print("stop %d", state.mode);
+	// debug_print("stop %d", state.mode);
 }
 
-void i2c_int(void) {
+static void i2c_int(void) {
 	//     CLR INT    | ENABLE    | INTERRUPT;
 	TWCR = _BV(TWINT) | _BV(TWEN) | _BV(TWIE);
 }
 
-t_error i2c_select(uint8_t addr, uint8_t rw) {
+static void i2c_select(uint8_t addr, uint8_t rw) {
 	// set addr to write
 	TWDR = (addr << 1) | rw;
 	//     CLR INT    | ENABLE    | INTERRUPT;
 	TWCR = _BV(TWINT) | _BV(TWEN) | _BV(TWIE);
 
-	debug_print("select %d", state.mode);
-	return SUCCESS;
+	// debug_print("select %d", state.mode);
 }
-
-t_error i2c_write(uint8_t data) {
-	// set data to write
-	TWDR = data;
-	//     CLR INT    | ENABLE    | INTERRUPT;
-	TWCR = _BV(TWINT) | _BV(TWEN) | _BV(TWIE);
-
-	// debug_print("write %c %d", (char)data, state.mode);
-	return SUCCESS;
-}
-
-// uint8_t i2c_read_ack(void) {
-// 	TWCR = _BV(TWINT) | _BV(TWEN) | _BV(TWEA);
-// 	return TWDR;
-// }
-//
-// uint8_t i2c_read_nack(void) {
-// 	TWCR = _BV(TWINT) | _BV(TWEN);
-// 	return TWDR;
-// }
-
-t_error i2c_send(u8 addr, u8 *data, usize len) {
-	debug_print("I2C Send");
-	if (!len || i2c_start() || i2c_select(addr, TW_WRITE)) {
-		print_status_reg("start/select failed");
-		return ERROR;
-	}
-
-	debug_print("I2C Started and selected slave");
-
-	t_error e = SUCCESS;
-	for (usize i = 0; e == SUCCESS && i < len; i++) {
-		e = i2c_write(data[i]); // TODO - check bus errors?
-		debug_print("I2C wrote %c", data[i]);
-	}
-	if (e)
-		switch (TW_STATUS) {
-		case (TW_MT_DATA_NACK):
-			break;
-		case (TW_MT_ARB_LOST):
-			return ERROR;
-		};
-	i2c_stop();
-	return SUCCESS;
-}
-
-t_error i2c_query(u8 addr, u8 *data, usize *len) {
-	// if (!*len || i2c_start() || i2c_select(addr, TW_WRITE))
-	// 	return ERROR;
-	if (!*len || i2c_start() || i2c_select(addr, TW_READ))
-		return ERROR;
-	print_status_reg("[I2C] Selct - ");
-	for (usize i = 0; i < *len; i++) {
-		data[i] = i + 1 == *len ? i2c_read_nack() : i2c_read_ack();
-		print_status_reg("[I2C] Write - ");
-	}
-	// TODO - check bus errors?
-	i2c_stop();
-	// print_status_reg("[I2C] Stop  - ");
-	return SUCCESS;
-}
-
-// ASYNC STUFF
 
 t_error i2c_register_peer(i2c_peer **p, grbio *io, u8 addr) {
 	if (!io) {
@@ -184,7 +118,7 @@ t_error i2c_register_peer(i2c_peer **p, grbio *io, u8 addr) {
 	return ERROR;
 }
 
-t_error i2c_send_async(i2c_peer *p, u8 *data, usize len) {
+t_error i2c_send(i2c_peer *p, u8 *data, usize len) {
 	grbio *g = p->io;
 
 	if (grb_full(&g->output) || grb_avail(&g->output) < len){
@@ -198,7 +132,7 @@ t_error i2c_send_async(i2c_peer *p, u8 *data, usize len) {
 	return e;
 }
 
-t_error i2c_query_async(i2c_peer *p, u8 *data, usize len) {
+t_error i2c_query(i2c_peer *p, u8 *data, usize len) {
 	grbio *g = p->io;
 
 	if (grb_empty(&g->input) || grb_count(&g->input) < len) {
@@ -211,10 +145,10 @@ t_error i2c_query_async(i2c_peer *p, u8 *data, usize len) {
 	return grb_read(&g->input, data, len, &useless);
 }
 
-static t_error i2c_write_async(i2c_peer *p) {
+static t_error i2c_write(i2c_peer *p) {
 	grbio *g = p->io;
 	if (grb_empty(&g->output)){
-    debug_print("OUTBUFEMPTY");
+    // debug_print("OUTBUFEMPTY");
 		return ERROR;
   }
 	u8	  data;
@@ -227,10 +161,10 @@ static t_error i2c_write_async(i2c_peer *p) {
 	return SUCCESS;
 }
 
-static t_error i2c_read_async(i2c_peer *p) {
+static t_error i2c_read(i2c_peer *p) {
 	grbio *g = p->io;
 	if (grb_full(&g->input)) {
-    debug_print("INBUFFULL");
+    // debug_print("INBUFFULL");
 		return ERROR;
   }
 	TWCR = _BV(TWINT) | _BV(TWEN) | (grb_avail(&g->input) == 1 ? 0 : _BV(TWEA)) | _BV(TWIE);
@@ -242,9 +176,6 @@ static t_error i2c_read_async(i2c_peer *p) {
 static void find_peer() {
 	for (usize peer = 0; peer < I2C_MAX_PEERS; peer++) {
 		grbio *g = peers[peer].io;
-
-		// if (peers[peer].nack)
-		//   debug_print("Oh no");
 
 		if (!g || (peers[peer].nack && peers[peer].nack--) ||
 			(grb_empty(&g->output) && !peers[peer].query))
@@ -280,7 +211,7 @@ static void handle_bus_error() {
 }
 
 void i2c_poll(void) {
-  if (timeout == 0 && (state.mode == TW_UH || state.mode == TW_YE))
+  if (state.mode == TW_UH || state.mode == TW_YE)
 		i2c_keep_or_rel_bus();
   // if (test++ > 1000) {
   //   test = 0;
@@ -299,34 +230,34 @@ ISR(TWI_INTERRUPT) {
 	const char *data = nullptr;
 	switch (TW_STATUS) {
 	case (TW_START): {
-		data = "start condition tx";
-		debug_print("%s", data);
+		// data = "start condition tx";
+		// debug_print("%s", data);
 		// cool bro now select a Slave
 		i2c_select(peers[state.peer_idx].addr, state.mode == TW_MR ? TW_READ : TW_WRITE);
 		break;
 	}
 	case (TW_REP_START): {
-		data = "repeated start condition tx";
-		debug_print("%s", data);
+		// data = "repeated start condition tx";
+		// debug_print("%s", data);
 		// cool bro now select a slave
 		i2c_select(peers[state.peer_idx].addr, state.mode == TW_MR ? TW_READ : TW_WRITE);
 		break;
 	}
 	case (TW_MT_SLA_ACK): {
-		data = "SLA+W tx, ACK rx";
-		debug_print("%s", data);
+		// data = "SLA+W tx, ACK rx";
+		// debug_print("%s", data);
 		state.mode = TW_MT;
 		peers[state.peer_idx].nack = 0;
 		// ok now either load a data byte
 		// or set TWSTA or set TWSTO or both
 		// and set TWINT
-		if (i2c_write_async(&peers[state.peer_idx]))
+		if (i2c_write(&peers[state.peer_idx]))
 			i2c_keep_or_rel_bus();
 		break;
 	}
 	case (TW_MT_SLA_NACK): {
-		data = "SLA+W tx, NACK rx";
-		debug_print("%s", data);
+		// data = "SLA+W tx, NACK rx";
+		// debug_print("%s", data);
 		peers[state.peer_idx].nack = 10;
 		// ok now either load a data byte
 		// (apparently you can still load data after a NACK?)
@@ -338,20 +269,20 @@ ISR(TWI_INTERRUPT) {
 		break;
 	}
 	case (TW_MT_DATA_ACK): {
-		data = "data tx, ACK rx";
+		// data = "data tx, ACK rx";
 		// debug_print("%s", data);
 		// ok now either load a data byte
 		// or set TWSTA or set TWSTO or both
 		// and set TWINT
-		if (i2c_write_async(&peers[state.peer_idx])) {
-			debug_print("last byte sent");
+		if (i2c_write(&peers[state.peer_idx])) {
+			// debug_print("last byte sent");
 			i2c_keep_or_rel_bus();
 		}
 		break;
 	}
 	case (TW_MT_DATA_NACK): {
-		data = "data tx, NACK rx";
-		debug_print("%s", data);
+		// data = "data tx, NACK rx";
+		// debug_print("%s", data);
 		// ok now either load a data byte
 		// (apparently you can still load data after a NACK?)
 		// (you can talk to a wall, cool)
@@ -362,8 +293,8 @@ ISR(TWI_INTERRUPT) {
 		break;
 	}
 	case (TW_MT_ARB_LOST): {
-		data = "arbitration lost in SLA+W or data";
-		debug_print("%s", data);
+		// data = "arbitration lost in SLA+W or data";
+		// debug_print("%s", data);
 		// just set TWINT to accept fate
 		// can optionally set TWSTA to try and get a START asap
 		i2c_int();
@@ -371,18 +302,18 @@ ISR(TWI_INTERRUPT) {
 		break;
 	}
 	case (TW_MR_SLA_ACK): {
-		data = "SLA+R tx, ACK rx";
-		debug_print("%s", data);
+		// data = "SLA+R tx, ACK rx";
+		// debug_print("%s", data);
 		peers[state.peer_idx].nack = 0;
 		state.mode = TW_MR;
 		// Either read one byte and send ACK by setting TWEA to 1
 		// Or read and send NACK by setting TWEA to 0
-		i2c_read_async(&peers[state.peer_idx]);
+		i2c_read(&peers[state.peer_idx]);
 		break;
 	}
 	case (TW_MR_SLA_NACK): {
-		data = "SLA+R tx, NACK rx";
-		debug_print("%s", data);
+		// data = "SLA+R tx, NACK rx";
+		// debug_print("%s", data);
 		peers[state.peer_idx].nack = 10000;
 		// Either send Repeated start or Stop or both
 		i2c_stop();
@@ -390,61 +321,61 @@ ISR(TWI_INTERRUPT) {
 		break;
 	}
 	case (TW_MR_DATA_ACK): {
-		data = "data rx, ACK returned";
-		debug_print("%s", data);
+		// data = "data rx, ACK returned";
+		// debug_print("%s", data);
 		// Either read one byte and send ACK by setting TWEA to 1
 		// Or read and send NACK by setting TWEA to 0
-		i2c_read_async(&peers[state.peer_idx]);
+		i2c_read(&peers[state.peer_idx]);
 		break;
 	}
 	case (TW_MR_DATA_NACK): {
-		data = "data rx, NACK returned";
-		debug_print("%s", data);
+		// data = "data rx, NACK returned";
+		// debug_print("%s", data);
 		// Either send Repeated start or Stop or both
 		i2c_stop();
 		i2c_listen();
 		break;
 	}
 	case (TW_ST_SLA_ACK): {
-		data = "SLA+R rx, ACK returned";
-		debug_print("%s", data);
+		// data = "SLA+R rx, ACK returned";
+		// debug_print("%s", data);
 		state.mode = TW_ST;
 		// Load data byte and either set TWEA to signify more data is coming
 		// or unset it to signify last byte (in which case NACK is expected from
 		// master)
-		if (i2c_write_async(&peers[state.peer_idx]))
+		if (i2c_write(&peers[state.peer_idx]))
 			i2c_keep_or_rel_bus();
 		break;
 	}
 	case (TW_ST_ARB_LOST_SLA_ACK): {
-		data = "arbitration lost in SLA+RW, SLA+R rx, ACK returned";
-		debug_print("%s", data);
+		// data = "arbitration lost in SLA+RW, SLA+R rx, ACK returned";
+		// debug_print("%s", data);
 		state.mode = TW_ST;
 		state.peer_idx = 0;
 		// Load data byte and either set TWEA to signify more data is coming
 		// or unset it to signify last byte (in which case NACK is expected)
-		if (i2c_write_async(&peers[state.peer_idx]))
+		if (i2c_write(&peers[state.peer_idx]))
 			i2c_keep_or_rel_bus();
 		break;
 	}
 	case (TW_ST_DATA_ACK): {
-		data = "data tx, ACK rx";
-		debug_print("%s", data);
+		// data = "data tx, ACK rx";
+		// debug_print("%s", data);
 		// Load data byte and either set TWEA to signify more data is coming
 		// or unset it to signify last byte (in which case NACK is expected)
-		if (i2c_write_async(&peers[state.peer_idx]))
+		if (i2c_write(&peers[state.peer_idx]))
 			i2c_keep_or_rel_bus();
 		break;
 	}
 	case (TW_ST_DATA_NACK): {
-		data = "data tx, NACK rx";
-		debug_print("%s", data);
+		// data = "data tx, NACK rx";
+		// debug_print("%s", data);
 		i2c_keep_or_rel_bus();
 		break;
 	}
 	case (TW_ST_LAST_DATA): {
-		data = "last data byte tx, ACK rx";
-		debug_print("%s", data);
+		// data = "last data byte tx, ACK rx";
+		// debug_print("%s", data);
 		// Can either keep listening
 		// Or stop listening
 		// Or prepare to send start asap while not listening
@@ -453,57 +384,57 @@ ISR(TWI_INTERRUPT) {
 		break;
 	}
 	case (TW_SR_SLA_ACK): {
-		data = "SLA+W rx, ACK returned";
+		// data = "SLA+W rx, ACK returned";
 		// debug_print("%s", data);
 		state.mode = TW_SR;
 		state.peer_idx = 0;
 		// Either read one byte and send ACK by setting TWEA to 1
 		// Or read and send NACK by setting TWEA to 0
-		i2c_read_async(&peers[state.peer_idx]);
+		i2c_read(&peers[state.peer_idx]);
 		break;
 	}
 	case (TW_SR_ARB_LOST_SLA_ACK): {
-		data = "arbitration lost in SLA+RW, SLA+W rx, ACK returned";
-		debug_print("%s", data);
+		// data = "arbitration lost in SLA+RW, SLA+W rx, ACK returned";
+		// debug_print("%s", data);
 		state.mode = TW_SR;
 		state.peer_idx = 0;
 		// Either read one byte and send ACK by setting TWEA to 1
 		// Or read and send NACK by setting TWEA to 0
-		i2c_read_async(&peers[state.peer_idx]);
+		i2c_read(&peers[state.peer_idx]);
 		break;
 	}
 	case (TW_SR_GCALL_ACK): {
-		data = "general call rx, ACK returned";
-		debug_print("%s", data);
+		// data = "general call rx, ACK returned";
+		// debug_print("%s", data);
 		state.mode = TW_SR;
 		state.peer_idx = 0;
 		// Either read one byte and send ACK by setting TWEA to 1
 		// Or read and send NACK by setting TWEA to 0
-		i2c_read_async(&peers[state.peer_idx]);
+		i2c_read(&peers[state.peer_idx]);
 		break;
 	}
 	case (TW_SR_DATA_ACK): {
-		data = "data rx, ACK returned";
-		debug_print("%s", data);
+		// data = "data rx, ACK returned";
+		// debug_print("%s", data);
 		// Either read one byte and send ACK by setting TWEA to 1
 		// Or read and send NACK by setting TWEA to 0
-		i2c_read_async(&peers[state.peer_idx]);
+		i2c_read(&peers[state.peer_idx]);
 		break;
 	}
 	case (TW_SR_ARB_LOST_GCALL_ACK): {
-		data = "arbitration lost in SLA+RW, general call rx, ACK returned";
-		debug_print("%s", data);
+		// data = "arbitration lost in SLA+RW, general call rx, ACK returned";
+		// debug_print("%s", data);
     state.mode = TW_SR;
 		state.peer_idx = 0;
 		// "returned";
 		// Either read one byte and send ACK by setting TWEA to 1
 		// Or read and send NACK by setting TWEA to 0
-		i2c_read_async(&peers[state.peer_idx]);
+		i2c_read(&peers[state.peer_idx]);
 		break;
 	}
 	case (TW_SR_DATA_NACK): {
-		data = "data rx, NACK returned";
-		debug_print("%s", data);
+		// data = "data rx, NACK returned";
+		// debug_print("%s", data);
 		// Can either keep listening
 		// Or stop listening
 		// Or prepare to send start asap while not listening
@@ -512,16 +443,16 @@ ISR(TWI_INTERRUPT) {
 		break;
 	}
 	case (TW_SR_GCALL_DATA_ACK): {
-		data = "general call data rx, ACK returned";
-		debug_print("%s", data);
+		// data = "general call data rx, ACK returned";
+		// debug_print("%s", data);
 		// Either read one byte and send ACK by setting TWEA to 1
 		// Or read and send NACK by setting TWEA to 0
-		i2c_read_async(&peers[state.peer_idx]);
+		i2c_read(&peers[state.peer_idx]);
 		break;
 	}
 	case (TW_SR_GCALL_DATA_NACK): {
-		data = "general call data rx, NACK returned";
-		debug_print("%s", data);
+		// data = "general call data rx, NACK returned";
+		// debug_print("%s", data);
 		// Can either keep listening
 		// Or stop listening
 		// Or prepare to send start asap while not listening
@@ -530,13 +461,13 @@ ISR(TWI_INTERRUPT) {
 		break;
 	}
 	case (TW_SR_STOP): {
-		data = "stop or repeated start condition rx while selected";
+		// data = "stop or repeated start condition rx while selected";
 		// Either listen or don't, and/or get a START asap or don't.
 
 		if (state.mode != TW_YE && state.mode != TW_UH) {
-			debug_print("%s %d %d", data, state.mode, i2c_is_listening());
+			// debug_print("%s %d %d", data, state.mode, i2c_is_listening());
 			i2c_keep_or_rel_bus();
-			debug_print("%s %d %d", data, state.mode, i2c_is_listening());
+			// debug_print("%s %d %d", data, state.mode, i2c_is_listening());
 		}
 		break;
 	}
@@ -545,8 +476,8 @@ ISR(TWI_INTERRUPT) {
 		break;
 	}
 	case (TW_BUS_ERROR): {
-		data = "illegal start or stop condition";
-		debug_print("%s", data);
+		// data = "illegal start or stop condition";
+		// debug_print("%s", data);
 		handle_bus_error();
 		break;
 	}

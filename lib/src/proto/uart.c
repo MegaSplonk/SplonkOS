@@ -158,7 +158,7 @@ u8 uart_rx(void) {
 	return UART_UDR;
 }
 
-ISR(UART_UDRE_INTERUPT) {
+ISR(UART_UDRE_INTERRUPT) {
 	u8 value = 'F';
 
 	if (grb_empty(&UART_BUF.output)) {
