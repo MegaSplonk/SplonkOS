@@ -1,6 +1,7 @@
 #include <avr/io.h>
 #include <avr/interrupt.h>
 #include <util/twi.h>
+#include <util/atomic.h>
 
 #include "lib/config.h"
 #include "lib/grb.h"
@@ -120,29 +121,35 @@ t_error i2c_register_peer(i2c_peer **p, grbio *io, u8 addr) {
 
 t_error i2c_send(i2c_peer *p, u8 *data, usize len) {
 	grbio *g = p->io;
+  t_error e = ERROR;
 
-	if (grb_full(&g->output) || grb_avail(&g->output) < len){
-    // debug_print("OUTBUFFULL%d-%d", state.mode, TWCR);
-		return ERROR;
+  ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {
+    if (grb_full(&g->output) || grb_avail(&g->output) < len){
+      // debug_print("OUTBUFFULL%d-%d", state.mode, TWCR);
+      return e;
+    }
+    usize	useless;
+    e = grb_write(&g->output, data, len, &useless);
+    // debug_print("I'm alive %p, %d, %p, %d", (void *)p, p->addr, (void *)p->io, useless);
   }
-
-	usize	useless;
-	t_error e = grb_write(&g->output, data, len, &useless);
-	debug_print("I'm alive %p, %d, %p, %d", (void *)p, p->addr, (void *)p->io, useless);
-	return e;
+  return e;
 }
 
 t_error i2c_query(i2c_peer *p, u8 *data, usize len) {
 	grbio *g = p->io;
+  t_error e = ERROR;
 
-	if (grb_empty(&g->input) || grb_count(&g->input) < len) {
-		p->query = true;
-		return ERROR;
-	}
-	p->query = false;
+  ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {
+    if (grb_empty(&g->input) || grb_count(&g->input) < len) {
+      p->query = true;
+      return e;
+    }
+    p->query = false;
 
-	usize useless;
-	return grb_read(&g->input, data, len, &useless);
+    usize useless;
+    e = grb_read(&g->input, data, len, &useless);
+  }
+  return e;
 }
 
 static t_error i2c_write(i2c_peer *p) {
