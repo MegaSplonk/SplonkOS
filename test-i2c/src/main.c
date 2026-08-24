@@ -79,7 +79,7 @@ int main(void) {
 		if (timer_wait(&t, 4000 + DELAY)) {
       t = timer_reset();
 			char *yeah = "Hello!" MSG;
-			i2c_send_async(peer1, (u8 *)yeah, 10);
+			i2c_send(peer1, (u8 *)yeah, 10);
 	    // debug_print("I'm alive %p, %d, %p", (void *)peer1, peer1->addr, (void *)peer1->io);
 		}
 	}
