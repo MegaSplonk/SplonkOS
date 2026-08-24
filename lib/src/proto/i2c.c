@@ -47,7 +47,7 @@ void i2c_set_addr(u8 addr, bool answer_gc) {
 
 void i2c_init(void) {
 	// clear the status registers
-	TWSR =  _BV(TWPS1) | _BV(TWPS0); // SHIT WAS GETTING STUCK BECAUSE THE PRESCALER WASNT BIG ENOUGH
+	TWSR =  _BV(TWPS0) ; // | _BV(TWPS1) SHIT WAS GETTING STUCK BECAUSE THE PRESCALER WASNT BIG ENOUGH
 	// set the i2c clock speed
 	TWBR = I2C_CLOCK_SPEED;
 
@@ -85,9 +85,20 @@ static void i2c_stop(void) {
 	// debug_print("stop %d", state.mode);
 }
 
+static void i2c_stop_listen(void) {
+	//     CLR INT    | LISTEN    | ENABLE    |  STOP     | INTERRUPT;
+	TWCR = _BV(TWINT) | _BV(TWEA) | _BV(TWEN) | _BV(TWSTO)| _BV(TWIE);
+	// debug_print("stop %d", state.mode);
+}
+
 static void i2c_int(void) {
 	//     CLR INT    | ENABLE    | INTERRUPT;
 	TWCR = _BV(TWINT) | _BV(TWEN) | _BV(TWIE);
+}
+
+static void i2c_int_listen(void) {
+	//     CLR INT    | LISTEN    | ENABLE    | INTERRUPT;
+	TWCR = _BV(TWINT) | _BV(TWEA) | _BV(TWEN) | _BV(TWIE);
 }
 
 static void i2c_select(uint8_t addr, uint8_t rw) {
@@ -204,8 +215,7 @@ static void i2c_keep_or_rel_bus() {
 		state.mode = TW_MR;
 		i2c_start();
 	} else if (state.mode == TW_MR || state.mode == TW_MT) {
-		i2c_stop();
-		i2c_listen();
+		i2c_stop_listen();
 	} else if (state.mode == TW_ST || state.mode == TW_SR) {
 		i2c_listen();
 	}
@@ -218,19 +228,20 @@ static void handle_bus_error() {
 }
 
 void i2c_poll(void) {
-  if (state.mode == TW_UH || state.mode == TW_YE)
+  static u16 test = 0, reset = 0, timeout = 0;
+  if (timeout == 0 && (state.mode == TW_UH || state.mode == TW_YE))
 		i2c_keep_or_rel_bus();
-  // if (test++ > 1000) {
-  //   test = 0;
-  //   debug_print("%d %d %d I%d I%d O%d", TW_STATUS, TWCR, state.mode, grb_count(&peers[0].io->input), grb_count(&peers[state.peer_idx].io->input), grb_count(&peers[state.peer_idx].io->output));
-  //   // print_status_reg("poll: ");
-  //   if (TWCR == 37 && reset++ > 5) {
-  //     reset = 0;
-  //     i2c_listen();
-  //     timeout = 10;
-  //   }
-  //   if (timeout) timeout--;
-  // }
+  if (test++ > 1000) {
+    test = 0;
+    // debug_print("%d %d %d I%d I%d O%d", TW_STATUS, TWCR, state.mode, grb_count(&peers[0].io->input), grb_count(&peers[state.peer_idx].io->input), grb_count(&peers[state.peer_idx].io->output));
+    // print_status_reg("poll: ");
+    if (TWCR == 37 && reset++ > 5) {
+      reset = 0;
+      i2c_listen();
+      timeout = 10;
+    }
+    if (timeout) timeout--;
+  }
 }
 
 ISR(TWI_INTERRUPT) {
@@ -244,8 +255,8 @@ ISR(TWI_INTERRUPT) {
 		break;
 	}
 	case (TW_REP_START): {
-		// data = "repeated start condition tx";
-		// debug_print("%s", data);
+		data = "repeated start condition tx";
+		debug_print("%s", data);
 		// cool bro now select a slave
 		i2c_select(peers[state.peer_idx].addr, state.mode == TW_MR ? TW_READ : TW_WRITE);
 		break;
@@ -265,14 +276,13 @@ ISR(TWI_INTERRUPT) {
 	case (TW_MT_SLA_NACK): {
 		// data = "SLA+W tx, NACK rx";
 		// debug_print("%s", data);
-		peers[state.peer_idx].nack = 10;
+		peers[state.peer_idx].nack = 1000;
 		// ok now either load a data byte
 		// (apparently you can still load data after a NACK?)
 		// (you can talk to a wall, cool)
 		// or set TWSTA or set TWSTO or both
 		// and set TWINT
-		i2c_stop();
-		i2c_listen();
+	  i2c_stop_listen();
 		break;
 	}
 	case (TW_MT_DATA_ACK): {
@@ -295,8 +305,7 @@ ISR(TWI_INTERRUPT) {
 		// (you can talk to a wall, cool)
 		// or set TWSTA or set TWSTO or both
 		// and set TWINT
-		i2c_stop();
-		i2c_listen();
+	  i2c_stop_listen();
 		break;
 	}
 	case (TW_MT_ARB_LOST): {
@@ -304,8 +313,7 @@ ISR(TWI_INTERRUPT) {
 		// debug_print("%s", data);
 		// just set TWINT to accept fate
 		// can optionally set TWSTA to try and get a START asap
-		i2c_int();
-		i2c_listen();
+	  i2c_stop_listen();
 		break;
 	}
 	case (TW_MR_SLA_ACK): {
@@ -322,9 +330,8 @@ ISR(TWI_INTERRUPT) {
 		// data = "SLA+R tx, NACK rx";
 		// debug_print("%s", data);
 		peers[state.peer_idx].nack = 10000;
-		// Either send Repeated start or Stop or both
-		i2c_stop();
-		i2c_listen();
+		// Either send Repeated start or Stop or both	
+	  i2c_stop_listen();
 		break;
 	}
 	case (TW_MR_DATA_ACK): {
@@ -339,8 +346,7 @@ ISR(TWI_INTERRUPT) {
 		// data = "data rx, NACK returned";
 		// debug_print("%s", data);
 		// Either send Repeated start or Stop or both
-		i2c_stop();
-		i2c_listen();
+		i2c_stop_listen();
 		break;
 	}
 	case (TW_ST_SLA_ACK): {
@@ -395,9 +401,9 @@ ISR(TWI_INTERRUPT) {
 		// debug_print("%s", data);
 		state.mode = TW_SR;
 		state.peer_idx = 0;
-		// Either read one byte and send ACK by setting TWEA to 1
-		// Or read and send NACK by setting TWEA to 0
-		i2c_read(&peers[state.peer_idx]);
+		// No action to TWDR, just set TWINT to start getting DATA
+		// Or send NACK by setting TWEA to 0
+		i2c_int_listen();
 		break;
 	}
 	case (TW_SR_ARB_LOST_SLA_ACK): {
@@ -405,9 +411,9 @@ ISR(TWI_INTERRUPT) {
 		// debug_print("%s", data);
 		state.mode = TW_SR;
 		state.peer_idx = 0;
-		// Either read one byte and send ACK by setting TWEA to 1
-		// Or read and send NACK by setting TWEA to 0
-		i2c_read(&peers[state.peer_idx]);
+		// No action to TWDR, just set TWINT to start getting DATA
+		// Or send NACK by setting TWEA to 0
+		i2c_int_listen();
 		break;
 	}
 	case (TW_SR_GCALL_ACK): {
@@ -415,9 +421,9 @@ ISR(TWI_INTERRUPT) {
 		// debug_print("%s", data);
 		state.mode = TW_SR;
 		state.peer_idx = 0;
-		// Either read one byte and send ACK by setting TWEA to 1
-		// Or read and send NACK by setting TWEA to 0
-		i2c_read(&peers[state.peer_idx]);
+		// No action to TWDR, just set TWINT to start getting DATA
+		// Or send NACK by setting TWEA to 0
+		i2c_int_listen();
 		break;
 	}
 	case (TW_SR_DATA_ACK): {
@@ -433,10 +439,9 @@ ISR(TWI_INTERRUPT) {
 		// debug_print("%s", data);
     state.mode = TW_SR;
 		state.peer_idx = 0;
-		// "returned";
-		// Either read one byte and send ACK by setting TWEA to 1
-		// Or read and send NACK by setting TWEA to 0
-		i2c_read(&peers[state.peer_idx]);
+		// No action to TWDR, just set TWINT to start getting DATA
+		// Or send NACK by setting TWEA to 0
+		i2c_int_listen();
 		break;
 	}
 	case (TW_SR_DATA_NACK): {
