@@ -9,5 +9,6 @@ proto/spi                                                                     \
 proto/uart                                                                    \
 proto/uart_send                                                               \
 proto/usb                                                                     \
+splonk                                                                        \
 time                                                                          \
 
