@@ -120,9 +120,9 @@ static void Stall() { UECONX = _BV(STALLRQ) | _BV(EPEN); }
 
 static u8 ReadWriteAllowed() { return UEINTX & _BV(RWAL); }
 
-static u8 Stalled() { return UEINTX & _BV(STALLEDI); }
+// static u8 Stalled() { return UEINTX & _BV(STALLEDI); }
 
-static u8 FifoFree() { return UEINTX & _BV(FIFOCON); }
+// static u8 FifoFree() { return UEINTX & _BV(FIFOCON); }
 
 static void ReleaseRX() {
 	UEINTX = 0x6B; // FIFOCON=0 NAKINI=1 RWAL=1 NAKOUTI=0 RXSTPI=1 RXOUTI=0 STALLEDI=1 TXINI=1
@@ -132,7 +132,7 @@ static void ReleaseTX() {
 	UEINTX = 0x3A; // FIFOCON=0 NAKINI=0 RWAL=1 NAKOUTI=1 RXSTPI=1 RXOUTI=0 STALLEDI=1 TXINI=0
 }
 
-static u8 FrameNumber() { return UDFNUML; }
+// static u8 FrameNumber() { return UDFNUML; }
 
 struct locked_ep {
 	u8 _sreg;

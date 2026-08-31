@@ -56,7 +56,7 @@ const CDCDescriptor						 _cdcInterface = {
 	 D_ENDPOINT(USB_ENDPOINT_OUT(CDC_ENDPOINT_OUT), USB_ENDPOINT_TYPE_BULK, USB_EP_SIZE, 0),
 	 D_ENDPOINT(USB_ENDPOINT_IN(CDC_ENDPOINT_IN), USB_ENDPOINT_TYPE_BULK, USB_EP_SIZE, 0)};
 
-bool isLUFAbootloader() { return pgm_read_word(FLASHEND - 1) == NEW_LUFA_SIGNATURE; }
+static bool isLUFAbootloader() { return pgm_read_word(FLASHEND - 1) == NEW_LUFA_SIGNATURE; }
 
 int CDC_GetInterface(u8 *interfaceNum) {
 	interfaceNum[0] += 2; // uses 2
