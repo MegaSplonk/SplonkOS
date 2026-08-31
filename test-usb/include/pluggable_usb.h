@@ -4,7 +4,7 @@
 
 struct pu_module_vtable;
 struct pu_module;
-struct pu_;
+struct pu;
 
 struct pu_module_vtable {
 	bool (*setup)(struct pu_module *self, struct usb_setup *setup);
@@ -28,18 +28,16 @@ struct pu_module {
 	struct pu_module *next;
 };
 
-struct pu_ {
-
+struct pu {
 	u8				  lastIf;
 	u8				  lastEp;
 	struct pu_module *root;
 };
 
-void	pu_ctor(struct pu_ *self);
-bool	pu_plug(struct pu_ *self, struct pu_module *node);
-int		pu_get_interface(struct pu_ *self, u8 *interfaceCount);
-int		pu_get_descriptor(struct pu_ *self, struct usb_setup *setup);
-bool	pu_setup(struct pu_ *self, struct usb_setup *setup);
-void	pu_get_shortname(struct pu_ *self, char *iSerialNum);
+bool pu_plug(struct pu_module *node);
+int	 pu_get_interface(u8 *interfaceCount);
+int	 pu_get_descriptor(struct usb_setup *setup);
+bool pu_setup(struct usb_setup *setup);
+void pu_get_shortname(char *iSerialNum);
 
-struct pu_ *pu_singleton(void);
+struct pu *pu_instance(void);

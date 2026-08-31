@@ -30,7 +30,7 @@ typedef struct {
 } LineInfo;
 
 static volatile LineInfo _usbLineInfo = {57600, 0x00, 0x00, 0x00, 0x00};
-static volatile int32_t	 breakValue = -1;
+static volatile i32		 breakValue = -1;
 
 static u8 wdtcsr_save;
 
@@ -56,7 +56,7 @@ const CDCDescriptor						 _cdcInterface = {
 	 D_ENDPOINT(USB_ENDPOINT_OUT(CDC_ENDPOINT_OUT), USB_ENDPOINT_TYPE_BULK, USB_EP_SIZE, 0),
 	 D_ENDPOINT(USB_ENDPOINT_IN(CDC_ENDPOINT_IN), USB_ENDPOINT_TYPE_BULK, USB_EP_SIZE, 0)};
 
-static bool isLUFAbootloader() { return pgm_read_word(FLASHEND - 1) == NEW_LUFA_SIGNATURE; }
+bool isLUFAbootloader() { return pgm_read_word(FLASHEND - 1) == NEW_LUFA_SIGNATURE; }
 
 int CDC_GetInterface(u8 *interfaceNum) {
 	interfaceNum[0] += 2; // uses 2
@@ -69,7 +69,7 @@ bool CDC_Setup(struct usb_setup *setup) {
 
 	if (REQUEST_DEVICETOHOST_CLASS_INTERFACE == requestType) {
 		if (CDC_GET_LINE_CODING == r) {
-			USB_SendControl(0, (void *)&_usbLineInfo, 7);
+			USB_SendControl(0, (void *)(usize)&_usbLineInfo, 7);
 			return true;
 		}
 	}
@@ -80,7 +80,7 @@ bool CDC_Setup(struct usb_setup *setup) {
 		}
 
 		if (CDC_SET_LINE_CODING == r) {
-			USB_RecvControl((void *)&_usbLineInfo, 7);
+			USB_RecvControl((void *)(usize)&_usbLineInfo, 7);
 		}
 
 		if (CDC_SET_CONTROL_LINE_STATE == r) {
@@ -93,28 +93,25 @@ bool CDC_Setup(struct usb_setup *setup) {
 
 			uint16_t magic_key_pos = MAGIC_KEY_POS;
 
-// If we don't use the new RAMEND directly, check manually if we have a newer bootloader.
-// This is used to keep compatible with the old leonardo bootloaders.
-// You are still able to set the magic key position manually to RAMEND-1 to save a few bytes for
-// this check.
-#if MAGIC_KEY_POS != (RAMEND - 1)
+			// If we don't use the new RAMEND directly, check manually if we have a newer
+			// bootloader. This is used to keep compatible with the old leonardo bootloaders. You
+			// are still able to set the magic key position manually to RAMEND-1 to save a few bytes
+			// for this check.
+
 			// For future boards save the key in the inproblematic RAMEND
 			// Which is reserved for the main() return value (which will never return)
 			if (isLUFAbootloader()) {
 				// hooray, we got a new bootloader!
 				magic_key_pos = (RAMEND - 1);
 			}
-#endif
 
 			// We check DTR state to determine if host port is open (bit 0 of lineState).
 			if (1200 == _usbLineInfo.dwDTERate && (_usbLineInfo.lineState & 0x01) == 0) {
-#if MAGIC_KEY_POS != (RAMEND - 1)
 				// Backup ram value if its not a newer bootloader and it hasn't already been saved.
 				// This should avoid memory corruption at least a bit, not fully
 				if (magic_key_pos != (RAMEND - 1) && *(uint16_t *)magic_key_pos != MAGIC_KEY) {
 					*(uint16_t *)(RAMEND - 1) = *(uint16_t *)magic_key_pos;
 				}
-#endif
 				// Store boot key
 				*(uint16_t *)magic_key_pos = MAGIC_KEY;
 				// Save the watchdog state in case the reset is aborted.
@@ -130,15 +127,12 @@ bool CDC_Setup(struct usb_setup *setup) {
 
 				wdt_reset();
 				// Restore the watchdog state in case the sketch was using it.
-				WDTCSR |= (1 << WDCE) | (1 << WDE);
+				WDTCSR |= _BV(WDCE) | _BV(WDE);
 				WDTCSR = wdtcsr_save;
-#if MAGIC_KEY_POS != (RAMEND - 1)
 				// Restore backed up (old bootloader) magic key data
 				if (magic_key_pos != (RAMEND - 1)) {
 					*(uint16_t *)magic_key_pos = *(uint16_t *)(RAMEND - 1);
-				} else
-#endif
-				{
+				} else {
 					// Clean up RAMEND key
 					*(uint16_t *)magic_key_pos = 0x0000;
 				}
@@ -181,7 +175,7 @@ int Serial__availableForWrite(void) { return USB_SendSpace(CDC_TX); }
 
 void Serial__flush(void) { USB_Flush(CDC_TX); }
 
-size_t Serial__write(const uint8_t *buffer, size_t size) {
+usize Serial__write(const u8 *buffer, usize size) {
 	/* only try to send bytes if the high-level CDC connection itself
 	 is open (not just the pipe) - the OS should set lineState when the port
 	 is opened and clear lineState when the port is closed.
@@ -192,16 +186,42 @@ size_t Serial__write(const uint8_t *buffer, size_t size) {
 	// open connection isn't broken cleanly (cable is yanked out, host dies
 	// or locks up, or host virtual serial port hangs)
 	if (_usbLineInfo.lineState > 0) {
-		int r = USB_Send(CDC_TX, buffer, (int)size);
+		isize r = USB_Send(CDC_TX, buffer, size);
 		if (r > 0) {
 			return (usize)r;
 		} else {
-			// setWriteError();
 			return 0;
 		}
 	}
-	// setWriteError();
 	return 0;
 }
 
 size_t Serial__write1(uint8_t c) { return Serial__write(&c, 1); }
+
+u32 Serial__baud() {
+	// Disable interrupts while reading a multi-byte value
+	u32 baudrate;
+	ATOMIC_BLOCK(ATOMIC_RESTORESTATE) { baudrate = _usbLineInfo.dwDTERate; }
+	return baudrate;
+}
+
+u8 Serial__stopbits() { return _usbLineInfo.bCharFormat; }
+
+u8 Serial__paritytype() { return _usbLineInfo.bParityType; }
+
+u8 Serial__numbits() { return _usbLineInfo.bDataBits; }
+
+bool Serial__dtr() { return _usbLineInfo.lineState & 0x1; }
+
+bool Serial__rts() { return _usbLineInfo.lineState & 0x2; }
+
+i32 Serial__readBreak() {
+	i32 ret;
+	// Disable IRQs while reading and clearing breakValue to make
+	// sure we don't overwrite a value just set by the ISR.
+	ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {
+		ret = breakValue;
+		breakValue = -1;
+	}
+	return ret;
+}
