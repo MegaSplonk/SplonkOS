@@ -10,9 +10,9 @@ u8 pu_module_get_shortname_default(struct pu_module *self, char *name) {
 
 int pu_get_interface(u8 *interfaceCount) {
 	struct pu *self = pu_instance();
-	
+
 	int sent = 0;
-	
+
 	struct pu_module *node = nullptr;
 	for (node = self->root; node != nullptr; node = node->next) {
 		int res = node->vtable->get_interface(node, interfaceCount);
@@ -24,7 +24,7 @@ int pu_get_interface(u8 *interfaceCount) {
 }
 
 int pu_get_descriptor(struct usb_setup *setup) {
-	struct pu *self = pu_instance();
+	struct pu		 *self = pu_instance();
 	struct pu_module *node = nullptr;
 	for (node = self->root; node != nullptr; node = node->next) {
 		int res = node->vtable->get_descriptor(node, setup);
@@ -35,7 +35,7 @@ int pu_get_descriptor(struct usb_setup *setup) {
 }
 
 void pu_get_shortname(char *iSerialNum) {
-	struct pu *self = pu_instance();
+	struct pu		 *self = pu_instance();
 	struct pu_module *node = nullptr;
 	for (node = self->root; node; node = node->next) {
 		iSerialNum += node->vtable->get_shortname(node, iSerialNum);
@@ -44,7 +44,7 @@ void pu_get_shortname(char *iSerialNum) {
 }
 
 bool pu_setup(struct usb_setup *setup) {
-	struct pu *self = pu_instance();
+	struct pu		 *self = pu_instance();
 	struct pu_module *node = nullptr;
 	for (node = self->root; node != nullptr; node = node->next) {
 		if (node->vtable->setup(node, setup))
@@ -84,7 +84,7 @@ bool pu_plug(struct pu_module *node) {
 }
 
 struct pu *pu_instance(void) {
-	static bool		  init = false;
+	static bool		 init = false;
 	static struct pu pu = {};
 
 	ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {

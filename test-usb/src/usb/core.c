@@ -418,9 +418,9 @@ static bool SendDescriptor(struct usb_setup *setup) {
 		if (setup->wValueL == 0) {
 			desc_addr = (const u8 *)&STRING_LANGUAGE;
 		} else if (setup->wValueL == IPRODUCT) {
-			return USB_SendStringDescriptor(STRING_PRODUCT, strlen(USB_PRODUCT), TRANSFER_PGM);
+			return USB_SendStringDescriptor(STRING_PRODUCT, (u8)strlen(USB_PRODUCT), TRANSFER_PGM);
 		} else if (setup->wValueL == IMANUFACTURER) {
-			return USB_SendStringDescriptor(STRING_MANUFACTURER, strlen(USB_MANUFACTURER),
+			return USB_SendStringDescriptor(STRING_MANUFACTURER, (u8)strlen(USB_MANUFACTURER),
 											TRANSFER_PGM);
 		} else if (setup->wValueL == ISERIAL) {
 			char name[ISERIAL_MAX_LEN];
