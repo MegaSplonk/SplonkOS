@@ -19,7 +19,7 @@ int main(void) {
 	};
 
 	while (true) {
-		Serial__write("Hello from USB !\r\n", 19);
+		Serial__write((const void *)"Hello from USB !\r\n", 19);
 		Serial__flush();
 		_delay_ms(100);
 	}
