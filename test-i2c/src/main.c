@@ -44,8 +44,14 @@ static void peer_input_to_uart(i2c_peer *peer, const char *identifier) {
 		grb_read(&peer->io->input, (void *)&data, sizeof(data), &read_bytes);
 		if (read_bytes == sizeof(data)) {
 			uart_sendstring(identifier);
-      for (usize i = 0; i < sizeof(data); i++)
-			  uart_send_u8_hex(((u8 *)&data)[i]);
+      uart_sendstring("LK");
+      uart_send_i16(data.knob_l);
+      uart_sendstring("LB");
+      uart_send_u8(data.butn_l);
+      uart_sendstring("RK");
+      uart_send_i16(data.knob_r);
+      uart_sendstring("RB");
+      uart_send_u8(data.butn_r);
 			uart_sendstring("\r\n");
 		}
 	}
@@ -66,13 +72,14 @@ int main(void) {
 	i2c_register_peer(&peer1, nullptr, I2C_SELF_IDX + 1);
 	timer_ontick_register(T_ONTICK_SLOT_I2C_PEER, peer1_input_to_uart);
 	timer_ontick_register(T_ONTICK_SLOT_I2C_SELF, self_input_to_uart);
-	debug_print("I'm alive %p, %d, %p", (void *)peer1, peer1->addr, (void *)peer1->io);
+	debug_print("SELF %d, PEER %d", self->addr, peer1->addr);
+	// debug_print("I'm alive %p, %d, %p", (void *)peer1, peer1->addr, (void *)peer1->io);
 	timer_t t = timer_reset();
   splonknob sk = {};
 
 #ifdef SPLONK
   while (true) {
-		if (timer_wait(&t, 2)) {
+		if (timer_wait(&t, 10000)) {
 			t = timer_reset();
       i2c_query(peer1, (u8 *)&sk, sizeof(sk));
       sk = (splonknob){};

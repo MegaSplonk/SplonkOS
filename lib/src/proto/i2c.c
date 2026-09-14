@@ -102,7 +102,7 @@ static void i2c_start(void) {
 #ifdef TWI_UNIFIED
 	//     CLR INT    | SET MASTER |  ENABLE   | INTERRUPT;
 	TWCR = _BV(TWINT) | _BV(TWSTA) | _BV(TWEN) | _BV(TWIE);
-	// debug_print("start %d", state.peer_idx);
+	debug_print("start %d", state.peer_idx);
 #elifdef TWI_SPLIT
 	TWI0.MADDR =
 		(u8)I2C_ADDR(peers[state.peer_idx].addr << 1, state.mode == TW_MR ? TW_READ : TW_WRITE);
@@ -114,6 +114,7 @@ static void i2c_stop(void) {
 #ifdef TWI_UNIFIED
 	//     CLR INT    | ENABLE    |  STOP     | INTERRUPT;
 	TWCR = _BV(TWINT) | _BV(TWEN) | _BV(TWSTO) | _BV(TWIE);
+	state.mode = TW_UH;
 	// debug_print("stop %d", state.mode);
 #elifdef TWI_SPLIT
 	TWI0.MCTRLB = TWI_MCMD_STOP_gc;
@@ -124,6 +125,7 @@ static void i2c_stop_listen(void) {
 #ifdef TWI_UNIFIED
 	//     CLR INT    | LISTEN    | ENABLE    |  STOP     | INTERRUPT;
 	TWCR = _BV(TWINT) | _BV(TWEA) | _BV(TWEN) | _BV(TWSTO) | _BV(TWIE);
+	state.mode = TW_YE;
 	// debug_print("stop %d", state.mode);
 #elifdef TWI_SPLIT
 	i2c_stop();
@@ -152,7 +154,7 @@ static void i2c_int_listen(void) {
 static void i2c_select() {
 #ifdef TWI_UNIFIED
 	// set addr to write
-	TWDR = (u8)I2C_ADDR(peers[state.peer_idx].addr << 1, state.mode == TW_MR ? TW_READ : TW_WRITE);
+	TWDR = (u8)I2C_ADDR(peers[state.peer_idx].addr, state.mode == TW_MR ? TW_READ : TW_WRITE);
 	//     CLR INT    | ENABLE    | INTERRUPT;
 	TWCR = _BV(TWINT) | _BV(TWEN) | _BV(TWIE);
 #endif
@@ -219,10 +221,10 @@ t_error i2c_query(i2c_peer *p, u8 *data, usize len) {
 
 	ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {
 		if (grb_empty(&g->input) || grb_count(&g->input) < len) {
-			p->query = true;
+			p->query = len;
 			return e;
 		}
-		p->query = false;
+		p->query = 0;
 
 		usize useless;
 		e = grb_read(&g->input, data, len, &useless);
@@ -268,8 +270,10 @@ static t_error i2c_read(i2c_peer *p) {
 	usize useless;
 	u8	  data;
 #ifdef TWI_UNIFIED
-	TWCR = _BV(TWINT) | _BV(TWEN) | (grb_avail(&g->input) == 1 ? 0 : _BV(TWEA)) | _BV(TWIE);
+	TWCR = _BV(TWINT) | _BV(TWEN) | (grb_avail(&g->input) == 1 || p->query == 1 ? 0 : _BV(TWEA)) | _BV(TWIE);
 	data = TWDR;
+  if (state.mode == TW_MR)
+    p->query--;
 #elifdef TWI_SPLIT
 	if (state.mode == TW_SR) {
 		data = TWI0.SDATA;
@@ -280,7 +284,8 @@ static t_error i2c_read(i2c_peer *p) {
 		data = TWI0.MDATA;
 		//            READ INTRPT | QUICK COMND | SMART MODE  | ENABLE       ;
 		TWI0.MCTRLA = TWI_RIEN_bm | TWI_QCEN_bm | TWI_SMEN_bm | TWI_ENABLE_bm;
-		TWI0.MCTRLB = (grb_avail(&g->input) == 1 ? TWI_ACKACT_bm : 0) | TWI_MCMD_RECVTRANS_gc;
+		TWI0.MCTRLB = (grb_avail(&g->input) == 1 || p->query == 1 ? TWI_ACKACT_bm : 0) | TWI_MCMD_RECVTRANS_gc;
+    p->query--;
 	}
 #endif
 	return grb_write(&g->input, &data, 1, &useless);
@@ -303,7 +308,7 @@ static void find_peer() {
 static void i2c_keep_or_rel_bus() {
 	find_peer();
 	grbio *g = peers[state.peer_idx].io;
-	if (!grb_empty(&g->output)) {
+	if (state.peer_idx != I2C_SELF_IDX && !grb_empty(&g->output)) {
 		state.mode = TW_MT;
 		i2c_start();
 	} else if (peers[state.peer_idx].query) {
@@ -311,9 +316,10 @@ static void i2c_keep_or_rel_bus() {
 		i2c_start();
 	} else if (state.mode == TW_MR || state.mode == TW_MT) {
 		i2c_stop_listen();
-	} else if (state.mode == TW_ST || state.mode == TW_SR) {
+	} else if (state.mode == TW_SR) {
 		i2c_listen();
-	}
+	} else if (state.mode == TW_ST)
+    i2c_int_listen();
 }
 
 void i2c_poll(void) {
@@ -326,7 +332,8 @@ void i2c_poll(void) {
 		test = 0;
 		// debug_print("%d %d %d I%d I%d O%d", TW_STATUS, TWCR, state.mode,
 		// grb_count(&peers[0].io->input), grb_count(&peers[state.peer_idx].io->input),
-		// grb_count(&peers[state.peer_idx].io->output)); print_status_reg("poll: ");
+		// grb_count(&peers[state.peer_idx].io->output));
+    // print_status_reg("poll: ");
 		if (TWCR == 37 && reset++ > 5) {
 			reset = 0;
 			i2c_listen();
@@ -417,7 +424,7 @@ static void i2c_state_machine(u8 status) {
 		state.mode = TW_MR;
 		// Either read one byte and send ACK by setting TWEA to 1
 		// Or read and send NACK by setting TWEA to 0
-		i2c_read(&peers[state.peer_idx]);
+		(!grb_full(&peers[state.peer_idx].io->input) || peers[state.peer_idx].query == 0 ? i2c_int_listen : i2c_int)();
 		break;
 	}
 	case (TW_MR_SLA_NACK): {
