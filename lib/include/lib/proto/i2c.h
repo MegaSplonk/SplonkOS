@@ -46,7 +46,7 @@ I2C_DATA(gcall, gcall_instruction instruction; u8 data;);
 typedef struct i2c_peer {
 	u8	   addr;
 	grbio *io;
-	bool   query;
+	usize   query;
 	u32	   nack;
 	// add a nack count and consider a peer dc'd when count goes too high?
 	// use a roll call every so often instead?
