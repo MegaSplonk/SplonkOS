@@ -51,10 +51,12 @@ void i2c_set_addr(u8 addr, bool answer_gc) {
 
 void i2c_init(void) {
 #ifdef TWI_UNIFIED
-	// clear the status registers
-	TWSR = _BV(TWPS0); // | _BV(TWPS1) SHIT WAS GETTING STUCK BECAUSE THE PRESCALER WASNT BIG ENOUGH
-	// set the i2c clock speed
-	TWBR = I2C_CLOCK_SPEED;
+	// // clear the status registers
+	// TWSR = _BV(TWPS1); // _BV(TWPS0) |  SHIT WAS GETTING STUCK BECAUSE THE PRESCALER WASNT BIG ENOUGH
+	// // set the i2c clock speed
+	// TWBR = I2C_CLOCK_SPEED;
+  TWSR = 0;       // TWPS = 0
+  TWBR = ((F_CPU / I2C_CLOCK) - 16) / 2;
 #elifdef TWI_SPLIT
   // TODO - setup stuff here
 #endif
@@ -102,7 +104,7 @@ static void i2c_start(void) {
 #ifdef TWI_UNIFIED
 	//     CLR INT    | SET MASTER |  ENABLE   | INTERRUPT;
 	TWCR = _BV(TWINT) | _BV(TWSTA) | _BV(TWEN) | _BV(TWIE);
-	debug_print("start %d", state.peer_idx);
+	// debug_print("start %d", state.peer_idx);
 #elifdef TWI_SPLIT
 	TWI0.MADDR =
 		(u8)I2C_ADDR(peers[state.peer_idx].addr << 1, state.mode == TW_MR ? TW_READ : TW_WRITE);
@@ -111,10 +113,10 @@ static void i2c_start(void) {
 }
 
 static void i2c_stop(void) {
+	state.mode = TW_UH;
 #ifdef TWI_UNIFIED
 	//     CLR INT    | ENABLE    |  STOP     | INTERRUPT;
 	TWCR = _BV(TWINT) | _BV(TWEN) | _BV(TWSTO) | _BV(TWIE);
-	state.mode = TW_UH;
 	// debug_print("stop %d", state.mode);
 #elifdef TWI_SPLIT
 	TWI0.MCTRLB = TWI_MCMD_STOP_gc;
@@ -122,10 +124,10 @@ static void i2c_stop(void) {
 }
 
 static void i2c_stop_listen(void) {
+	state.mode = TW_YE;
 #ifdef TWI_UNIFIED
 	//     CLR INT    | LISTEN    | ENABLE    |  STOP     | INTERRUPT;
 	TWCR = _BV(TWINT) | _BV(TWEA) | _BV(TWEN) | _BV(TWSTO) | _BV(TWIE);
-	state.mode = TW_YE;
 	// debug_print("stop %d", state.mode);
 #elifdef TWI_SPLIT
 	i2c_stop();
@@ -224,10 +226,10 @@ t_error i2c_query(i2c_peer *p, u8 *data, usize len) {
 			p->query = len;
 			return e;
 		}
-		p->query = 0;
 
 		usize useless;
-		e = grb_read(&g->input, data, len, &useless);
+    if (data)
+		  e = grb_read(&g->input, data, len, &useless);
 	}
 	return e;
 }
@@ -245,7 +247,7 @@ static t_error i2c_write(i2c_peer *p) {
 	// set data to write
 	TWDR = data;
 	//     CLR INT    | ENABLE    | INTERRUPT;
-	TWCR = _BV(TWINT) | _BV(TWEN) | _BV(TWIE);
+	TWCR = _BV(TWINT) | _BV(TWEN) | _BV(TWIE) | (state.mode != TW_ST ? 0 : _BV(TWEA));
 #elifdef TWI_SPLIT
 	// set data to write
 	if (state.mode == TW_ST) {
@@ -258,6 +260,7 @@ static t_error i2c_write(i2c_peer *p) {
 		TWI0.MCTRLA = TWI_WIEN_bm | TWI_QCEN_bm | TWI_SMEN_bm | TWI_ENABLE_bm;
 	}
 #endif
+  debug_print("%d %c left;;;", grb_count(&g->output), data);
 	return SUCCESS;
 }
 
@@ -270,10 +273,13 @@ static t_error i2c_read(i2c_peer *p) {
 	usize useless;
 	u8	  data;
 #ifdef TWI_UNIFIED
-	TWCR = _BV(TWINT) | _BV(TWEN) | (grb_avail(&g->input) == 1 || p->query == 1 ? 0 : _BV(TWEA)) | _BV(TWIE);
 	data = TWDR;
-  if (state.mode == TW_MR)
-    p->query--;
+  if (state.mode == TW_MR && !--p->query) {// TW_MR_DATA_NACK
+    debug_print("STOP");
+		i2c_stop_listen();
+  } else
+	  TWCR = _BV(TWINT) | _BV(TWEN) | (p->query == 1 ? 0 : _BV(TWEA)) | _BV(TWIE);
+	// debug_print("I'm alive %p, %d, %p, %d", (void *)p, p->addr, (void *)p->io, p->query); grb_avail(&g->input) == 1 || 
 #elifdef TWI_SPLIT
 	if (state.mode == TW_SR) {
 		data = TWI0.SDATA;
@@ -284,10 +290,14 @@ static t_error i2c_read(i2c_peer *p) {
 		data = TWI0.MDATA;
 		//            READ INTRPT | QUICK COMND | SMART MODE  | ENABLE       ;
 		TWI0.MCTRLA = TWI_RIEN_bm | TWI_QCEN_bm | TWI_SMEN_bm | TWI_ENABLE_bm;
-		TWI0.MCTRLB = (grb_avail(&g->input) == 1 || p->query == 1 ? TWI_ACKACT_bm : 0) | TWI_MCMD_RECVTRANS_gc;
-    p->query--;
+
+    if (!--p->query)
+      TWI0.MCTRLB = TWI_MCMD_STOP_gc;
+    else
+		  TWI0.MCTRLB = (grb_avail(&g->input) == 1 || p->query == 1 ? TWI_ACKACT_bm : 0) | TWI_MCMD_RECVTRANS_gc;
 	}
 #endif
+  debug_print("%d+%d-%c;", p->query, grb_avail(&g->input) == 1 || p->query == 1, data);
 	return grb_write(&g->input, &data, 1, &useless);
 }
 
@@ -324,8 +334,10 @@ static void i2c_keep_or_rel_bus() {
 
 void i2c_poll(void) {
 	static u16 timeout = 0;
-	if (timeout == 0 && (state.mode == TW_UH || state.mode == TW_YE))
-		i2c_keep_or_rel_bus();
+  ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {
+	  if (timeout == 0 && (state.mode == TW_UH || state.mode == TW_YE)) {
+		  i2c_keep_or_rel_bus();
+    }
 #ifdef TWI_UNIFIED
   static u16 test = 0, reset = 0;
 	if (test++ > 1000) {
@@ -334,15 +346,16 @@ void i2c_poll(void) {
 		// grb_count(&peers[0].io->input), grb_count(&peers[state.peer_idx].io->input),
 		// grb_count(&peers[state.peer_idx].io->output));
     // print_status_reg("poll: ");
-		if (TWCR == 37 && reset++ > 5) {
-			reset = 0;
-			i2c_listen();
-			timeout = 10;
-		}
-		if (timeout)
-			timeout--;
+		// if (TWCR == 37 && reset++ > 5) {
+		// 	reset = 0;
+		// 	i2c_listen(); // THIS BROKE STUFF EVENTUALLY (RACE COND)
+		// 	timeout = 10;
+		// }
+		// if (timeout)
+		// 	timeout--;
 	}
 #endif
+  }
 }
 
 static void i2c_state_machine(u8 status) {
@@ -350,14 +363,15 @@ static void i2c_state_machine(u8 status) {
 	switch (status) {
 	case (TW_START): {
 		// data = "start condition tx";
-		// debug_print("%s", data);
+		//   if (state.mode != TW_MR)
+		//   debug_print("%s %d %d", data, state.mode, i2c_is_listening());
 		// cool bro now select a Slave
 		i2c_select();
 		break;
 	}
 	case (TW_REP_START): {
-		data = "repeated start condition tx";
-		debug_print("%s", data);
+		// data = "repeated start condition tx";
+		// debug_print("%s %d %d", data, state.mode, i2c_is_listening());
 		// cool bro now select a slave
 		i2c_select();
 		break;
@@ -447,7 +461,7 @@ static void i2c_state_machine(u8 status) {
 		// data = "data rx, NACK returned";
 		// debug_print("%s", data);
 		// Either send Repeated start or Stop or both
-		i2c_stop_listen();
+		i2c_read(&peers[state.peer_idx]);
 		break;
 	}
 	case (TW_ST_SLA_ACK): {
