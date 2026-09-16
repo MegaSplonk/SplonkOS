@@ -73,7 +73,7 @@ void uart_send_i16(int16_t val) {
 		return;
 	}
 	if (val < 0) {
-		uart_tx('-');
+		uart_sendstring("-");
 		val = -val;
 	}
 	uart_send_u16((uint16_t)val);

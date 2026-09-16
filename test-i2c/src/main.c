@@ -6,6 +6,7 @@
 #include "lib/ec11.h"
 #include "lib/time.h"
 #include <avr/io.h>
+#include <util/atomic.h>
 #include <util/delay.h>
 
 i2c_peer *self;
@@ -39,22 +40,39 @@ static void peer_input_to_uart(i2c_peer *peer, const char *identifier) {
 		return;
 
 	usize	  read_bytes = 0;
-	splonknob data;
-	if (grb_count(&peer->io->input) >= sizeof(data)) {
-		grb_read(&peer->io->input, (void *)&data, sizeof(data), &read_bytes);
-		if (read_bytes == sizeof(data)) {
-			uart_sendstring(identifier);
-      uart_sendstring("LK");
-      uart_send_i16(data.knob_l);
-      uart_sendstring("LB");
-      uart_send_u8(data.butn_l);
-      uart_sendstring("RK");
-      uart_send_i16(data.knob_r);
-      uart_sendstring("RB");
-      uart_send_u8(data.butn_r);
-			uart_sendstring("\r\n");
-		}
-	}
+	// splonknob data;
+	u8 data[4];
+	ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {
+    if (grb_count(&peer->io->input) >= sizeof(data)) {
+      uart_send_u16(grb_count(&peer->io->input));
+      grb_read(&peer->io->input, (void *)&data, sizeof(data), &read_bytes);
+      if (read_bytes == sizeof(data)) {
+        // if (data.knob_l) {
+        //   uart_sendstring("LK");
+        //   i16 knob_l = data.knob_l;
+        //   uart_send_i16(knob_l);
+        // }
+        // if (data.butn_l) {
+        //   uart_sendstring("LB");
+        //   uart_send_u8(data.butn_l);
+        // } // FIXME broken
+        // if (data.knob_l) {
+        //   uart_sendstring("RK");
+        //   i16 knob_r = data.knob_r;
+        //   uart_send_i16(knob_r);
+        // }
+        // if (data.butn_r) {
+        //   uart_sendstring("RB");
+        //   uart_send_u8(data.butn_r);
+        // } // FIXME broken
+        // uart_sendstring("\r\n");
+        for (usize i=0; i < sizeof(data); i++)
+          // uart_send_u8_hex(((u8*)&data)[i]);
+          uart_send_u8_hex(data[i]);
+        uart_sendstring("\r\n");
+      }
+    }
+  }
 }
 
 static void peer1_input_to_uart(void) { peer_input_to_uart(peer1, "Queried from peer1: "); }
@@ -79,20 +97,21 @@ int main(void) {
 
 #ifdef SPLONK
   while (true) {
-		if (timer_wait(&t, 10000)) {
+		if (timer_wait(&t, 10)) {
 			t = timer_reset();
-      i2c_query(peer1, (u8 *)&sk, sizeof(sk));
-      sk = (splonknob){};
+      i2c_query(peer1, NULL, sizeof(sk));
 		}
 	}
 
 #elifdef SPLONKNOB
 
+	timer_t tt = timer_reset();
   struct ec11 ec;
 	ec11_init(&ec, (pin)R_A, (pin)R_B, (pin)R_BTN);
+  splonknob last = {};
   // add second ec11 when wired in
   while (true) {
-    switch (ec11_poll(&ec, (bool*)&sk.butn_l)) {
+    switch (ec11_poll(&ec, &sk.butn_l)) {
 		case (ROT_A):
       sk.knob_l += 1;
       break;
@@ -102,12 +121,28 @@ int main(void) {
     case (ROT_NONE):
       break;
     }
-		if (timer_wait(&t, 2)) {
+		if (timer_wait(&t, 5)) {
 			t = timer_reset();
       usize w;
-      grb_write(&self->io->output, (void*)&sk, sizeof(sk), &w);
-      sk = (splonknob){};
+      if (grb_avail(&self->io->output) >= sizeof(sk)) {
+        // i2c_send(self, (void*)&sk, sizeof(sk));
+        i2c_send(self, "abcdefghijk", sizeof(sk));
+        sk = (splonknob){ .butn_l = sk.butn_l, .butn_r = sk.butn_r };
+      }
 		}
+		if (timer_wait(&tt, 5)) {
+			tt = timer_reset();
+      bool same = true;
+      for (usize i=0; i < sizeof(sk); i++)
+        if (((u8*)&sk)[i] != ((u8*)&last)[i])
+          same = false;
+      if (!same) {
+        for (usize i=0; i < sizeof(sk); i++)
+          uart_send_u8_hex(((u8*)&sk)[i]);
+        uart_sendstring("\r\n");
+        last = sk;
+      }
+    }
 	}
 #endif
 
