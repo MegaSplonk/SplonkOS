@@ -34,6 +34,8 @@ t_error grb_write(grb *rb, const void *buf, usize len, usize *w_bytes) {
 	return SUCCESS;
 }
 
+void grb_clear(grb *rb) { rb->count = 0; rb->start = rb->end; }
+
 bool grb_empty(const grb *rb) { return rb->count == 0; }
 
 bool grb_full(const grb *rb) { return rb->count == rb->buf_size; }

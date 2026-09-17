@@ -40,35 +40,33 @@ static void peer_input_to_uart(i2c_peer *peer, const char *identifier) {
 		return;
 
 	usize	  read_bytes = 0;
-	// splonknob data;
-	u8 data[4];
+	splonknob data;
 	ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {
     if (grb_count(&peer->io->input) >= sizeof(data)) {
-      uart_send_u16(grb_count(&peer->io->input));
+      // uart_send_u16(grb_count(&peer->io->input));
       grb_read(&peer->io->input, (void *)&data, sizeof(data), &read_bytes);
       if (read_bytes == sizeof(data)) {
-        // if (data.knob_l) {
-        //   uart_sendstring("LK");
-        //   i16 knob_l = data.knob_l;
-        //   uart_send_i16(knob_l);
-        // }
-        // if (data.butn_l) {
-        //   uart_sendstring("LB");
-        //   uart_send_u8(data.butn_l);
-        // } // FIXME broken
-        // if (data.knob_l) {
-        //   uart_sendstring("RK");
-        //   i16 knob_r = data.knob_r;
-        //   uart_send_i16(knob_r);
-        // }
-        // if (data.butn_r) {
-        //   uart_sendstring("RB");
-        //   uart_send_u8(data.butn_r);
-        // } // FIXME broken
-        // uart_sendstring("\r\n");
+        if (data.knob_l) {
+          uart_sendstring("LK");
+          i16 knob_l = data.knob_l;
+          uart_send_i16(knob_l);
+        }
+        if (data.butn_l) {
+          uart_sendstring("LB");
+          uart_send_u8(data.butn_l);
+        }
+        if (data.knob_l) {
+          uart_sendstring("RK");
+          i16 knob_r = data.knob_r;
+          uart_send_i16(knob_r);
+        }
+        if (data.butn_r) {
+          uart_sendstring("RB");
+          uart_send_u8(data.butn_r);
+        }
+        uart_sendstring("\r\n");
         for (usize i=0; i < sizeof(data); i++)
-          // uart_send_u8_hex(((u8*)&data)[i]);
-          uart_send_u8_hex(data[i]);
+          uart_send_u8_hex(((u8*)&data)[i]);
         uart_sendstring("\r\n");
       }
     }
@@ -123,10 +121,8 @@ int main(void) {
     }
 		if (timer_wait(&t, 5)) {
 			t = timer_reset();
-      usize w;
       if (grb_avail(&self->io->output) >= sizeof(sk)) {
-        // i2c_send(self, (void*)&sk, sizeof(sk));
-        i2c_send(self, "abcdefghijk", sizeof(sk));
+        i2c_send(self, (void*)&sk, sizeof(sk));
         sk = (splonknob){ .butn_l = sk.butn_l, .butn_r = sk.butn_r };
       }
 		}
