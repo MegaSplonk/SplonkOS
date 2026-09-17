@@ -11,6 +11,7 @@ struct pu_module_vtable {
 	int (*get_interface)(struct pu_module *self, u8 *interfaceCount);
 	int (*get_descriptor)(struct pu_module *self, struct usb_setup *setup);
 	u8 (*get_shortname)(struct pu_module *self, char *name);
+	void (*flush)(struct pu_module *self);
 };
 
 u8 pu_module_get_shortname_default(struct pu_module *self, char *name);
@@ -39,5 +40,6 @@ int	 pu_get_interface(u8 *interfaceCount);
 int	 pu_get_descriptor(struct usb_setup *setup);
 bool pu_setup(struct usb_setup *setup);
 void pu_get_shortname(char *iSerialNum);
+void pu_flush(void);
 
 struct pu *pu_instance(void);

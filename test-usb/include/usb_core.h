@@ -102,6 +102,7 @@
 #endif
 
 #define lowByte(val) ((u8)((val) & 0xff))
+#define highByte(val) ((u8)((val) & 0xff00) >> 8)
 
 // bEndpointAddress in Endpoint Descriptor
 #define USB_ENDPOINT_DIRECTION_MASK 0x80

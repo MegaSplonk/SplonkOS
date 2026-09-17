@@ -25,8 +25,14 @@
 #include <string.h>
 #include <util/delay.h>
 
-#define USB_VID 0x1b4f
-#define USB_PID 9206
+#ifndef PROGMEM
+#define PROGMEM
+#endif
+
+#define USB_VID			 0x1b4f
+#define USB_PID			 9206
+#define USB_PRODUCT		 "Mega Splonk - ALPHA VERSION I NEED THIS TO BE LONG"
+#define USB_MANUFACTURER "Splonk Inc."
 
 #define min(a, b) ((a) < (b) ? (a) : (b))
 
@@ -34,24 +40,20 @@
  * type */
 #define TX_RX_LED_PULSE_MS 100
 
+#ifndef SPLONKLIB_DISABLE_USB_LED
 volatile u8 TxLEDPulse; /**< Milliseconds remaining for data Tx LED pulse */
 volatile u8 RxLEDPulse; /**< Milliseconds remaining for data Rx LED pulse */
+#endif
 
 //==================================================================
 //==================================================================
 
-extern const u16									  STRING_LANGUAGE[] PROGMEM;
-extern const u8										  STRING_PRODUCT[] PROGMEM;
-extern const u8										  STRING_MANUFACTURER[] PROGMEM;
 extern const DeviceDescriptor USB_DeviceDescriptorIAD PROGMEM;
 
 const u16 STRING_LANGUAGE[2] = {
 	(3 << 8) | (2 + 2),
 	0x0409 // English
 };
-
-#define USB_PRODUCT		 "Mega Splonk - ALPHA VERSION I NEED THIS TO BE LONG"
-#define USB_MANUFACTURER "Splonk Inc."
 
 const u8 STRING_PRODUCT[] PROGMEM = USB_PRODUCT;
 const u8 STRING_MANUFACTURER[] PROGMEM = USB_MANUFACTURER;
@@ -95,13 +97,17 @@ static void Recv(volatile u8 *data, usize count) {
 	while (count--)
 		*data++ = UEDATX;
 
+#ifndef SPLONKLIB_DISABLE_USB_LED
 	RXLED1; // light the RX LED
 	RxLEDPulse = TX_RX_LED_PULSE_MS;
+#endif
 }
 
 static u8 Recv8() {
+#ifndef SPLONKLIB_DISABLE_USB_LED
 	RXLED1; // light the RX LED
 	RxLEDPulse = TX_RX_LED_PULSE_MS;
+#endif
 
 	return UEDATX;
 }
@@ -165,12 +171,13 @@ u8 USB_Available(u8 ep) {
 //	Non Blocking receive
 //	Return number of bytes read
 isize USB_Recv(u8 ep, void *d, usize len) {
-	if (!_usbConfiguration || len)
+	if (!_usbConfiguration)
 		return -1;
 
 	LOCK_EP(ep);
 	usize n = FifoByteCount();
-	len = min(n, len);
+	if (len > n)
+		len = n;
 	n = len;
 	u8 *dst = (u8 *)d;
 	while (n--)
@@ -257,17 +264,15 @@ isize USB_Send(u8 ep, const void *d, usize len) {
 			}
 		}
 	}
+#ifndef SPLONKLIB_DISABLE_USB_LED
 	TXLED1; // light the TX LED
 	TxLEDPulse = TX_RX_LED_PULSE_MS;
+#endif
 	return (isize)r;
 }
 
 u8 _initEndpoints[USB_ENDPOINTS] = {
 	0, // Control Endpoint
-
-	EP_TYPE_INTERRUPT_IN, // CDC_ENDPOINT_ACM
-	EP_TYPE_BULK_OUT,	  // CDC_ENDPOINT_OUT
-	EP_TYPE_BULK_IN,	  // CDC_ENDPOINT_IN
 
 	// Following endpoints are automatically initialized to 0
 };
@@ -295,15 +300,7 @@ static void InitEndpoints() {
 }
 
 //	Handle CLASS_INTERFACE requests
-static bool ClassInterfaceRequest(struct usb_setup *setup) {
-	u8 i = (u8)setup->wIndex;
-
-	if (CDC_ACM_INTERFACE == i)
-		return CDC_Setup(setup);
-
-	return pu_setup(setup);
-	return false;
-}
+static bool ClassInterfaceRequest(struct usb_setup *setup) { return pu_setup(setup); }
 
 static int	_cmark;
 static int	_cend;
@@ -378,7 +375,6 @@ isize USB_RecvControl(void *d, usize len) {
 static u8 SendInterfaces() {
 	u8 interfaces = 0;
 
-	CDC_GetInterface(&interfaces);
 	pu_get_interface(&interfaces);
 
 	return interfaces;
@@ -547,8 +543,9 @@ static inline void USB_ClockEnable() {
 //	General interrupt
 ISR(USB_GEN_vect) {
 	u8 udint = UDINT;
-	UDINT &= (u8) ~(_BV(EORSTI) | _BV(SOFI)); // clear the IRQ flags for the IRQs which are handled
-											  // here, except WAKEUPI and SUSPI (see below)
+	// clear the IRQ flags for the IRQs which are handled
+	// here, except WAKEUPI and SUSPI (see below)
+	UDINT &= (u8) ~(_BV(EORSTI) | _BV(SOFI));
 
 	//	End of Reset
 	if (udint & _BV(EORSTI)) {
@@ -560,13 +557,15 @@ ISR(USB_GEN_vect) {
 	//	Start of Frame - happens every millisecond so we use it for TX and RX LED one-shot timing,
 	// too
 	if (udint & _BV(SOFI)) {
-		USB_Flush(CDC_TX); // Send a tx frame if found
+		pu_flush();
 
+#ifndef SPLONKLIB_DISABLE_USB_LED
 		// check whether the one-shot period has elapsed.  if so, turn off the LED
 		if (TxLEDPulse && !(--TxLEDPulse))
 			TXLED0;
 		if (RxLEDPulse && !(--RxLEDPulse))
 			RXLED0;
+#endif
 	}
 
 	// the WAKEUPI interrupt is triggered as soon as there are non-idle patterns on the data
@@ -606,7 +605,7 @@ u8 USBConnected() {
 //=======================================================================
 //=======================================================================
 
-void USBDevice__attach() {
+void usb_device_attach() {
 	_usbConfiguration = 0;
 	_usbCurrentStatus = 0;
 	_usbSuspendState = 0;
@@ -617,18 +616,20 @@ void USBDevice__attach() {
 	// Enable interrupts for EOR (End of Reset), SOF (start of frame) and SUSPEND
 	UDIEN = (1 << EORSTE) | (1 << SOFE) | (1 << SUSPE);
 
+#ifndef SPLONKLIB_DISABLE_USB_LED
 	TX_RX_LED_INIT;
+#endif
 }
 
-void USBDevice__detach() {}
+void usb_device_detach() {}
 
 //	Check for interrupts
 //	TODO: VBUS detection
-bool USBDevice__configured() { return _usbConfiguration; }
+bool usb_device_configured() { return _usbConfiguration; }
 
-void USBDevice__poll() {}
+void usb_device_poll() {}
 
-bool USBDevice__wakeupHost() {
+bool usb_device_wakeupHost() {
 	// clear any previous wakeup request which might have been set but could be processed at that
 	// time e.g. because the host was not suspended at that time
 	UDCON &= _NBV(RMWKUP);
@@ -645,4 +646,4 @@ bool USBDevice__wakeupHost() {
 	return false;
 }
 
-bool USBDevice__isSuspended() { return (_usbSuspendState & _BV(SUSPI)); }
+bool usb_device_isSuspended() { return (_usbSuspendState & _BV(SUSPI)); }

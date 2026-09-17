@@ -53,6 +53,15 @@ bool pu_setup(struct usb_setup *setup) {
 	return true;
 }
 
+void pu_flush(void) {
+	struct pu		 *self = pu_instance();
+	struct pu_module *node = nullptr;
+	for (node = self->root; node != nullptr; node = node->next) {
+		if (node->vtable->flush)
+			node->vtable->flush(node);
+	}
+}
+
 bool pu_plug(struct pu_module *node) {
 	struct pu *self = pu_instance();
 
@@ -90,8 +99,8 @@ struct pu *pu_instance(void) {
 	ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {
 		if (!init) {
 			init = true;
-			pu.lastIf = CDC_ACM_INTERFACE + CDC_INTERFACE_COUNT;
-			pu.lastEp = CDC_FIRST_ENDPOINT + CDC_ENPOINT_COUNT;
+			pu.lastIf = 1; // CDC_ACM_INTERFACE + CDC_INTERFACE_COUNT;
+			pu.lastEp = 1; // CDC_FIRST_ENDPOINT + CDC_ENPOINT_COUNT;
 			pu.root = nullptr;
 		}
 	}

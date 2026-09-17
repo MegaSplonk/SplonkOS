@@ -1,4 +1,6 @@
 SRC_FILES =                                                                   \
+hid/descriptors                                                               \
+hid/hid                                                                       \
 main                                                                          \
 usb/cdc                                                                       \
 usb/core                                                                      \
