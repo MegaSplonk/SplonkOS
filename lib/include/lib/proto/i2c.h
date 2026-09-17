@@ -76,6 +76,7 @@ bool i2c_is_listening(void);
 void i2c_ignore(void);
 
 t_error i2c_register_peer(i2c_peer **p, grbio *io, u8 addr);
+t_error i2c_gcall(gcall call);
 t_error i2c_send(i2c_peer *p, u8 *data, usize len);
 t_error i2c_query(i2c_peer *p, u8 *data, usize len);
 void	i2c_poll(void);

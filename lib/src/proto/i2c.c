@@ -1,5 +1,6 @@
 #include <avr/interrupt.h>
 #include <avr/io.h>
+#include <avr/wdt.h>
 #include <util/atomic.h>
 #include <util/twi.h>
 
@@ -181,6 +182,28 @@ static void handle_bus_error() {
   grb_clear(&peers[state.peer_idx].io->output);
 }
 
+static void handle_gcall() {
+  if (grb_count(&peers[I2C_GCALL_IDX].io->input) < sizeof(gcall))
+    return;
+  gcall call;
+  usize r;
+  grb_read(&peers[I2C_GCALL_IDX].io->input, &call, sizeof(call), &r);
+  switch (call.instruction) {
+    case GCI_RESET:
+      wdt_enable(WDTO_30MS);
+	    debug_print("RESET", call.data);
+      while(1) {};
+    break;
+    case GCI_USE_ADDR:
+      i2c_ignore();
+      i2c_set_addr(call.data, 1);
+      peers[I2C_SELF_IDX].addr = call.data;
+      i2c_listen();
+	    debug_print("NEW ADDR %d", call.data);
+    break;
+  }
+}
+
 t_error i2c_register_peer(i2c_peer **p, grbio *io, u8 addr) {
 	if (!io) {
 		*p = &peers[addr];
@@ -200,6 +223,10 @@ t_error i2c_register_peer(i2c_peer **p, grbio *io, u8 addr) {
 		return SUCCESS;
 	}
 	return ERROR;
+}
+
+t_error i2c_gcall(gcall call) {
+  i2c_send(&peers[I2C_GCALL_IDX], (u8 *)&call, sizeof(call));
 }
 
 t_error i2c_send(i2c_peer *p, u8 *data, usize len) {
@@ -333,6 +360,7 @@ void i2c_poll(void) {
   ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {
 	  if (state.mode == TW_UH || state.mode == TW_YE) {
 		  i2c_keep_or_rel_bus();
+      handle_gcall();
     }
 #ifdef TWI_UNIFIED
 	//  static u16 test = 0;
@@ -433,7 +461,7 @@ static void i2c_state_machine(u8 status) {
 	case (TW_MR_SLA_NACK): {
 		// data = "SLA+R tx, NACK rx";
 		// debug_print("%s", data);
-		peers[state.peer_idx].nack = 10000;
+		peers[state.peer_idx].nack = 1000;
 		// Either send Repeated start or Stop or both
 		i2c_stop_listen();
 		break;

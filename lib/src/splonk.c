@@ -76,7 +76,7 @@ void splonk_loop() {
 	i2c_init();
 	i2c_register_peer(nullptr, &gcall1, 0);
 	i2c_register_peer(&self, &splonk1, SELF_ADDR);
-	i2c_register_peer(&peer1, &knob1, PEER_ADDR);
+	i2c_register_peer(&peer1, &knob1, PEER_ADDR + 1); // wrong addr on purpose to test USE_ADDR gcall
 	i2c_set_addr(SELF_ADDR, 1);
 	i2c_listen();
 	timer_ontick_register(T_ONTICK_SLOT_I2C_PEER, knob1_input_to_uart);
@@ -84,12 +84,23 @@ void splonk_loop() {
 	debug_print("SELF %d, PEER %d", self->addr, peer1->addr);
 	// debug_print("I'm alive %p, %d, %p", (void *)peer1, peer1->addr, (void *)peer1->io);
 	timer_t t = timer_reset();
+	timer_t tt = timer_reset();
+	timer_t ttt = timer_reset();
   splonknob sk = {};
 
   while (true) {
 		if (timer_wait(&t, 10)) {
 			t = timer_reset();
       i2c_query(peer1, NULL, sizeof(sk));
+		}
+    if (timer_wait(&tt, 5000)) {
+			tt = timer_reset();
+      i2c_gcall((gcall){.instruction = GCI_USE_ADDR, PEER_ADDR + 1});
+		}
+    if (timer_wait(&ttt, 10000)) {
+			ttt = timer_reset();
+      i2c_gcall((gcall){.instruction = GCI_RESET, 0});
+	    debug_print("RESET PEERS");
 		}
 	}
 }
