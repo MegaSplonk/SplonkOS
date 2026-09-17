@@ -31,15 +31,6 @@ struct usb_setup {
 	u16 wLength;
 };
 
-int	 MSC_GetInterface(uint8_t *interfaceNum);
-int	 MSC_GetDescriptor(int i);
-bool MSC_Setup(struct usb_setup *setup);
-bool MSC_Data(uint8_t rx, uint8_t tx);
-
-int	 CDC_GetInterface(uint8_t *interfaceNum);
-int	 CDC_GetDescriptor(int i);
-bool CDC_Setup(struct usb_setup *setup);
-
 #define TRANSFER_PGM	 0x80
 #define TRANSFER_RELEASE 0x40
 #define TRANSFER_ZERO	 0x20
@@ -59,30 +50,11 @@ void  USB_Flush(uint8_t ep);
 u8 USBConnected(void);
 u8 USBGetConfiguration(void);
 
-// class Serial {
-void   Serial__begin(unsigned long);
-void   Serial__end(void);
-int	   Serial__available(void);
-int	   Serial__peek(void);
-int	   Serial__read(void);
-int	   Serial__availableForWrite(void);
-void   Serial__flush(void);
-size_t Serial__write1(uint8_t);
-size_t Serial__write(const uint8_t *, size_t);
-u32	   Serial__baud();
-u8	   Serial__stopbits();
-u8	   Serial__paritytype();
-u8	   Serial__numbits();
-bool   Serial__dtr();
-bool   Serial__rts();
-i32	   Serial__readBreak();
-// }
-
 // class USBDevice_ {
-bool USBDevice__configured();
-void USBDevice__attach();
-void USBDevice__detach(); // Serial port goes down too...
-void USBDevice__poll();
-bool USBDevice__wakeupHost(); // returns false, when wakeup cannot be processed
-bool USBDevice__isSuspended();
+bool usb_device_configured();
+void usb_device_attach();
+void usb_device_detach(); // Serial port goes down too...
+void usb_device_poll();
+bool usb_device_wakeupHost(); // returns false, when wakeup cannot be processed
+bool usb_device_isSuspended();
 // };
