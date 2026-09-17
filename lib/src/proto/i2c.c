@@ -177,7 +177,8 @@ static void handle_bus_error() {
       TWI0.SSTATUS |= TWI_COLL_bm;
   }
 #endif
-	// TODO - clear grbio when bus error?
+  grb_clear(&peers[state.peer_idx].io->input);
+  grb_clear(&peers[state.peer_idx].io->output);
 }
 
 t_error i2c_register_peer(i2c_peer **p, grbio *io, u8 addr) {
@@ -260,7 +261,6 @@ static t_error i2c_write(i2c_peer *p) {
 		TWI0.MCTRLA = TWI_WIEN_bm | TWI_QCEN_bm | TWI_SMEN_bm | TWI_ENABLE_bm;
 	}
 #endif
-  debug_print("%d %c left;;;", grb_count(&g->output), data);
 	return SUCCESS;
 }
 
@@ -274,12 +274,10 @@ static t_error i2c_read(i2c_peer *p) {
 	u8	  data;
 #ifdef TWI_UNIFIED
 	data = TWDR;
-  if (state.mode == TW_MR && !--p->query) {// TW_MR_DATA_NACK
-    debug_print("STOP");
+  if (state.mode == TW_MR && !--p->query) // TW_MR_DATA_NACK
 		i2c_stop_listen();
-  } else
+  else
 	  TWCR = _BV(TWINT) | _BV(TWEN) | (p->query == 1 ? 0 : _BV(TWEA)) | _BV(TWIE);
-	// debug_print("I'm alive %p, %d, %p, %d", (void *)p, p->addr, (void *)p->io, p->query); grb_avail(&g->input) == 1 || 
 #elifdef TWI_SPLIT
 	if (state.mode == TW_SR) {
 		data = TWI0.SDATA;
@@ -297,7 +295,6 @@ static t_error i2c_read(i2c_peer *p) {
 		  TWI0.MCTRLB = (grb_avail(&g->input) == 1 || p->query == 1 ? TWI_ACKACT_bm : 0) | TWI_MCMD_RECVTRANS_gc;
 	}
 #endif
-  debug_print("%d+%d-%c;", p->query, grb_avail(&g->input) == 1 || p->query == 1, data);
 	return grb_write(&g->input, &data, 1, &useless);
 }
 
@@ -333,27 +330,19 @@ static void i2c_keep_or_rel_bus() {
 }
 
 void i2c_poll(void) {
-	static u16 timeout = 0;
   ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {
-	  if (timeout == 0 && (state.mode == TW_UH || state.mode == TW_YE)) {
+	  if (state.mode == TW_UH || state.mode == TW_YE) {
 		  i2c_keep_or_rel_bus();
     }
 #ifdef TWI_UNIFIED
-  static u16 test = 0, reset = 0;
-	if (test++ > 1000) {
-		test = 0;
-		// debug_print("%d %d %d I%d I%d O%d", TW_STATUS, TWCR, state.mode,
-		// grb_count(&peers[0].io->input), grb_count(&peers[state.peer_idx].io->input),
-		// grb_count(&peers[state.peer_idx].io->output));
-    // print_status_reg("poll: ");
-		// if (TWCR == 37 && reset++ > 5) {
-		// 	reset = 0;
-		// 	i2c_listen(); // THIS BROKE STUFF EVENTUALLY (RACE COND)
-		// 	timeout = 10;
-		// }
-		// if (timeout)
-		// 	timeout--;
-	}
+	//  static u16 test = 0;
+	// if (test++ > 1000) {
+	// 	test = 0;
+	// 	debug_print("%d %d %d I%d I%d O%d", TW_STATUS, TWCR, state.mode,
+	// 	grb_count(&peers[0].io->input), grb_count(&peers[state.peer_idx].io->input),
+	// 	grb_count(&peers[state.peer_idx].io->output));
+	//    print_status_reg("poll: ");
+	// }
 #endif
   }
 }

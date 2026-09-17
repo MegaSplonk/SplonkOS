@@ -22,26 +22,27 @@
 
 #define I2C_DATA(_NAME, _FIELDS)                                                                   \
 	typedef struct _NAME			_NAME;                                                         \
-	typedef struct _NAME##_checksum _NAME##_checksum;                                              \
 	struct _NAME {                                                                                 \
 		_FIELDS                                                                                    \
 	};                                                                                             \
-	struct _NAME##_checksum {                                                                      \
-		u16			 magic;                                                                        \
-		struct _NAME inner;                                                                        \
-		u16			 checksum;                                                                     \
-	}
+
+	// typedef struct _NAME##_checksum _NAME##_checksum;                                              \
+	// struct _NAME##_checksum {                                                                      \
+	// 	u16			 magic;                                                                        \
+	// 	struct _NAME inner;                                                                        \
+	// 	u16			 checksum;                                                                     \
+	// }
 
 #define I2C_SLOT(_NAME, _NAME_IN, _NAME_OUT)                                                       \
-	GRBIO_INIT(_NAME, _NAME_IN##_ib, _NAME_OUT##_ob, 2 * sizeof(_NAME_IN##_checksum),              \
-			   2 * sizeof(_NAME_OUT##_checksum))
+	GRBIO_INIT(_NAME, _NAME_IN##_ib, _NAME_OUT##_ob, 2 * sizeof(_NAME_IN),              \
+			   2 * sizeof(_NAME_OUT)) // ##_checksum
 
 typedef enum gcall_instruction : u8 {
 	GCI_RESET,
 	GCI_USE_ADDR,
 } gcall_instruction;
 
-I2C_DATA(gcall, gcall_instruction instruction; u8 data;);
+I2C_DATA(gcall, gcall_instruction instruction; u8 data;)
 
 typedef struct i2c_peer {
 	u8	   addr;
