@@ -62,7 +62,7 @@ typedef struct {
 
 static bool isLUFAbootloader() { return pgm_read_word(FLASHEND - 1) == NEW_LUFA_SIGNATURE; }
 
-int usb_serial_availabl(void) {
+int usb_serial_available(void) {
 	struct pu_cdc *cdc = pu_cdc();
 	if (cdc->peek_buffer >= 0) {
 		return 1 + USB_Available(CDC_RX(cdc));
@@ -266,8 +266,8 @@ struct pu_cdc *pu_cdc(void) {
 			val.module.next = nullptr;
 			val.module.vtable = &PU_CDC_VTABLE;
 			val.module.endpointType = val.ep_type;
-			*(u8 *)(uintptr_t)val.module.numEndpoints = CDC_ENPOINT_COUNT;
-			*(u8 *)(uintptr_t)val.module.numInterfaces = CDC_INTERFACE_COUNT;
+			*(u8 *)((uintptr_t)&val.module.numEndpoints) = CDC_ENPOINT_COUNT;
+			*(u8 *)((uintptr_t)&val.module.numInterfaces) = CDC_INTERFACE_COUNT;
 
 			pu_plug(&val.module);
 		}
