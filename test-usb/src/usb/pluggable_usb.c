@@ -27,7 +27,7 @@ int pu_get_descriptor(struct usb_setup *setup) {
 	struct pu		 *self = pu_instance();
 	struct pu_module *node = nullptr;
 	for (node = self->root; node != nullptr; node = node->next) {
-		int res = node->vtable->get_descriptor(node, setup);
+		int res = node->vtable->get_descriptor ? node->vtable->get_descriptor(node, setup) : 0;
 		if (res)
 			return res;
 	}
@@ -48,9 +48,9 @@ bool pu_setup(struct usb_setup *setup) {
 	struct pu_module *node = nullptr;
 	for (node = self->root; node != nullptr; node = node->next) {
 		if (node->vtable->setup(node, setup))
-			return false;
+			return true;
 	}
-	return true;
+	return false;
 }
 
 void pu_flush(void) {
