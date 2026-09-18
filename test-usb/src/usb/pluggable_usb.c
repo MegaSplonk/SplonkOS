@@ -99,7 +99,7 @@ struct pu *pu_instance(void) {
 	ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {
 		if (!init) {
 			init = true;
-			pu.lastIf = 1; // CDC_ACM_INTERFACE + CDC_INTERFACE_COUNT;
+			pu.lastIf = 0; // CDC_ACM_INTERFACE + CDC_INTERFACE_COUNT;
 			pu.lastEp = 1; // CDC_FIRST_ENDPOINT + CDC_ENPOINT_COUNT;
 			pu.root = nullptr;
 		}
