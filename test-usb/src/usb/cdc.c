@@ -36,7 +36,6 @@ struct pu_cdc {
 	} _usbLineInfo;
 	i32 breakValue;
 	u8	wdtcsr_save;
-	i16 peek_buffer;
 };
 
 #define CDC_INTERFACE_COUNT 2
@@ -52,38 +51,15 @@ struct pu_cdc {
 #define CDC_RX(_S) CDC_ENDPOINT_OUT(_S)
 #define CDC_TX(_S) CDC_ENDPOINT_IN(_S)
 
-typedef struct {
-	u32 dwDTERate;
-	u8	bCharFormat;
-	u8	bParityType;
-	u8	bDataBits;
-	u8	lineState;
-} LineInfo;
-
 static bool isLUFAbootloader() { return pgm_read_word(FLASHEND - 1) == NEW_LUFA_SIGNATURE; }
 
 int usb_serial_available(void) {
 	struct pu_cdc *cdc = pu_cdc();
-	if (cdc->peek_buffer >= 0) {
-		return 1 + USB_Available(CDC_RX(cdc));
-	}
 	return USB_Available(CDC_RX(cdc));
-}
-
-int usb_serial_peek(void) {
-	struct pu_cdc *cdc = pu_cdc();
-	if (cdc->peek_buffer < 0)
-		cdc->peek_buffer = USB_Recv1(CDC_RX(cdc));
-	return cdc->peek_buffer;
 }
 
 int usb_serial_read(void) {
 	struct pu_cdc *cdc = pu_cdc();
-	if (cdc->peek_buffer >= 0) {
-		int c = cdc->peek_buffer;
-		cdc->peek_buffer = -1;
-		return c;
-	}
 	return USB_Recv1(CDC_RX(cdc));
 }
 
@@ -125,6 +101,7 @@ static int pu_cdc_get_descriptor(struct pu_module *self, struct usb_setup *setup
 	struct pu_cdc *cdc = (typeof(struct pu_cdc *))(self);
 
 	(void)(cdc);
+	(void)(setup);
 	return 0;
 }
 static int pu_cdc_get_interface(struct pu_module *self, u8 *interfaceCount) {
@@ -239,8 +216,14 @@ static bool pu_cdc_setup(struct pu_module *self, struct usb_setup *setup) {
 	return false;
 }
 
+static u8 pu_cdc_get_shortname(struct pu_module *self, char *serialString) {
+	(void)(self);
+	serialString[0] = 'S';
+	return 1;
+}
+
 static struct pu_module_vtable PU_CDC_VTABLE = {
-	.get_shortname = pu_module_get_shortname_default,
+	.get_shortname = pu_cdc_get_shortname,
 	.get_descriptor = pu_cdc_get_descriptor,
 	.get_interface = pu_cdc_get_interface,
 	.setup = pu_cdc_setup,
@@ -255,7 +238,6 @@ struct pu_cdc *pu_cdc(void) {
 		if (!init) {
 			init = true;
 
-			val.peek_buffer = -1;
 			val.breakValue = -1;
 			val._usbLineInfo = (typeof(val._usbLineInfo)){57600, 0x00, 0x00, 0x00, 0x00};
 			val.wdtcsr_save = 0;
