@@ -13,9 +13,9 @@
 int main(void) {
 	sei();
 	pu_cdc();
-	// pu_hid();
-	// pu_hid_add_desc(&nkro_descriptor);
-	// pu_hid_add_desc(&mouse_descriptor);
+	pu_hid();
+	pu_hid_add_desc(&nkro_descriptor);
+	pu_hid_add_desc(&mouse_descriptor);
 	usb_device_attach();
 	TX_RX_LED_INIT;
 
@@ -28,27 +28,30 @@ int main(void) {
 	};
 
 	// struct HID_NKRO_report report = {};
+	struct HID_MOUSE_report report_mouse = {};
 
-	// pin_input((pin)D10);
+	pin_input((pin)D10);
 	// pullup
-	// PORTB |= _BV(PORTB6);
+	PORTB |= _BV(PORTB6);
 
 	while (true) {
-		/*
 		bool pressed = false;
 		if (!pin_get((pin)D10)) {
 			pressed = true;
-			report.lmeta = true;
-			report.keys[KEY >> 3] = _BV((KEY & 7));
+			// report.lmeta = true;
+			// report.keys[KEY >> 3] = _BV((KEY & 7));
+			report_mouse.x = 10;
 		} else {
-			report.lmeta = false;
-			report.keys[KEY >> 3] = 0;
-		}*/
+			report_mouse.x = 0;
+			// report.lmeta = false;
+			// report.keys[KEY >> 3] = 0;
+		}
 
-		usb_serial_write((const void *)"Hello from USB !\r\n", 19);
-		//usb_serial_write((const void *)(pressed ? "P\r" : "X\r"), 2);
-		//hid_send_report(1, &report, sizeof(report));
-		usb_serial_flush();
+		// usb_serial_write((const void *)"Hello from USB !\r\n", 19);
+		usb_serial_write((const void *)(pressed ? "P\r" : "X\r"), 2);
+		// hid_send_report(HID_NKRO_REPORT_ID, &report, sizeof(report));
+		hid_send_report(HID_MOUSE_REPORT_ID, &report_mouse, sizeof(report_mouse));
+		// usb_serial_flush();
 		_delay_ms(100);
 	}
 }

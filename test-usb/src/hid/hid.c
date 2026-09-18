@@ -2,30 +2,30 @@
 #include "usb_hid.h"
 #include <util/atomic.h>
 
-static int	hid_get_interface(struct pu_hid *self, u8 *i);
-static int	hid_get_descriptor(struct pu_hid *self, struct usb_setup *setup);
-static bool hid_setup(struct pu_hid *self, struct usb_setup *setup);
-static u8	hid_get_short_name(struct pu_hid *self, char *name);
+static int	hid_get_interface(struct pu_module *self, u8 *i);
+static int	hid_get_descriptor(struct pu_module *self, struct usb_setup *setup);
+static bool hid_setup(struct pu_module *self, struct usb_setup *setup);
+static u8	hid_get_short_name(struct pu_module *self, char *name);
 
 static struct pu_module_vtable PU_HID_VTABLE = {
-	.get_interface = (int (*)(struct pu_module *, u8 *))hid_get_interface,
-	.get_descriptor = (int (*)(struct pu_module *, struct usb_setup *))hid_get_descriptor,
-	.setup = (bool (*)(struct pu_module *, struct usb_setup *))hid_setup,
-	.get_shortname = (u8 (*)(struct pu_module *, char *))hid_get_short_name,
+	.get_interface = hid_get_interface,
+	.get_descriptor = hid_get_descriptor,
+	.setup = hid_setup,
+	.get_shortname = hid_get_short_name,
 	.flush = nullptr,
 };
 
-static u8 hid_get_short_name(struct pu_hid *self, char *name) {
+static u8 hid_get_short_name(struct pu_module *self_, char *name) {
+	struct pu_hid *self = (typeof(self))self_;
 	name[0] = 'H';
-	name[1] = 'I';
-	name[2] = 'D';
-	name[3] = 'A' + (self->desc_size & 0x0F);
-	name[4] = 'A' + ((self->desc_size >> 4) & 0x0F);
+	name[1] = 'A' + (self->desc_size & 0x0F);
+	name[2] = 'A' + ((self->desc_size >> 4) & 0x0F);
 
-	return 5;
+	return 3;
 }
 
-static int hid_get_interface(struct pu_hid *self, u8 *i) {
+static int hid_get_interface(struct pu_module *self_, u8 *i) {
+	struct pu_hid *self = (typeof(self))self_;
 	*i += 1; // uses 1
 	struct hid_descriptor hidInterface = {
 		D_INTERFACE(self->module.pluggedInterface, 1, USB_DEVICE_CLASS_HUMAN_INTERFACE,
@@ -37,7 +37,8 @@ static int hid_get_interface(struct pu_hid *self, u8 *i) {
 	return USB_SendControl(0, &hidInterface, sizeof(hidInterface));
 }
 
-static int hid_get_descriptor(struct pu_hid *self, struct usb_setup *setup) {
+static int hid_get_descriptor(struct pu_module *self_, struct usb_setup *setup) {
+	struct pu_hid *self = (typeof(self))self_;
 	// Check if this is a HID Class Descriptor request
 	if (setup->bmRequestType != REQUEST_DEVICETOHOST_STANDARD_INTERFACE) {
 		return 0;
@@ -66,7 +67,8 @@ static int hid_get_descriptor(struct pu_hid *self, struct usb_setup *setup) {
 
 	return total;
 }
-static bool hid_setup(struct pu_hid *self, struct usb_setup *setup) {
+static bool hid_setup(struct pu_module *self_, struct usb_setup *setup) {
+	struct pu_hid *self = (typeof(self))self_;
 	if (self->module.pluggedInterface != setup->wIndex) {
 		return false;
 	}
