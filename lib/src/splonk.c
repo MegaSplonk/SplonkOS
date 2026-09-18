@@ -1,14 +1,13 @@
+#include "lib/splonk.h"
+#include "lib/ec11.h"
+#include "lib/pinout.h"
 #include "lib/proto/i2c.h"
 #include "lib/proto/uart.h"
-#include "lib/splonk.h"
 #include "lib/time.h"
-#include "lib/pinout.h"
-#include "lib/ec11.h"
-#include "lib/proto/i2c.h"
 
 #include <avr/io.h>
-#include <util/delay.h>
 #include <util/atomic.h>
+#include <util/delay.h>
 
 #if !defined(SPLONK) && !defined(SPLONKNOB)
 #define SPLONK
@@ -39,34 +38,34 @@ static void knob1_input_to_uart() { // can be used for debugging for now i guess
 	usize	  read_bytes = 0;
 	splonknob data;
 	ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {
-    if (grb_count(&peer1->io->input) >= sizeof(data)) {
-      grb_read(&peer1->io->input, (void *)&data, sizeof(data), &read_bytes);
-      if (read_bytes == sizeof(data)) {
-        if (data.knob_l) {
-          uart_sendstring("LK");
-          i16 knob_l = data.knob_l;
-          uart_send_i16(knob_l);
-        }
-        if (data.butn_l) {
-          uart_sendstring("LB");
-          uart_send_u8(data.butn_l);
-        }
-        if (data.knob_r) {
-          uart_sendstring("RK");
-          i16 knob_r = data.knob_r;
-          uart_send_i16(knob_r);
-        }
-        if (data.butn_r) {
-          uart_sendstring("RB");
-          uart_send_u8(data.butn_r);
-        }
-        uart_sendstring("\r\n");
-        for (usize i=0; i < sizeof(data); i++)
-          uart_send_u8_hex(((u8*)&data)[i]);
-        uart_sendstring("\r\n");
-      }
-    }
-  }
+		if (grb_count(&peer1->io->input) >= sizeof(data)) {
+			grb_read(&peer1->io->input, (void *)&data, sizeof(data), &read_bytes);
+			if (read_bytes == sizeof(data)) {
+				if (data.knob_l) {
+					uart_sendstring("LK");
+					i16 knob_l = data.knob_l;
+					uart_send_i16(knob_l);
+				}
+				if (data.butn_l) {
+					uart_sendstring("LB");
+					uart_send_u8(data.butn_l);
+				}
+				if (data.knob_r) {
+					uart_sendstring("RK");
+					i16 knob_r = data.knob_r;
+					uart_send_i16(knob_r);
+				}
+				if (data.butn_r) {
+					uart_sendstring("RB");
+					uart_send_u8(data.butn_r);
+				}
+				uart_sendstring("\r\n");
+				for (usize i = 0; i < sizeof(data); i++)
+					uart_send_u8_hex(((u8 *)&data)[i]);
+				uart_sendstring("\r\n");
+			}
+		}
+	}
 }
 
 void splonk_loop() {
@@ -74,33 +73,35 @@ void splonk_loop() {
 	uart_init();
 	debug_print("%s\n", "I'm alive");
 	i2c_init();
-	i2c_register_peer(nullptr, &gcall1, 0);
-	i2c_register_peer(&self, &splonk1, SELF_ADDR);
-	i2c_register_peer(&peer1, &knob1, PEER_ADDR + 1); // wrong addr on purpose to test USE_ADDR gcall
+	i2c_register_peer(nullptr, &gcall1, (ipi){});
+	i2c_register_peer(&self, &splonk1, (ipi){SELF_ADDR, IPD_ALL, IPT_SPLONK});
+	i2c_register_peer(&peer1, &knob1,
+					  (ipi){PEER_ADDR + 1, IPD_NONE,
+							IPT_SPLONKNOB}); // wrong addr on purpose to test USE_ADDR gcall
 	i2c_set_addr(SELF_ADDR, 1);
 	i2c_listen();
 	timer_ontick_register(T_ONTICK_SLOT_I2C_PEER, knob1_input_to_uart);
 	// timer_ontick_register(T_ONTICK_SLOT_I2C_SELF, self_input_to_uart);
-	debug_print("SELF %d, PEER %d", self->addr, peer1->addr);
+	debug_print("SELF %d, PEER %d", self->info.addr, peer1->info.addr);
 	// debug_print("I'm alive %p, %d, %p", (void *)peer1, peer1->addr, (void *)peer1->io);
-	timer_t t = timer_reset();
-	timer_t tt = timer_reset();
-	timer_t ttt = timer_reset();
-  splonknob sk = {};
+	timer_t	  t = timer_reset();
+	timer_t	  tt = timer_reset();
+	timer_t	  ttt = timer_reset();
+	splonknob sk = {};
 
-  while (true) {
+	while (true) {
 		if (timer_wait(&t, 10)) {
 			t = timer_reset();
-      i2c_query(peer1, NULL, sizeof(sk));
+			i2c_query(peer1, NULL, sizeof(sk));
 		}
-    if (timer_wait(&tt, 5000)) {
+		if (timer_wait(&tt, 5000)) {
 			tt = timer_reset();
-      i2c_gcall((gcall){.instruction = GCI_USE_ADDR, PEER_ADDR + 1});
+			i2c_gcall((gcall){.instruction = GCI_USE_ADDR, PEER_ADDR + 1});
 		}
-    if (timer_wait(&ttt, 10000)) {
+		if (timer_wait(&ttt, 10000)) {
 			ttt = timer_reset();
-      i2c_gcall((gcall){.instruction = GCI_RESET, 0});
-	    debug_print("RESET PEERS");
+			i2c_gcall((gcall){.instruction = GCI_RESET, 0});
+			debug_print("RESET PEERS");
 		}
 	}
 }
@@ -130,50 +131,50 @@ void splonk_loop() {
 	uart_init();
 	debug_print("%s\n", "I'm splonknob");
 	i2c_init();
-	i2c_register_peer(nullptr, &gcall1, 0);
-	i2c_register_peer(&self, &knob1, SELF_ADDR);
+	i2c_register_peer(nullptr, &gcall1, (ipi){});
+	i2c_register_peer(&self, &knob1, (ipi){SELF_ADDR, IPD_NONE, IPT_SPLONKNOB});
 	i2c_set_addr(SELF_ADDR, 1);
 	i2c_listen();
-	debug_print("SELF %d", self->addr);
+	debug_print("SELF %d", self->info.addr);
 
-	timer_t t = timer_reset();
-  splonknob sk = {};
-	timer_t tt = timer_reset();
-  struct ec11 ec;
+	timer_t		t = timer_reset();
+	splonknob	sk = {};
+	timer_t		tt = timer_reset();
+	struct ec11 ec;
 	ec11_init(&ec, (pin)R_A, (pin)R_B, (pin)R_BTN);
-  splonknob last = {};
-  // add second ec11 when wired in
-  while (true) {
-    switch (ec11_poll(&ec, &sk.butn_l)) {
+	splonknob last = {};
+	// add second ec11 when wired in
+	while (true) {
+		switch (ec11_poll(&ec, &sk.butn_l)) {
 		case (ROT_A):
-      sk.knob_l += 1;
-      break;
-    case (ROT_B):
-      sk.knob_l -= 1;
-      break;
-    case (ROT_NONE):
-      break;
-    }
+			sk.knob_l += 1;
+			break;
+		case (ROT_B):
+			sk.knob_l -= 1;
+			break;
+		case (ROT_NONE):
+			break;
+		}
 		if (timer_wait(&t, 5)) {
 			t = timer_reset();
-      if (grb_avail(&self->io->output) >= sizeof(sk)) {
-        i2c_send(self, (void*)&sk, sizeof(sk));
-        sk = (splonknob){ .butn_l = sk.butn_l, .butn_r = sk.butn_r };
-      }
+			if (grb_avail(&self->io->output) >= sizeof(sk)) {
+				i2c_send(self, (void *)&sk, sizeof(sk));
+				sk = (splonknob){.butn_l = sk.butn_l, .butn_r = sk.butn_r};
+			}
 		}
 		if (timer_wait(&tt, 5)) {
 			tt = timer_reset();
-      bool same = true;
-      for (usize i=0; i < sizeof(sk); i++)
-        if (((u8*)&sk)[i] != ((u8*)&last)[i])
-          same = false;
-      if (!same) {
-        for (usize i=0; i < sizeof(sk); i++)
-          uart_send_u8_hex(((u8*)&sk)[i]);
-        uart_sendstring("\r\n");
-        last = sk;
-      }
-    }
+			bool same = true;
+			for (usize i = 0; i < sizeof(sk); i++)
+				if (((u8 *)&sk)[i] != ((u8 *)&last)[i])
+					same = false;
+			if (!same) {
+				for (usize i = 0; i < sizeof(sk); i++)
+					uart_send_u8_hex(((u8 *)&sk)[i]);
+				uart_sendstring("\r\n");
+				last = sk;
+			}
+		}
 	}
 }
 
@@ -187,7 +188,7 @@ void splonk_loop() {
 void splonk_loop() {
 	uart_init();
 
-  while (true) {
+	while (true) {
 		uart_sendstring("dumbass\r\n");
 	}
 }
