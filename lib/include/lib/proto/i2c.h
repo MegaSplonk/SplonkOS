@@ -21,20 +21,20 @@
 // typedef void (*i2c_peer_input_func)(grb*);
 
 #define I2C_DATA(_NAME, _FIELDS)                                                                   \
-	typedef struct _NAME			_NAME;                                                         \
+	typedef struct _NAME _NAME;                                                                    \
 	struct _NAME {                                                                                 \
 		_FIELDS                                                                                    \
-	};                                                                                             \
+	};
 
-	// typedef struct _NAME##_checksum _NAME##_checksum;                                              \
-	// struct _NAME##_checksum {                                                                      \
-	// 	u16			 magic;                                                                        \
-	// 	struct _NAME inner;                                                                        \
-	// 	u16			 checksum;                                                                     \
-	// }
+// typedef struct _NAME##_checksum _NAME##_checksum;                                              \
+// struct _NAME##_checksum {                                                                      \
+// 	u16			 magic;                                                                        \
+// 	struct _NAME inner;                                                                        \
+// 	u16			 checksum;                                                                     \
+// }
 
 #define I2C_SLOT(_NAME, _NAME_IN, _NAME_OUT)                                                       \
-	GRBIO_INIT(_NAME, _NAME_IN##_ib, _NAME_OUT##_ob, 2 * sizeof(_NAME_IN),              \
+	GRBIO_INIT(_NAME, _NAME_IN##_ib, _NAME_OUT##_ob, 2 * sizeof(_NAME_IN),                         \
 			   2 * sizeof(_NAME_OUT)) // ##_checksum
 
 typedef enum gcall_instruction : u8 {
@@ -44,11 +44,39 @@ typedef enum gcall_instruction : u8 {
 
 I2C_DATA(gcall, gcall_instruction instruction; u8 data;)
 
+typedef enum i2c_peer_direction : u8 {
+	IPD_NONE,  // for peers whose orientation does not matter
+	IPD_NORTH, // for peers up north
+	IPD_EAST,  // for peers eastward
+	IPD_SOUTH, // for peers down south
+	IPD_WEST,  // for peers westward
+	IPD_ALL,   // for peers with multiple possible orientations
+} ipd;
+
+typedef enum i2c_peer_type : u8 {
+	IPT_SPLONK,
+	IPT_SPLONKO,
+	IPT_SPLONKUS,
+	IPT_SPLONKPAD,
+	IPT_SPLONKNOB,
+	IPT_SPLONKREEN,
+	IPT_SPLONKBAR,
+} ipt;
+
+typedef struct i2c_peer_info {
+	u8	addr;
+	ipd direction;
+	ipt type;
+} ipi;
+
+typedef struct i2c_peer i2c_peer;
 typedef struct i2c_peer {
-	u8	   addr;
-	grbio *io;
-	usize   query;
-	u32	   nack;
+	ipi		  info;
+	grbio	 *io;
+	usize	  query;
+	u32		  nack;
+	i2c_peer *downstream[4];
+
 	// add a nack count and consider a peer dc'd when count goes too high?
 	// use a roll call every so often instead?
 } i2c_peer;
@@ -66,7 +94,6 @@ typedef enum i2c_mode : u8 {
 typedef struct i2c_state {
 	i2c_mode mode;
 	usize	 peer_idx;
-	bool	 g_call; // handle general calls differently somehow?
 } i2c_state;
 
 void i2c_set_addr(u8 addr, bool answer_gc);
@@ -75,7 +102,7 @@ void i2c_listen(void);
 bool i2c_is_listening(void);
 void i2c_ignore(void);
 
-t_error i2c_register_peer(i2c_peer **p, grbio *io, u8 addr);
+t_error i2c_register_peer(i2c_peer **p, grbio *io, ipi info);
 t_error i2c_gcall(gcall call);
 t_error i2c_send(i2c_peer *p, u8 *data, usize len);
 t_error i2c_query(i2c_peer *p, u8 *data, usize len);

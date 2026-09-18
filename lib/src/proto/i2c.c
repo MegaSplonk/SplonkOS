@@ -108,7 +108,7 @@ static void i2c_start(void) {
 	// debug_print("start %d", state.peer_idx);
 #elifdef TWI_SPLIT
 	TWI0.MADDR =
-		(u8)I2C_ADDR(peers[state.peer_idx].addr << 1, state.mode == TW_MR ? TW_READ : TW_WRITE);
+		(u8)I2C_ADDR(peers[state.peer_idx].info.addr, state.mode == TW_MR ? TW_READ : TW_WRITE);
 	// TWI0.MCTRLB = TWI_MCMD_REPSTART_gc; // how?
 #endif
 }
@@ -157,7 +157,7 @@ static void i2c_int_listen(void) {
 static void i2c_select() {
 #ifdef TWI_UNIFIED
 	// set addr to write
-	TWDR = (u8)I2C_ADDR(peers[state.peer_idx].addr, state.mode == TW_MR ? TW_READ : TW_WRITE);
+	TWDR = (u8)I2C_ADDR(peers[state.peer_idx].info.addr, state.mode == TW_MR ? TW_READ : TW_WRITE);
 	//     CLR INT    | ENABLE    | INTERRUPT;
 	TWCR = _BV(TWINT) | _BV(TWEN) | _BV(TWIE);
 #endif
@@ -197,25 +197,21 @@ static void handle_gcall() {
     case GCI_USE_ADDR:
       i2c_ignore();
       i2c_set_addr(call.data, 1);
-      peers[I2C_SELF_IDX].addr = call.data;
+      peers[I2C_SELF_IDX].info.addr = call.data;
       i2c_listen();
 	    debug_print("NEW ADDR %d", call.data);
     break;
   }
 }
 
-t_error i2c_register_peer(i2c_peer **p, grbio *io, u8 addr) {
-	if (!io) {
-		*p = &peers[addr];
-		return SUCCESS;
-	}
+t_error i2c_register_peer(i2c_peer **p, grbio *io, ipi info) {
 	for (usize peer = 0; peer < I2C_MAX_PEERS; peer++) {
 
-		if (peers[peer].addr || peers[peer].io)
+		if (peers[peer].info.addr || peers[peer].io)
 			continue;
 
 		peers[peer].io = io;
-		peers[peer].addr = addr;
+		peers[peer].info = info;
 		peers[peer].query = 0;
 		if (p)
 			*p = &peers[peer];
