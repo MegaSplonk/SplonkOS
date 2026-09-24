@@ -15,20 +15,27 @@
 
 #if defined(SPLONK)
 #define SELF_ADDR 0b00011111
-#define PEER_ADDR 0b01011111
 #elif defined(SPLONKNOB)
 #define SELF_ADDR 0b01011111
-#define PEER_ADDR 0b00011111
 #endif
 
-I2C_SLOT(gcall1, gcall, gcall);
+struct biggest_gcall {
+  gcall g;
+  u8 more[1]; // use something more than 1 if more data is ever sent with gcall
+};
+typedef struct biggest_gcall bgcall; // maybe make a union of all gcall structs later and use that
+
+I2C_SLOT(gcall1, bgcall, bgcall);
 
 #ifdef SPLONK
 
 i2c_peer *self;
+i2c_peer *otherhalf;
 i2c_peer *peer1;
 
 I2C_SLOT(splonk1, splonk, splonk);
+typedef splonk splonk_;
+I2C_SLOT(splonk2, splonk_, splonk_);
 I2C_SLOT(knob1, splonknob, dummy);
 
 static void knob1_input_to_uart() { // can be used for debugging for now i guess
@@ -37,10 +44,15 @@ static void knob1_input_to_uart() { // can be used for debugging for now i guess
 
 	usize	  read_bytes = 0;
 	splonknob data;
+	static splonknob last;
 	ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {
 		if (grb_count(&peer1->io->input) >= sizeof(data)) {
 			grb_read(&peer1->io->input, (void *)&data, sizeof(data), &read_bytes);
-			if (read_bytes == sizeof(data)) {
+			bool same = true;
+			for (usize i = 0; i < sizeof(data); i++)
+				if (((u8 *)&data)[i] != ((u8 *)&last)[i])
+					same = false;
+			if (!same) {
 				if (data.knob_l) {
 					uart_sendstring("LK");
 					i16 knob_l = data.knob_l;
@@ -63,6 +75,7 @@ static void knob1_input_to_uart() { // can be used for debugging for now i guess
 				for (usize i = 0; i < sizeof(data); i++)
 					uart_send_u8_hex(((u8 *)&data)[i]);
 				uart_sendstring("\r\n");
+				last = data;
 			}
 		}
 	}
@@ -72,12 +85,11 @@ void splonk_loop() {
 	timer_init();
 	uart_init();
 	debug_print("%s\n", "I'm alive");
-	i2c_init();
 	i2c_register_peer(nullptr, &gcall1, (ipi){});
 	i2c_register_peer(&self, &splonk1, (ipi){SELF_ADDR, IPD_ALL, IPT_SPLONK});
-	i2c_register_peer(&peer1, &knob1,
-					  (ipi){PEER_ADDR + 1, IPD_NONE,
-							IPT_SPLONKNOB}); // wrong addr on purpose to test USE_ADDR gcall
+  i2c_register_slot(&splonk2, IPT_SPLONK);
+  i2c_register_slot(&knob1, IPT_SPLONKNOB); // add more slots as needed
+	i2c_init();
 	i2c_set_addr(SELF_ADDR, 1);
 	i2c_listen();
 	timer_ontick_register(T_ONTICK_SLOT_I2C_PEER, knob1_input_to_uart);
@@ -85,22 +97,35 @@ void splonk_loop() {
 	debug_print("SELF %d, PEER %d", self->info.addr, peer1->info.addr);
 	// debug_print("I'm alive %p, %d, %p", (void *)peer1, peer1->addr, (void *)peer1->io);
 	timer_t	  t = timer_reset();
-	timer_t	  tt = timer_reset();
+	// timer_t	  tt = timer_reset();
 	timer_t	  ttt = timer_reset();
 	splonknob sk = {};
+	// splonk sp = {};
 
 	while (true) {
 		if (timer_wait(&t, 10)) {
 			t = timer_reset();
+      i2c_get_peer(&peer1, (ipi){0,0,IPT_SPLONKNOB});
 			i2c_query(peer1, NULL, sizeof(sk));
+			//    splonk self_data = {.keys = {}, .led_mode = 0, .peers = {}};
+			//    for (usize i = 0; i < tabsize(self_data.peers); i++)
+			//      self_data.peers[i] = self->downstream[i] ? self->downstream[i]->info : (ipi){};
+			//    i2c_send(self, (u8 *)&self_data, sizeof(splonk));
+			// if (otherhalf && i2c_query(otherhalf, (u8 *)&sp, sizeof(sp)) == SUCCESS) {
+			//   for (usize i = 0; i < tabsize(self_data.peers); i++) {
+			//        i2c_peer *downstream = NULL;
+			//        i2c_register(&downstream, sp.peers[i]);
+			//        otherhalf->downstream[i] = downstream;
+			//      }
+			//    }
 		}
-		if (timer_wait(&tt, 5000)) {
-			tt = timer_reset();
-			i2c_gcall((gcall){.instruction = GCI_USE_ADDR, PEER_ADDR + 1});
-		}
-		if (timer_wait(&ttt, 10000)) {
+		// if (timer_wait(&tt, 5000)) {
+		// 	tt = timer_reset();
+		// 	i2c_gcall((gcall){.instruction = GCI_USE_ADDR, PEER_ADDR + 1});
+		// }
+		if (timer_wait(&ttt, 30000)) {
 			ttt = timer_reset();
-			i2c_gcall((gcall){.instruction = GCI_RESET, 0});
+			i2c_gcall(&(gcall){.instruction = GCI_RESET, 0});
 			debug_print("RESET PEERS");
 		}
 	}
@@ -130,12 +155,12 @@ void splonk_loop() {
 	timer_init();
 	uart_init();
 	debug_print("%s\n", "I'm splonknob");
-	i2c_init();
 	i2c_register_peer(nullptr, &gcall1, (ipi){});
 	i2c_register_peer(&self, &knob1, (ipi){SELF_ADDR, IPD_NONE, IPT_SPLONKNOB});
 	i2c_set_addr(SELF_ADDR, 1);
+	i2c_init();
 	i2c_listen();
-	debug_print("SELF %d", self->info.addr);
+	debug_print("SELF %d type%d", self->info.addr, self->info.type);
 
 	timer_t		t = timer_reset();
 	splonknob	sk = {};
