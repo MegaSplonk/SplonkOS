@@ -7,6 +7,7 @@
 #include "lib/config.h"
 #include "lib/grb.h"
 #include "lib/lib.h"
+#include "lib/pinout.h"
 #include "lib/proto/i2c.h"
 #include "lib/proto/uart.h"
 #include "lib/time.h"
@@ -30,6 +31,7 @@
 #endif
 
 static i2c_peer peers[I2C_MAX_PEERS] = {};
+static i2c_slot slots[I2C_MAX_SLOTS] = {};
 
 i2c_state state = {};
 
@@ -101,11 +103,43 @@ void i2c_ignore(void) {
 	state.mode = TW_UH;
 }
 
+// #ifdef SPLONK
+const ipd directions[] = {IPD_NONE, IPD_NORTH, IPD_EAST, IPD_SOUTH, IPD_WEST, IPD_ALL};
+const ipt types[] = {IPT_SPLONK, IPT_SPLONKO, IPT_SPLONKUS, IPT_SPLONKPAD, IPT_SPLONKNOB, IPT_SPLONKREEN, IPT_SPLONKBAR};
+const pin bus_enable[] = (pin[])I2C_BE_PINS;
+const u8 be_logic[] = I2C_BE_LOGIC;
+const u8 addr_pool[] = I2C_ADDR_POOL;
+
+static void i2c_bus_enable(void) {
+  ipd dir = state.peer_idx == I2C_GCALL_IDX ? state.bus_enable : IPD_ALL;
+  for (u8 be = 0; be < tabsize(bus_enable); be++)
+		pin_output(bus_enable[be]),
+      pin_set(bus_enable[be], (bool)(be_logic[dir] & (1 << be)));
+}
+
+static ipd i2c_bus_sense(void) {
+  ipd dir = IPD_NONE;
+  for (u8 d = 0; d < tabsize(directions); d++) {
+    for (u8 be = 0; be < tabsize(bus_enable); be++) {
+		  pin_input(bus_enable[be]);
+      if ((be_logic[d] & (1 << be)) && pin_get(bus_enable[be]))
+        dir = directions[d];
+    }
+  }
+  for (u8 be = 0; be < tabsize(bus_enable); be++)
+		pin_output(bus_enable[be]);
+  return dir;
+}
+// #else
+// static void i2c_bus_enable(void) {}
+// #endif
+
 static void i2c_start(void) {
+  // i2c_bus_enable();
 #ifdef TWI_UNIFIED
 	//     CLR INT    | SET MASTER |  ENABLE   | INTERRUPT;
 	TWCR = _BV(TWINT) | _BV(TWSTA) | _BV(TWEN) | _BV(TWIE);
-	// debug_print("start %d", state.peer_idx);
+	// debug_print("start %d", peers[state.peer_idx].timeout);
 #elifdef TWI_SPLIT
 	TWI0.MADDR =
 		(u8)I2C_ADDR(peers[state.peer_idx].info.addr, state.mode == TW_MR ? TW_READ : TW_WRITE);
@@ -161,7 +195,7 @@ static void i2c_select() {
 	//     CLR INT    | ENABLE    | INTERRUPT;
 	TWCR = _BV(TWINT) | _BV(TWEN) | _BV(TWIE);
 #endif
-	// debug_print("select %d", state.mode);
+	// debug_print("select %d", peers[state.peer_idx].snack);
 }
 
 static void handle_bus_error() {
@@ -183,46 +217,228 @@ static void handle_bus_error() {
 }
 
 static void handle_gcall() {
-  if (grb_count(&peers[I2C_GCALL_IDX].io->input) < sizeof(gcall))
+  u8 peek[2];
+  usize p = 0;
+  grb_peek(&peers[I2C_GCALL_IDX].io->input, peek, 2, &p);
+  if (!p || grb_count(&peers[I2C_GCALL_IDX].io->input) < gcall_size[peek[0]])
     return;
   gcall call;
   usize r;
-  grb_read(&peers[I2C_GCALL_IDX].io->input, &call, sizeof(call), &r);
+  grb_read(&peers[I2C_GCALL_IDX].io->input, &call, gcall_size[peek[0]], &r);
   switch (call.instruction) {
     case GCI_RESET:
+	    debug_print("RESET %d", call.data);
+      if (call.data != 0 && call.data != peers[I2C_SELF_IDX].info.addr)
+        break;
       wdt_enable(WDTO_30MS);
-	    debug_print("RESET", call.data);
       while(1) {};
     break;
     case GCI_USE_ADDR:
-      i2c_ignore();
       i2c_set_addr(call.data, 1);
       peers[I2C_SELF_IDX].info.addr = call.data;
-      i2c_listen();
 	    debug_print("NEW ADDR %d", call.data);
+    break;
+    case GCI_ACK_TYPE:
+	    debug_print("ACK TYPE %d", r);
+      // ack or nack handled during data transfer
     break;
   }
 }
 
-t_error i2c_register_peer(i2c_peer **p, grbio *io, ipi info) {
-	for (usize peer = 0; peer < I2C_MAX_PEERS; peer++) {
+t_error i2c_new_addr(u8 *addr) {
+  static bool used[tabsize(addr_pool)] = {};
+	for (usize a = 0; addr && a < tabsize(addr_pool); a++) {
 
-		if (peers[peer].info.addr || peers[peer].io)
+		if (used[a])
 			continue;
 
-		peers[peer].io = io;
-		peers[peer].info = info;
-		peers[peer].query = 0;
-		if (p)
-			*p = &peers[peer];
+		*addr = addr_pool[a];
+    used[a] = true;
 
 		return SUCCESS;
 	}
 	return ERROR;
 }
 
-t_error i2c_gcall(gcall call) {
-  i2c_send(&peers[I2C_GCALL_IDX], (u8 *)&call, sizeof(call));
+t_error i2c_free_addr(u8 addr) {
+  static bool used[tabsize(addr_pool)] = {};
+	for (usize a = 0; a < tabsize(addr_pool); a++) {
+
+		if (addr_pool[a] != addr)
+			continue;
+
+    used[a] = false;
+
+		return SUCCESS;
+	}
+	return ERROR;
+}
+
+t_error i2c_get_peer(i2c_peer **p, ipi info) {
+  usize match = 0;
+	for (usize peer = 0; peer < I2C_MAX_PEERS; peer++) {
+    usize score = (info.addr && info.addr == peers[peer].info.addr)
+      + (info.direction != IPD_NONE && info.direction == peers[peer].info.direction)
+      + (info.type == peers[peer].info.type);
+
+    if (score <= match)
+      continue;
+
+    match = score;
+		
+		if (p)
+			*p = &peers[peer];	
+	}
+  if (match)
+    return SUCCESS;
+	return ERROR;
+}
+
+t_error i2c_register_peer(i2c_peer **p, grbio *io, ipi info) {
+	for (usize peer = 0; peer < I2C_MAX_PEERS; peer++) {
+
+		if (peers[peer].io) //  && peers[peer].info.addr != info.addr
+			continue;
+
+		if (io)
+      peers[peer].io = io;
+		peers[peer].info = info;
+		peers[peer].query = 0;
+		if (p) {
+			*p = &peers[peer];
+      debug_print("a%dt%d", (*p)->info.addr, (*p)->info.type);
+    }
+
+		return SUCCESS;
+	}
+	return ERROR;
+}
+
+t_error i2c_register_slot(grbio *io, ipt type) {
+	for (usize slot = 0; slot < I2C_MAX_SLOTS; slot++) {
+
+		if (slots[slot].io)
+			continue;
+
+		slots[slot].io = io;
+		slots[slot].type = type;
+		slots[slot].taken = false;
+		return SUCCESS;
+	}
+	return ERROR;
+}
+
+static bool i2c_has_slot(ipt type) {
+	for (usize slot = 0; slot < I2C_MAX_SLOTS; slot++) {
+
+		if (!slots[slot].io || slots[slot].taken || slots[slot].type != type)
+			continue;
+
+		return true;
+	}
+	return false;
+}
+
+t_error i2c_register(i2c_peer **p, ipi info) {
+	for (usize slot = 0; slot < I2C_MAX_SLOTS; slot++) {
+
+		if (!slots[slot].io || slots[slot].taken || slots[slot].type != info.type)
+			continue;
+
+		slots[slot].taken = true;
+		return i2c_register_peer(p, slots[slot].io, info);
+	}
+	return ERROR;
+}
+
+t_error i2c_unregister(i2c_peer *p) {
+	for (usize slot = 0; slot < I2C_MAX_SLOTS; slot++) {
+
+		if (slots[slot].io != p->io)
+			continue;
+    debug_print("I forgor %d\n", p->info.addr);
+
+		slots[slot].taken = false;
+		i2c_free_addr(p->info.addr);
+		*p = (i2c_peer){};
+		return SUCCESS;
+	}
+	return ERROR;
+}
+
+void i2c_alzheimer(void) {
+	for (usize peer = I2C_SELF_IDX + 1; peer < I2C_MAX_PEERS; peer++) {
+
+		if (!peers[peer].io || !peers[peer].snack)
+			continue;
+
+    if (peers[peer].snack > 5)
+      i2c_unregister(&peers[peer]);
+	}
+}
+
+static t_error i2c_discover(i2c_peer *peer) { // use with &peers[I2C_SELF_IDX]
+	// send a gcall to use a random addr
+  // then query said addr? how?
+  static usize p = 0, t = 0;
+  static u8 addr = 0;
+
+  p %= tabsize(peer->downstream);
+  for (; p < tabsize(peer->downstream); p++, t = 0, addr = 0) {
+    if (peer->downstream[p]) // peer already discovered
+      continue;
+    if (state.bus_enable != directions[p + 1]) { // start assessing peer type
+      state.bus_enable = directions[p + 1];
+      struct gcall_ack_type {
+        gcall g; u8 more[1]; // thank you gcc
+      } data = {GCI_ACK_TYPE, types[t++], .more = {1}};
+      i2c_gcall((gcall *)&data);
+      return SUCCESS;
+    }
+    if (!grb_empty(&peers[I2C_GCALL_IDX].io->output)) // keep waiting
+      return SUCCESS;
+    if (peers[I2C_GCALL_IDX].snack) // next peer
+      continue;
+    if (t >= tabsize(types)) {
+      debug_print("Unknown peer type???");
+      continue;
+    }
+    struct gcall_ack_type {
+      gcall g; u8 more[1]; // thank you gcc
+    } data = {GCI_ACK_TYPE, types[t], .more = {1}}; // padding
+    if (peers[I2C_GCALL_IDX].dnack) { // try another type
+      i2c_gcall((gcall *)&data);
+      t++;
+      return SUCCESS;
+    }
+    if (!addr) {
+      if (!i2c_has_slot(types[t - 1])) {
+        debug_print("Cannot register peer, no slot of type %d available", types[t - 1]);
+        continue;
+      }
+      debug_print("Found peer type %d, assigning addr\r\n", types[t - 1]);
+      if (i2c_new_addr(&addr)) {
+        debug_print("No new i2c addr available");
+        return ERROR;
+      }
+      i2c_gcall(&(gcall){GCI_USE_ADDR, addr});
+      return SUCCESS;
+    }
+    i2c_peer *discovered = NULL;
+    if (i2c_register(&discovered, (ipi){addr, state.bus_enable, types[t - 1]})) {
+      debug_print("Failed to register peer, no slot available(?)");
+      i2c_free_addr(addr);
+      continue;
+    }
+    peer->downstream[p] = discovered;
+    debug_print("Registered new peer addr %d dir %d", addr, directions[p + 1]);
+    // FIXME does weird stuff like finding a nonexistent peer of type 0
+  }
+  return ERROR; // Done interrogating, no peer found
+}
+
+t_error i2c_gcall(gcall *call) {
+  i2c_send(&peers[I2C_GCALL_IDX], (u8 *)call, sizeof(call) + (call->instruction == GCI_ACK_TYPE ? 1 : 0));
 }
 
 t_error i2c_send(i2c_peer *p, u8 *data, usize len) {
@@ -294,19 +510,23 @@ static t_error i2c_read(i2c_peer *p) {
 		return ERROR;
 	}
 	usize useless;
-	u8	  data;
+	u8	  data = 0;
+  static u8 prev = 0;
 #ifdef TWI_UNIFIED
 	data = TWDR;
   if (state.mode == TW_MR && !--p->query) // TW_MR_DATA_NACK
 		i2c_stop_listen();
-  else
-	  TWCR = _BV(TWINT) | _BV(TWEN) | (p->query == 1 ? 0 : _BV(TWEA)) | _BV(TWIE);
+  else {
+    bool should_nack = (p->query == 1) || (state.peer_idx == I2C_GCALL_IDX && (gcall_instruction)prev == GCI_ACK_TYPE && (ipt)data != peers[I2C_SELF_IDX].info.type);
+	  TWCR = _BV(TWINT) | _BV(TWEN) | (should_nack ? 0 : _BV(TWEA)) | _BV(TWIE);
+    // debug_print("shouldnack%d-%d-%d=%d+%d", state.peer_idx == I2C_GCALL_IDX , (gcall_instruction)prev == GCI_ACK_TYPE, data, should_nack, TWCR);
+  }
 #elifdef TWI_SPLIT
 	if (state.mode == TW_SR) {
 		data = TWI0.SDATA;
 		//            DATA INTRPT | STOP INTRPT | SMART MODE  | ENABLE       ;
 		TWI0.SCTRLA = TWI_DIEN_bm | TWI_PIEN_bm | TWI_SMEN_bm | TWI_ENABLE_bm;
-		TWI0.SCTRLB = (grb_avail(&g->input) == 1 ? TWI_ACKACT_bm : 0) | TWI_SCMD_RESPONSE_gc;
+		TWI0.SCTRLB = ((state.peer_idx == I2C_GCALL_IDX && (gcall_instruction)prev == GCI_ACK_TYPE && (ipt)data != peers[I2C_SELF_IDX].info.type) ? TWI_ACKACT_bm : 0) | TWI_SCMD_RESPONSE_gc;
 	} else if (state.mode == TW_MR) {
 		data = TWI0.MDATA;
 		//            READ INTRPT | QUICK COMND | SMART MODE  | ENABLE       ;
@@ -318,6 +538,7 @@ static t_error i2c_read(i2c_peer *p) {
 		  TWI0.MCTRLB = (grb_avail(&g->input) == 1 || p->query == 1 ? TWI_ACKACT_bm : 0) | TWI_MCMD_RECVTRANS_gc;
 	}
 #endif
+  prev = data;
 	return grb_write(&g->input, &data, 1, &useless);
 }
 
@@ -325,14 +546,14 @@ static void find_peer() {
 	for (usize peer = 0; peer < I2C_MAX_PEERS; peer++) {
 		grbio *g = peers[peer].io;
 
-		if (!g || (peers[peer].nack && peers[peer].nack--) ||
+		if (!g || (peers[peer].timeout && peers[peer].timeout--) ||
 			(grb_empty(&g->output) && !peers[peer].query))
 			continue;
 
 		state.peer_idx = peer;
 		return;
 	}
-	state.peer_idx = 0;
+	state.peer_idx = I2C_SELF_IDX;
 }
 
 static void i2c_keep_or_rel_bus() {
@@ -345,29 +566,36 @@ static void i2c_keep_or_rel_bus() {
 		state.mode = TW_MR;
 		i2c_start();
 	} else if (state.mode == TW_MR || state.mode == TW_MT) {
+    state.mode = TW_YE;
 		i2c_stop_listen();
-	} else if (state.mode == TW_SR) {
-		i2c_listen();
-	} else if (state.mode == TW_ST)
+    return;
+	} else if (state.mode == TW_SR || state.mode == TW_ST) {
+    state.mode = TW_YE;
     i2c_int_listen();
+    return;
+  }
 }
 
 void i2c_poll(void) {
+  static bool disco_timeout = false;
   ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {
 	  if (state.mode == TW_UH || state.mode == TW_YE) {
 		  i2c_keep_or_rel_bus();
       handle_gcall();
+      if (peers[I2C_SELF_IDX].info.type == IPT_SPLONK) {
+        if (!disco_timeout && i2c_discover(&peers[I2C_SELF_IDX]))
+          disco_timeout = true;
+        i2c_alzheimer();
+      }
     }
-#ifdef TWI_UNIFIED
-	//  static u16 test = 0;
-	// if (test++ > 1000) {
-	// 	test = 0;
-	// 	debug_print("%d %d %d I%d I%d O%d", TW_STATUS, TWCR, state.mode,
-	// 	grb_count(&peers[0].io->input), grb_count(&peers[state.peer_idx].io->input),
-	// 	grb_count(&peers[state.peer_idx].io->output));
-	//    print_status_reg("poll: ");
-	// }
-#endif
+    static u16 test = 0;
+    if (test++ > 4000) {
+      test = 0;
+      disco_timeout = false;
+      debug_print("R%xS%xM%dA%d-I%d I%d O%d", TW_STATUS, TWCR, state.mode, peers[I2C_SELF_IDX].info.addr,
+      grb_count(&peers[0].io->input), grb_count(&peers[state.peer_idx].io->input),
+      grb_count(&peers[state.peer_idx].io->output));
+    }
   }
 }
 
@@ -383,8 +611,8 @@ static void i2c_state_machine(u8 status) {
 		break;
 	}
 	case (TW_REP_START): {
-		// data = "repeated start condition tx";
-		// debug_print("%s %d %d", data, state.mode, i2c_is_listening());
+		data = "repeated start condition tx";
+		debug_print("%s %d %d", data, state.mode, i2c_is_listening());
 		// cool bro now select a slave
 		i2c_select();
 		break;
@@ -393,7 +621,8 @@ static void i2c_state_machine(u8 status) {
 		// data = "SLA+W tx, ACK rx";
 		// debug_print("%s", data);
 		state.mode = TW_MT;
-		peers[state.peer_idx].nack = 0;
+		peers[state.peer_idx].snack = 0;
+		peers[state.peer_idx].timeout = 0;
 		// ok now either load a data byte
 		// or set TWSTA or set TWSTO or both
 		// and set TWINT
@@ -404,13 +633,14 @@ static void i2c_state_machine(u8 status) {
 	case (TW_MT_SLA_NACK): {
 		// data = "SLA+W tx, NACK rx";
 		// debug_print("%s", data);
-		peers[state.peer_idx].nack = 1000;
+		peers[state.peer_idx].snack++;
+		peers[state.peer_idx].timeout = 1000;
 		// ok now either load a data byte
 		// (apparently you can still load data after a NACK?)
 		// (you can talk to a wall, cool)
 		// or set TWSTA or set TWSTO or both
 		// and set TWINT
-		i2c_stop_listen();
+		i2c_keep_or_rel_bus();
 		break;
 	}
 	case (TW_MT_DATA_ACK): {
@@ -419,21 +649,26 @@ static void i2c_state_machine(u8 status) {
 		// ok now either load a data byte
 		// or set TWSTA or set TWSTO or both
 		// and set TWINT
+		peers[state.peer_idx].dnack = 0;
 		if (i2c_write(&peers[state.peer_idx])) {
-			// debug_print("last byte sent");
+			debug_print("last byte sent");
 			i2c_keep_or_rel_bus();
 		}
 		break;
 	}
 	case (TW_MT_DATA_NACK): {
-		// data = "data tx, NACK rx";
-		// debug_print("%s", data);
+		data = "data tx, NACK rx";
+		debug_print("%s", data);
 		// ok now either load a data byte
 		// (apparently you can still load data after a NACK?)
 		// (you can talk to a wall, cool)
 		// or set TWSTA or set TWSTO or both
 		// and set TWINT
-		i2c_stop_listen();
+		peers[state.peer_idx].dnack++;
+		if (i2c_write(&peers[state.peer_idx])) {
+			debug_print("last byte sent n");
+			i2c_keep_or_rel_bus();
+		}
 		break;
 	}
 	case (TW_MT_ARB_LOST): {
@@ -441,13 +676,14 @@ static void i2c_state_machine(u8 status) {
 		// debug_print("%s", data);
 		// just set TWINT to accept fate
 		// can optionally set TWSTA to try and get a START asap
-		i2c_stop_listen();
+		i2c_keep_or_rel_bus();
 		break;
 	}
 	case (TW_MR_SLA_ACK): {
 		// data = "SLA+R tx, ACK rx";
 		// debug_print("%s", data);
-		peers[state.peer_idx].nack = 0;
+		peers[state.peer_idx].snack = 0;
+		peers[state.peer_idx].timeout = 0;
 		state.mode = TW_MR;
 		// Either read one byte and send ACK by setting TWEA to 1
 		// Or read and send NACK by setting TWEA to 0
@@ -457,9 +693,10 @@ static void i2c_state_machine(u8 status) {
 	case (TW_MR_SLA_NACK): {
 		// data = "SLA+R tx, NACK rx";
 		// debug_print("%s", data);
-		peers[state.peer_idx].nack = 1000;
+		peers[state.peer_idx].snack++;
+		peers[state.peer_idx].timeout = 1000;
 		// Either send Repeated start or Stop or both
-		i2c_stop_listen();
+		i2c_keep_or_rel_bus();
 		break;
 	}
 	case (TW_MR_DATA_ACK): {
@@ -560,6 +797,7 @@ static void i2c_state_machine(u8 status) {
 		// debug_print("%s", data);
 		// Either read one byte and send ACK by setting TWEA to 1
 		// Or read and send NACK by setting TWEA to 0
+		peers[state.peer_idx].dnack = 0;
 		i2c_read(&peers[state.peer_idx]);
 		break;
 	}
@@ -580,7 +818,9 @@ static void i2c_state_machine(u8 status) {
 		// Or stop listening
 		// Or prepare to send start asap while not listening
 		// Or prepare to send start asap while listening
-		i2c_keep_or_rel_bus();
+		peers[state.peer_idx].dnack++;
+		i2c_read(&peers[state.peer_idx]);
+    i2c_keep_or_rel_bus();
 		break;
 	}
 	case (TW_SR_GCALL_DATA_ACK): {
@@ -588,6 +828,7 @@ static void i2c_state_machine(u8 status) {
 		// debug_print("%s", data);
 		// Either read one byte and send ACK by setting TWEA to 1
 		// Or read and send NACK by setting TWEA to 0
+		peers[state.peer_idx].dnack = 0;
 		i2c_read(&peers[state.peer_idx]);
 		break;
 	}
@@ -598,17 +839,19 @@ static void i2c_state_machine(u8 status) {
 		// Or stop listening
 		// Or prepare to send start asap while not listening
 		// Or prepare to send start asap while listening
-		i2c_keep_or_rel_bus();
+		peers[state.peer_idx].dnack++;
+		i2c_read(&peers[state.peer_idx]);
+    i2c_keep_or_rel_bus();
 		break;
 	}
 	case (TW_SR_STOP): {
-		// data = "stop or repeated start condition rx while selected";
+		data = "stop or repeated start condition rx while selected";
 		// Either listen or don't, and/or get a START asap or don't.
 
 		if (state.mode != TW_YE && state.mode != TW_UH) {
-			// debug_print("%s %d %d", data, state.mode, i2c_is_listening());
+			debug_print("%s %d %d", data, state.mode, i2c_is_listening());
 			i2c_keep_or_rel_bus();
-			// debug_print("%s %d %d", data, state.mode, i2c_is_listening());
+			debug_print("%s %d %d", data, state.mode, i2c_is_listening());
 		}
 		break;
 	}

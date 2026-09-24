@@ -23,6 +23,8 @@ typedef struct grb_input_output {
 		.output = GRB_INIT(OBUF),                                                                  \
 	}
 
+t_error grb_peek(grb *rb, void *buf, usize len, usize *p_bytes);
+
 t_error grb_read(grb *rb, void *buf, usize len, usize *r_bytes);
 
 t_error grb_write(grb *rb, const void *buf, usize len, usize *w_bytes);

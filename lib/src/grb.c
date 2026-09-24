@@ -1,6 +1,21 @@
 #include "lib/grb.h"
 #include "lib/lib.h"
 
+t_error grb_peek(grb *rb, void *buf, usize len, usize *p_bytes) {
+	if (!rb || (!buf && len != 0))
+		return ERROR;
+	usize read = 0;
+	for (usize i = 0, c = rb->count, s = rb->start; c && i < len; i++) {
+		((u8 *)buf)[i] = rb->buffer[s];
+		c--;
+		s = (s + 1) % rb->buf_size;
+		read++;
+	}
+	if (p_bytes)
+		*p_bytes = read;
+	return SUCCESS;
+}
+
 t_error grb_read(grb *rb, void *buf, usize len, usize *r_bytes) {
 	if (!rb || (!buf && len != 0))
 		return ERROR;

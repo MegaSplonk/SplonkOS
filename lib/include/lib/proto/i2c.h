@@ -11,8 +11,12 @@
 #define I2C_CLOCK 100000UL
 
 #define I2C_ADDR(ADDR, RW) ((ADDR) << 1 | (RW & 1))
+#ifndef I2C_ADDR_POOL
+#define I2C_ADDR_POOL { 42, 43, 44, 45, 46, 47, 48, 49, 50 }
+#endif
 
-#define I2C_MAX_PEERS 7
+#define I2C_MAX_PEERS 9 // gcall and self use 2 spots already
+#define I2C_MAX_SLOTS 7
 
 #define I2C_GCALL_IDX 0
 #define I2C_SELF_IDX  1
@@ -40,9 +44,17 @@
 typedef enum gcall_instruction : u8 {
 	GCI_RESET,
 	GCI_USE_ADDR,
+	GCI_ACK_TYPE,
+  __GCI_LAST,
 } gcall_instruction;
 
-I2C_DATA(gcall, gcall_instruction instruction; u8 data;)
+I2C_DATA(gcall, gcall_instruction instruction; u8 data; u8 more[];)
+
+constexpr usize gcall_size[__GCI_LAST] = {
+  sizeof(gcall),
+  sizeof(gcall),
+  sizeof(gcall) + 1,
+};
 
 typedef enum i2c_peer_direction : u8 {
 	IPD_NONE,  // for peers whose orientation does not matter
@@ -74,12 +86,21 @@ typedef struct i2c_peer {
 	ipi		  info;
 	grbio	 *io;
 	usize	  query;
-	u32		  nack;
+	u32		  timeout;
+  u8      snack;
+  u8      dnack;
 	i2c_peer *downstream[4];
 
 	// add a nack count and consider a peer dc'd when count goes too high?
 	// use a roll call every so often instead?
 } i2c_peer;
+
+
+typedef struct i2c_slot {
+	ipt		  type;
+	grbio	 *io;
+  bool    taken;
+} i2c_slot;
 
 typedef enum i2c_mode : u8 {
 	TW_NO, // Not Operating (I2C disabled/uninitialized)
@@ -94,7 +115,25 @@ typedef enum i2c_mode : u8 {
 typedef struct i2c_state {
 	i2c_mode mode;
 	usize	 peer_idx;
+	ipd		 bus_enable;
 } i2c_state;
+
+// vvv move this into pinout whenever possible
+#define BUS_ENABLE1 D4
+#define BUS_ENABLE2 D5
+#define BUS_ENABLE3 D6
+#define BUS_ENABLE4 D7
+// ^^^
+
+#define I2C_BE_PINS {(pin)BUS_ENABLE2, (pin)BUS_ENABLE1, (pin)BUS_ENABLE3, (pin)BUS_ENABLE4}
+
+// Bus enable logic, i.e. what bus enable pins get enabled
+// wrt which IPD_* the i2c state is in,
+// with I2C_BE_PINS[i] enabled if I2C_BE_LOGIC[IPD_*] & (1 << i)
+#define I2C_BE_LOGIC                                                                               \
+	{                                                                                              \
+		0b00000000, 0b00000001, 0b00000010, 0b00000100, 0b00001000, 0b00001111,                    \
+	} // NONE         NORTH       EAST        SOUTH       WEST         ALL
 
 void i2c_set_addr(u8 addr, bool answer_gc);
 void i2c_init(void);
@@ -102,8 +141,11 @@ void i2c_listen(void);
 bool i2c_is_listening(void);
 void i2c_ignore(void);
 
+t_error i2c_get_peer(i2c_peer **p, ipi info);
 t_error i2c_register_peer(i2c_peer **p, grbio *io, ipi info);
-t_error i2c_gcall(gcall call);
+t_error i2c_register_slot(grbio *io, ipt type);
+t_error i2c_register(i2c_peer **p, ipi info);
+t_error i2c_gcall(gcall *call);
 t_error i2c_send(i2c_peer *p, u8 *data, usize len);
 t_error i2c_query(i2c_peer *p, u8 *data, usize len);
 void	i2c_poll(void);
