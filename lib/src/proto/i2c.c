@@ -109,6 +109,7 @@ const ipt types[] = {IPT_SPLONK, IPT_SPLONKO, IPT_SPLONKUS, IPT_SPLONKPAD, IPT_S
 const pin bus_enable[] = (pin[])I2C_BE_PINS;
 const u8 be_logic[] = I2C_BE_LOGIC;
 const u8 addr_pool[] = I2C_ADDR_POOL;
+bool addr_used[tabsize(addr_pool)] = {};
 
 static void i2c_bus_enable(void) {
   ipd dir = state.peer_idx == I2C_GCALL_IDX ? state.bus_enable : IPD_ALL;
@@ -245,29 +246,27 @@ static void handle_gcall() {
   }
 }
 
-t_error i2c_new_addr(u8 *addr) {
-  static bool used[tabsize(addr_pool)] = {};
+static t_error i2c_new_addr(u8 *addr) {
 	for (usize a = 0; addr && a < tabsize(addr_pool); a++) {
 
-		if (used[a])
+		if (addr_used[a])
 			continue;
 
 		*addr = addr_pool[a];
-    used[a] = true;
+    addr_used[a] = true;
 
 		return SUCCESS;
 	}
 	return ERROR;
 }
 
-t_error i2c_free_addr(u8 addr) {
-  static bool used[tabsize(addr_pool)] = {};
+static t_error i2c_free_addr(u8 addr) {
 	for (usize a = 0; a < tabsize(addr_pool); a++) {
 
 		if (addr_pool[a] != addr)
 			continue;
 
-    used[a] = false;
+    addr_used[a] = false;
 
 		return SUCCESS;
 	}
