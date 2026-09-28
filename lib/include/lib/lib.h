@@ -34,9 +34,9 @@ extern char FMT_BUF[256];
 #ifndef DEBUG
 #define debug_print(...)                                                                           \
 	do {                                                                                           \
-		int16_t n =                                                                                \
-			/*snprintf(FMT_BUF, sizeof(FMT_BUF), "[%s:%i] %s: ", __FILE__, __LINE__, __func__);*/      \
-			snprintf(FMT_BUF, sizeof(FMT_BUF), "%s: ", __func__);      \
+		int16_t n = /*snprintf(FMT_BUF, sizeof(FMT_BUF), "[%s:%i] %s: ", __FILE__, __LINE__,       \
+					   __func__);*/                                                                \
+			snprintf(FMT_BUF, sizeof(FMT_BUF), "%s: ", __func__);                                  \
                                                                                                    \
 		if (n < 0 || (uint16_t)n >= sizeof(FMT_BUF)) {                                             \
 			uart_sendstring("FAILED TO FORMAT\r\n");                                               \

@@ -35,8 +35,8 @@
 #define UART_UDRIE	UDRIE0
 
 #define UART_UDRE_INTERRUPT USART_UDRE_vect
-#define UART_TX_INTERRUPT   USART_TX_vect
-#define UART_RX_INTERRUPT   USART_RX_vect
+#define UART_TX_INTERRUPT	USART_TX_vect
+#define UART_RX_INTERRUPT	USART_RX_vect
 
 #define UART_OLD_REG
 
@@ -75,8 +75,8 @@
 #define UART_TXCIE TXCIE1
 
 #define UART_UDRE_INTERRUPT USART1_UDRE_vect
-#define UART_TX_INTERRUPT   USART1_TX_vect
-#define UART_RX_INTERRUPT   USART1_RX_vect
+#define UART_TX_INTERRUPT	USART1_TX_vect
+#define UART_RX_INTERRUPT	USART1_RX_vect
 
 #define UART_OLD_REG
 
@@ -136,13 +136,15 @@ void uart_init(void) {
 	timer_ontick_register(T_ONTICK_SLOT_UART, uart_ontick_reenable_udre_int);
 }
 
-void uart_disable_udre_int(void) { 
-  // uart_tx('.');
-  UART_UCSRB &= (u8)~_BV(UART_UDRIE); }
-void uart_enable_udre_int(void) { 
+void uart_disable_udre_int(void) {
+	// uart_tx('.');
+	UART_UCSRB &= (u8)~_BV(UART_UDRIE);
+}
+void uart_enable_udre_int(void) {
 
-  // uart_tx('@');
-  UART_UCSRB |= _BV(UART_UDRIE); }
+	// uart_tx('@');
+	UART_UCSRB |= _BV(UART_UDRIE);
+}
 
 void uart_tx(u8 data) {
 	// load data into transmit register

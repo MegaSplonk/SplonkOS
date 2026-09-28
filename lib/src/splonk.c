@@ -36,8 +36,8 @@ static void knob1_input_to_uart() { // can be used for debugging for now i guess
 	if (!peer1 || !peer1->io)
 		return;
 
-	usize	  read_bytes = 0;
-	splonknob data;
+	usize			 read_bytes = 0;
+	splonknob		 data;
 	static splonknob last;
 	ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {
 		if (grb_count(&peer1->io->input) >= sizeof(data)) {
@@ -81,8 +81,8 @@ void splonk_loop() {
 	debug_print("%s\n", "I'm alive");
 	i2c_register_peer(nullptr, &gcall1, (ipi){});
 	i2c_register_peer(&self, &splonk1, (ipi){SELF_ADDR, IPD_ALL, IPT_SPLONK});
-  i2c_register_slot(&splonk2, IPT_SPLONK);
-  i2c_register_slot(&knob1, IPT_SPLONKNOB); // add more slots as needed
+	i2c_register_slot(&splonk2, IPT_SPLONK);
+	i2c_register_slot(&knob1, IPT_SPLONKNOB); // add more slots as needed
 	i2c_init();
 	i2c_set_addr(SELF_ADDR, 1);
 	i2c_listen();
@@ -90,7 +90,7 @@ void splonk_loop() {
 	// timer_ontick_register(T_ONTICK_SLOT_I2C_SELF, self_input_to_uart);
 	debug_print("SELF %d, PEER %d", self->info.addr, peer1->info.addr);
 	// debug_print("I'm alive %p, %d, %p", (void *)peer1, peer1->addr, (void *)peer1->io);
-	timer_t	  t = timer_reset();
+	timer_t t = timer_reset();
 	// timer_t	  tt = timer_reset();
 	timer_t	  ttt = timer_reset();
 	splonknob sk = {};
@@ -99,7 +99,7 @@ void splonk_loop() {
 	while (true) {
 		if (timer_wait(&t, 10)) {
 			t = timer_reset();
-      i2c_get_peer(&peer1, (ipi){0,0,IPT_SPLONKNOB});
+			i2c_get_peer(&peer1, (ipi){0, 0, IPT_SPLONKNOB});
 			i2c_query(peer1, NULL, sizeof(sk));
 			//    splonk self_data = {.keys = {}, .led_mode = 0, .peers = {}};
 			//    for (usize i = 0; i < tabsize(self_data.peers); i++)
