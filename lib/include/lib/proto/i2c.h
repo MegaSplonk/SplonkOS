@@ -12,7 +12,7 @@
 
 #define I2C_ADDR(ADDR, RW) ((ADDR) << 1 | (RW & 1))
 #ifndef I2C_ADDR_POOL
-#define I2C_ADDR_POOL { 42, 43, 44, 45, 46, 47, 48, 49, 50 }
+#define I2C_ADDR_POOL {42, 43, 44, 45, 46, 47, 48, 49, 50}
 #endif
 
 #define I2C_MAX_PEERS 9 // gcall and self use 2 spots already
@@ -30,12 +30,12 @@
 		_FIELDS                                                                                    \
 	};
 
-// typedef struct _NAME##_checksum _NAME##_checksum;                                              \
-// struct _NAME##_checksum {                                                                      \
-// 	u16			 magic;                                                                        \
-// 	struct _NAME inner;                                                                        \
-// 	u16			 checksum;                                                                     \
-// }
+/* typedef struct _NAME##_checksum _NAME##_checksum;                                              \
+struct _NAME##_checksum {                                                                      \
+u16			 magic;                                                                        \
+struct _NAME inner;                                                                        \
+u16			 checksum;                                                                     \
+} */
 
 #define I2C_SLOT(_NAME, _NAME_IN, _NAME_OUT)                                                       \
 	GRBIO_INIT(_NAME, _NAME_IN##_ib, _NAME_OUT##_ob, 2 * sizeof(_NAME_IN),                         \
@@ -45,15 +45,23 @@ typedef enum gcall_instruction : u8 {
 	GCI_RESET,
 	GCI_USE_ADDR,
 	GCI_ACK_TYPE,
-  __GCI_LAST,
+	__GCI_LAST,
 } gcall_instruction;
 
-I2C_DATA(gcall, gcall_instruction instruction; u8 data; u8 more[];)
+I2C_DATA(gcall_, gcall_instruction instruction; u8 data; u8 more[];)
+I2C_DATA(gcall_ack_type, gcall_instruction instruction; u8 data; u8 more[1];)
+
+typedef union gcall {
+	gcall_		   base;
+	gcall_		   reset;
+	gcall_		   use_addr;
+	gcall_ack_type ack_type;
+} gcall;
 
 constexpr usize gcall_size[__GCI_LAST] = {
-  sizeof(gcall),
-  sizeof(gcall),
-  sizeof(gcall) + 1,
+	sizeof(gcall_),
+	sizeof(gcall_),
+	sizeof(gcall_ack_type) + 1,
 };
 
 typedef enum i2c_peer_direction : u8 {
@@ -65,6 +73,8 @@ typedef enum i2c_peer_direction : u8 {
 	IPD_ALL,   // for peers with multiple possible orientations
 } ipd;
 
+constexpr ipd ipdirections[] = {IPD_NONE, IPD_NORTH, IPD_EAST, IPD_SOUTH, IPD_WEST, IPD_ALL};
+
 typedef enum i2c_peer_type : u8 {
 	IPT_SPLONK,
 	IPT_SPLONKO,
@@ -74,6 +84,9 @@ typedef enum i2c_peer_type : u8 {
 	IPT_SPLONKREEN,
 	IPT_SPLONKBAR,
 } ipt;
+
+constexpr ipt iptypes[] = {IPT_SPLONK,	IPT_SPLONKO,	IPT_SPLONKUS, IPT_SPLONKPAD,
+					 IPT_SPLONKNOB, IPT_SPLONKREEN, IPT_SPLONKBAR};
 
 typedef struct i2c_peer_info {
 	u8	addr;
@@ -87,19 +100,18 @@ typedef struct i2c_peer {
 	grbio	 *io;
 	usize	  query;
 	u32		  timeout;
-  u8      snack;
-  u8      dnack;
+	u8		  snack;
+	u8		  dnack;
 	i2c_peer *downstream[4];
 
 	// add a nack count and consider a peer dc'd when count goes too high?
 	// use a roll call every so often instead?
 } i2c_peer;
 
-
 typedef struct i2c_slot {
-	ipt		  type;
-	grbio	 *io;
-  bool    taken;
+	ipt	   type;
+	grbio *io;
+	bool   taken;
 } i2c_slot;
 
 typedef enum i2c_mode : u8 {
@@ -125,7 +137,7 @@ typedef struct i2c_state {
 #define BUS_ENABLE4 D7
 // ^^^
 
-#define I2C_BE_PINS {(pin)BUS_ENABLE2, (pin)BUS_ENABLE1, (pin)BUS_ENABLE3, (pin)BUS_ENABLE4}
+#define I2C_BE_PINS {BUS_ENABLE2, BUS_ENABLE1, BUS_ENABLE3, BUS_ENABLE4}
 
 // Bus enable logic, i.e. what bus enable pins get enabled
 // wrt which IPD_* the i2c state is in,
@@ -145,6 +157,7 @@ t_error i2c_get_peer(i2c_peer **p, ipi info);
 t_error i2c_register_peer(i2c_peer **p, grbio *io, ipi info);
 t_error i2c_register_slot(grbio *io, ipt type);
 t_error i2c_register(i2c_peer **p, ipi info);
+t_error i2c_unregister(i2c_peer *p);
 t_error i2c_gcall(gcall *call);
 t_error i2c_send(i2c_peer *p, u8 *data, usize len);
 t_error i2c_query(i2c_peer *p, u8 *data, usize len);
