@@ -19,13 +19,7 @@
 #define SELF_ADDR 0b01011111
 #endif
 
-struct biggest_gcall {
-  gcall g;
-  u8 more[1]; // use something more than 1 if more data is ever sent with gcall
-};
-typedef struct biggest_gcall bgcall; // maybe make a union of all gcall structs later and use that
-
-I2C_SLOT(gcall1, bgcall, bgcall);
+I2C_SLOT(gcall1, gcall, gcall);
 
 #ifdef SPLONK
 
@@ -121,11 +115,11 @@ void splonk_loop() {
 		}
 		// if (timer_wait(&tt, 5000)) {
 		// 	tt = timer_reset();
-		// 	i2c_gcall((gcall){.instruction = GCI_USE_ADDR, PEER_ADDR + 1});
+		// 	i2c_gcall(&(gcall){.use_addr = {.instruction = GCI_USE_ADDR, PEER_ADDR + 1}});
 		// }
 		if (timer_wait(&ttt, 30000)) {
 			ttt = timer_reset();
-			i2c_gcall(&(gcall){.instruction = GCI_RESET, 0});
+			i2c_gcall(&(gcall){.reset = {.instruction = GCI_RESET, 0}});
 			debug_print("RESET PEERS");
 		}
 	}
