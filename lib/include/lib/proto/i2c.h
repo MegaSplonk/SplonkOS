@@ -85,8 +85,8 @@ typedef enum i2c_peer_type : u8 {
 	IPT_SPLONKBAR,
 } ipt;
 
-constexpr ipt iptypes[] = {IPT_SPLONK,	IPT_SPLONKO,	IPT_SPLONKUS, IPT_SPLONKPAD,
-					 IPT_SPLONKNOB, IPT_SPLONKREEN, IPT_SPLONKBAR};
+constexpr ipt iptypes[] = {IPT_SPLONK,	  IPT_SPLONKO,	  IPT_SPLONKUS, IPT_SPLONKPAD,
+						   IPT_SPLONKNOB, IPT_SPLONKREEN, IPT_SPLONKBAR};
 
 typedef struct i2c_peer_info {
 	u8	addr;

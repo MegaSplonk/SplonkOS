@@ -4,4 +4,3 @@ int main(void) {
 	splonk_loop();
 	return 0;
 }
-
