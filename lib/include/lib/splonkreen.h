@@ -2,7 +2,6 @@
 
 #include "lib/font_8x6.h"
 #include "lib/images.h"
-#include "lib/ec11.h"
 #include "lib/pin.h"
 #include "lib/pinout.h"
 #include "lib/proto/spi.h"
