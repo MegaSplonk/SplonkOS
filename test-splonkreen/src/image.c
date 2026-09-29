@@ -1,10 +1,5 @@
-#include "../include/splonkreen.h"
-#include "../include/images.h"
-struct s_img {
-	const uint8_t *data;
-	uint8_t		   height; // pages
-	uint8_t		   width; // columns
-};
+#include "lib/images.h"
+#include "lib/splonkreen.h"
 
 static const uint8_t maieul_data[513] PROGMEM = {
 	0x1c, 0x2e, 0xcd, 0xcd, 0x4f, 0xae, 0x5c, 0x22, 0x32, 0x32, 0x32, 0x32, 0x32, 0x32, 0x32,

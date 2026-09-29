@@ -1,5 +1,5 @@
-#include "splonkreen.h"
-#include "font_8x6.h"
+#include "lib/font_8x6.h"
+#include "lib/images.h"
 
 #define FONT_WIDTH		6
 #define FONT_HEIGHT		8

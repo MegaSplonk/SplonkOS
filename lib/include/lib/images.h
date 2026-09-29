@@ -1,7 +1,5 @@
 #pragma once
 
-#include "splonkreen.h"
-
 struct s_img {
 	const uint8_t *data;
 	uint8_t		   height;
