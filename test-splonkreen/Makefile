@@ -1,5 +1,5 @@
 PROJECT_MAKEFILE := $(abspath $(lastword $(MAKEFILE_LIST)))
-PROJECT_NAME     = splonkreen
+PROJECT_NAME     = test-splonkreen
 
 PORT             = /dev/ttyUSB0
 BAUD_RATE        = 115200

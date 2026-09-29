@@ -1,19 +1,19 @@
-#include "../include/splonkreen.h"
-
-#include "../include/font_8x6.h"
+#include "lib/splonkreen.h"
+#include "lib/font_8x6.h"
 
 #define FONT_FIRST_CHAR 32
 #define FONT_LAST_CHAR	126
 #define FONT_WIDTH		6
+#define MAX_PAGE		8
+#define MAX_COL			128
+
+
 
 #define DC	PD4
 #define RES PD7
 #define CS	PD6
 
-static uint8_t screenBuffer[8][128];
-
-
-
+static uint8_t screenBuffer[8][MAX_COL];
 
 void screen_init(void) {
 	// Power up Sequence (4.1)
@@ -37,7 +37,6 @@ void screen_init(void) {
 	clear_screen();
 }
 
-
 void send_command(uint8_t x) {
 	PORTD &= (uint8_t)~(1 << DC);
 	spi_write(x);
@@ -49,11 +48,11 @@ void send_data(uint8_t x) {
 }
 
 void clear_screen(void) {
-	for (uint8_t page = 0; page < 8; page++) {
+	for (uint8_t page = 0; page < MAX_PAGE; page++) {
 		send_command(0xB0 | page);
 		send_command(0x02);
 		send_command(0x10);
-		for (uint8_t col = 0; col < 128; col++) {
+		for (uint8_t col = 0; col < MAX_COL; col++) {
 			send_data(0x00);
 		}
 	}
@@ -66,18 +65,18 @@ void set_column(uint8_t col) {
 }
 
 void display_screen() {
-	for (uint8_t page = 0; page < 8; page++) {
+	for (uint8_t page = 0; page < MAX_PAGE; page++) {
 		send_command(0xB0 | page);
 		send_command(0x02);
 		send_command(0x10);
-		for (int i = 0; i < 128; i++) {
+		for (int i = 0; i < MAX_COL; i++) {
 			send_data(screenBuffer[page][i]);
 		}
 	}
 }
 
 void full_buff(uint8_t page, int column, int symbol) {
-	if (page > 7 || column < 0 || column > 127) {
+	if (page > 7 || column < 0 || column > MAX_COL - 1) {
 		return;
 	}
 	if (symbol < FONT_FIRST_CHAR || symbol > FONT_LAST_CHAR) {
@@ -87,7 +86,7 @@ void full_buff(uint8_t page, int column, int symbol) {
 	uint8_t index = (uint8_t)(symbol - FONT_FIRST_CHAR);
 
 	for (uint8_t i = 0; i < FONT_WIDTH; i++) {
-		if (column + i > 127) {
+		if (column + i > MAX_COL - 1) {
 			break;
 		}
 		screenBuffer[page][column + i] = pgm_read_byte(&font_8x6[index][i]);
@@ -102,7 +101,7 @@ int ft_strlen(const char *str) {
 }
 
 void send_sentence(const char *str, uint8_t page, int column) {
-	if (((ft_strlen(str) * 6) + column > 127) || page > 7)
+	if (((ft_strlen(str) * 6) + column > MAX_COL - 1) || page > 7)
 		return;
 
 	for (int i = 0; str[i] != 0; i++) {
@@ -112,9 +111,9 @@ void send_sentence(const char *str, uint8_t page, int column) {
 }
 
 void draw(uint8_t page, uint8_t col, struct s_img img) {
-	uint8_t nb_pages = img.height / 8;
+	uint8_t nb_pages = img.height / MAX_PAGE;
 
-	if (page + nb_pages > 8 || col + img.width > 128)
+	if (page + nb_pages > MAX_PAGE || col + img.width > MAX_COL)
 		return;
 
 	for (uint8_t p = 0; p < nb_pages; p++)

@@ -1,7 +1,6 @@
 
-#include "../include/splonkreen.h"
-#include "../include/font_8x6.h"
-
+#include "lib/font_8x6.h"
+#include "lib/splonkreen.h"
 
 int main(void) {
 

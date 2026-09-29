@@ -1,16 +1,15 @@
 #pragma once
 
+#include "lib/font_8x6.h"
+#include "lib/images.h"
 #include "lib/ec11.h"
 #include "lib/pin.h"
 #include "lib/pinout.h"
 #include "lib/proto/spi.h"
 #include "lib/proto/uart.h"
 #include <avr/io.h>
-#include <avr/pgmspace.h>
 #include <stdint.h>
 #include <util/delay.h>
-#include "font_8x6.h"
-#include "images.h"
 
 void send_command(uint8_t x);
 void send_data(uint8_t x);
