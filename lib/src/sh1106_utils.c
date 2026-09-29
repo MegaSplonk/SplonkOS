@@ -1,4 +1,5 @@
 #include "lib/font_8x6.h"
+#include "lib/pinout.h"
 #include "lib/splonkreen.h"
 
 #define FONT_FIRST_CHAR 32
@@ -7,20 +8,26 @@
 #define MAX_PAGE		8
 #define MAX_COL			128
 
-#define DC	PD4
-#define RES PD7
-#define CS	PD6
+#ifdef MCU_atmega328p
+#define DC	(pin) D4
+#define RES (pin) D7
+#elifdef MCU_attiny1614
+#define DC	(pin) A6
+#define RES (pin) A7
+#endif
 
 static uint8_t screenBuffer[8][MAX_COL];
 
 void screen_init(void) {
 	// Power up Sequence (4.1)
-	DDRD |= (1 << DC) | (1 << RES); // DC et RES en sortie
+	pin_output(DC);
+	pin_output(RES);
 
 	// pulse of reset
-	PORTD &= (uint8_t)~(1 << RES);
+	pin_set(RES, false);
 	_delay_ms(10);
-	PORTD |= (uint8_t)(1 << RES);
+	pin_set(RES, true);
+
 	_delay_ms(10);
 
 	spi_init();
@@ -36,12 +43,12 @@ void screen_init(void) {
 }
 
 void send_command(uint8_t x) {
-	PORTD &= (uint8_t)~(1 << DC);
+	pin_set(DC, false);
 	spi_write(x);
 }
 
 void send_data(uint8_t x) {
-	PORTD |= (uint8_t)(1 << DC);
+	pin_set(DC, true);
 	spi_write(x);
 }
 
@@ -108,7 +115,7 @@ void send_sentence(const char *str, uint8_t page, int column) {
 	}
 }
 
-void draw(uint8_t page, uint8_t col, struct s_img img) {
+void draw(uint8_t page, uint8_t col, t_image img) {
 	uint8_t nb_pages = img.height / MAX_PAGE;
 
 	if (page + nb_pages > MAX_PAGE || col + img.width > MAX_COL)

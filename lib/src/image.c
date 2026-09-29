@@ -42,6 +42,6 @@ static const uint8_t maieul_data[513] PROGMEM = {
 
 };
 
-const struct s_img maieul = {.data = maieul_data, .height = 64, .width = 64};
+const t_image maieul = {.data = maieul_data, .height = 64, .width = 64};
 
 #endif
