@@ -21,3 +21,4 @@ int	 ft_strlen(const char *str);
 void send_sentence(const char *str, uint8_t page, int column);
 void clear_screen(void);
 void draw(uint8_t page, uint8_t col, struct s_img img);
+void screen_init(void);
