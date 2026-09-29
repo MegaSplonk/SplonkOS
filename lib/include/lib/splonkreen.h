@@ -18,5 +18,5 @@ void full_buff(uint8_t page, int column, int symbol);
 int	 ft_strlen(const char *str);
 void send_sentence(const char *str, uint8_t page, int column);
 void clear_screen(void);
-void draw(uint8_t page, uint8_t col, struct s_img img);
+void draw(uint8_t page, uint8_t col, t_image img);
 void screen_init(void);
