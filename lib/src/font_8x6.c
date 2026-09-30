@@ -6,7 +6,7 @@
 #define FONT_FIRST_CHAR 32
 #define FONT_LAST_CHAR	126
 
-const uint8_t font_8x6[FONT_LAST_CHAR - FONT_FIRST_CHAR + 1][FONT_WIDTH] PROGMEM = {
+const u8 font_8x6[FONT_LAST_CHAR - FONT_FIRST_CHAR + 1][FONT_WIDTH] PROGMEM = {
 	{0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, // ' ' (32)
 	{0x00, 0x00, 0x4F, 0x00, 0x00, 0x00}, // '!' (33)
 	{0x00, 0x07, 0x00, 0x07, 0x00, 0x00}, // '"' (34)
