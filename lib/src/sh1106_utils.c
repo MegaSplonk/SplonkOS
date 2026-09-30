@@ -16,7 +16,7 @@
 #define RES (pin) A7
 #endif
 
-static u8 screenBuffer[8][MAX_COL];
+static u8 screenBuffer[MAX_PAGE][MAX_COL];
 
 void screen_init(void) {
 	// Power up Sequence (4.1)
@@ -81,7 +81,7 @@ void display_screen() {
 }
 
 void full_buff(u8 page, int column, int symbol) {
-	if (page > 7 || column < 0 || column > MAX_COL - 1) {
+	if (page > MAX_PAGE - 1 || column < 0 || column > MAX_COL - 1) {
 		return;
 	}
 	if (symbol < FONT_FIRST_CHAR || symbol > FONT_LAST_CHAR) {
