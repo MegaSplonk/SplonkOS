@@ -16,7 +16,7 @@
 #define RES (pin) A7
 #endif
 
-static uint8_t screenBuffer[8][MAX_COL];
+static u8 screenBuffer[8][MAX_COL];
 
 void screen_init(void) {
 	// Power up Sequence (4.1)
@@ -42,35 +42,35 @@ void screen_init(void) {
 	clear_screen();
 }
 
-void send_command(uint8_t x) {
+void send_command(u8 x) {
 	pin_set(DC, false);
 	spi_write(x);
 }
 
-void send_data(uint8_t x) {
+void send_data(u8 x) {
 	pin_set(DC, true);
 	spi_write(x);
 }
 
 void clear_screen(void) {
-	for (uint8_t page = 0; page < MAX_PAGE; page++) {
+	for (u8 page = 0; page < MAX_PAGE; page++) {
 		send_command(0xB0 | page);
 		send_command(0x02);
 		send_command(0x10);
-		for (uint8_t col = 0; col < MAX_COL; col++) {
+		for (u8 col = 0; col < MAX_COL; col++) {
 			send_data(0x00);
 		}
 	}
 }
 
-void set_column(uint8_t col) {
+void set_column(u8 col) {
 	col += 2;
 	send_command(0x00 | (col & 0x0F));
 	send_command(0x10 | ((col >> 4) & 0x0F));
 }
 
 void display_screen() {
-	for (uint8_t page = 0; page < MAX_PAGE; page++) {
+	for (u8 page = 0; page < MAX_PAGE; page++) {
 		send_command(0xB0 | page);
 		send_command(0x02);
 		send_command(0x10);
@@ -80,7 +80,7 @@ void display_screen() {
 	}
 }
 
-void full_buff(uint8_t page, int column, int symbol) {
+void full_buff(u8 page, int column, int symbol) {
 	if (page > 7 || column < 0 || column > MAX_COL - 1) {
 		return;
 	}
@@ -88,9 +88,9 @@ void full_buff(uint8_t page, int column, int symbol) {
 		return;
 	}
 
-	uint8_t index = (uint8_t)(symbol - FONT_FIRST_CHAR);
+	u8 index = (u8)(symbol - FONT_FIRST_CHAR);
 
-	for (uint8_t i = 0; i < FONT_WIDTH; i++) {
+	for (u8 i = 0; i < FONT_WIDTH; i++) {
 		if (column + i > MAX_COL - 1) {
 			break;
 		}
@@ -105,7 +105,7 @@ int ft_strlen(const char *str) {
 	return (i);
 }
 
-void send_sentence(const char *str, uint8_t page, int column) {
+void send_sentence(const char *str, u8 page, int column) {
 	if (((ft_strlen(str) * 6) + column > MAX_COL - 1) || page > 7)
 		return;
 
@@ -115,13 +115,13 @@ void send_sentence(const char *str, uint8_t page, int column) {
 	}
 }
 
-void draw(uint8_t page, uint8_t col, t_image img) {
-	uint8_t nb_pages = img.height / MAX_PAGE;
+void draw(u8 page, u8 col, t_image img) {
+	u8 nb_pages = img.height / MAX_PAGE;
 
 	if (page + nb_pages > MAX_PAGE || col + img.width > MAX_COL)
 		return;
 
-	for (uint8_t p = 0; p < nb_pages; p++)
-		for (uint8_t c = 0; c < img.width; c++)
+	for (u8 p = 0; p < nb_pages; p++)
+		for (u8 c = 0; c < img.width; c++)
 			screenBuffer[page + p][col + c] = pgm_read_byte(&img.data[p * img.width + c]);
 }
