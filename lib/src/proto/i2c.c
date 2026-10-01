@@ -171,7 +171,7 @@ static void i2c_int(void) {
 	//     CLR INT    | ENABLE    | INTERRUPT;
 	TWCR = _BV(TWINT) | _BV(TWEN) | _BV(TWIE);
 #elifdef TWI_SPLIT
-	TWI0.SCTRLB = TWI_ACKACT_bm | TWI_SCMD_RESPONSE_gc;
+	TWI0.SCTRLB = TWI_ACKACT_bm | TWI_SCMD_COMPTRANS_gc;
 #endif
 }
 
@@ -234,7 +234,7 @@ static void handle_gcall() {
 		debug_print("NEW ADDR %d", call.use_addr.data);
 		break;
 	case GCI_ACK_TYPE:
-		debug_print("ACK TYPE %d", r);
+		debug_print("ACK TYPE %d", call.ack_type.data);
 		// ack or nack handled during data transfer
 		break;
 	default:
@@ -243,7 +243,7 @@ static void handle_gcall() {
 	}
 }
 
-bool	  addr_used[tabsize(i2c_addr_pool)] = {};
+bool addr_used[tabsize(i2c_addr_pool)] = {};
 
 static t_error i2c_new_addr(u8 *addr) {
 	for (usize a = 0; addr && a < tabsize(i2c_addr_pool); a++) {
@@ -487,8 +487,8 @@ static t_error i2c_write(i2c_peer *p) {
 	// set data to write
 	if (state.mode == TW_ST) {
 		TWI0.SDATA = data;
-		//            DATA INTRPT | STOP INTRPT | SMART MODE  | ENABLE       ;
-		TWI0.SCTRLA = TWI_DIEN_bm | TWI_PIEN_bm | TWI_SMEN_bm | TWI_ENABLE_bm;
+		//            DATA INTRPT | STOP INTRPT  | SMART MODE  | ENABLE       ;
+		TWI0.SCTRLA = TWI_DIEN_bm | TWI_APIEN_bm | TWI_PIEN_bm | TWI_SMEN_bm | TWI_ENABLE_bm;
 	} else if (state.mode == TW_MT) {
 		TWI0.MDATA = data;
 		//            WRIT INTRPT | QUICK COMND | SMART MODE  | ENABLE       ;
@@ -521,15 +521,20 @@ static t_error i2c_read(i2c_peer *p) {
 	}
 #elifdef TWI_SPLIT
 	if (state.mode == TW_SR) {
+		//            DATA INTRPT | STOP INTRPT  | SMART MODE  | ENABLE       ;
+		TWI0.SCTRLA = TWI_DIEN_bm | TWI_APIEN_bm | TWI_PIEN_bm | TWI_ENABLE_bm;
+		// smart mode sends ack/nack automatically when sdata is read, so I need to
+		// disable it to make a decision on whether to nack or ack before proceeding
 		data = TWI0.SDATA;
-		//            DATA INTRPT | STOP INTRPT | SMART MODE  | ENABLE       ;
-		TWI0.SCTRLA = TWI_DIEN_bm | TWI_PIEN_bm | TWI_SMEN_bm | TWI_ENABLE_bm;
-		TWI0.SCTRLB =
-			((state.peer_idx == I2C_GCALL_IDX && (gcall_instruction)prev == GCI_ACK_TYPE &&
-			  (ipt)data != peers[I2C_SELF_IDX].info.type)
-				 ? TWI_ACKACT_bm
-				 : 0) |
-			TWI_SCMD_RESPONSE_gc;
+		bool should_nack = (p->query == 1) || (state.peer_idx == I2C_GCALL_IDX &&
+											   (gcall_instruction)prev == GCI_ACK_TYPE &&
+											   (ipt)data != peers[I2C_SELF_IDX].info.type);
+		// debug_print("shouldnack%d-%d-%d=%d", state.peer_idx == I2C_GCALL_IDX,
+		// (gcall_instruction)prev == GCI_ACK_TYPE, data, should_nack);
+		TWI0.SCTRLB = (should_nack ? TWI_ACKACT_bm : 0) |
+					  (p->dnack ? TWI_SCMD_COMPTRANS_gc : TWI_SCMD_RESPONSE_gc);
+		TWI0.SCTRLA = TWI_DIEN_bm | TWI_APIEN_bm | TWI_PIEN_bm | TWI_SMEN_bm |
+					  TWI_ENABLE_bm; // re-enable smart mode
 	} else if (state.mode == TW_MR) {
 		data = TWI0.MDATA;
 		//            READ INTRPT | QUICK COMND | SMART MODE  | ENABLE       ;
@@ -898,14 +903,17 @@ ISR(TWI_INTERRUPT_S) {
 	}
 
 	if (status & TWI_APIF_bm) {
-		if (status & TWI_AP_ADR_gc) {
-			u8 addr = TWI0.SDATA;
+		if (status & TWI_AP_bm) {
+			u8 addr = TWI0.SDATA; // does smart mode also trigger an ack/nack when it's an addr
+								  // packet? definitely
 			if ((addr & 0xFE) == 0x00)
 				i2c_state_machine(TW_SR_GCALL_ACK);
 			else if ((addr >> 1) == (TWI0.SADDR >> 1))
 				i2c_state_machine(addr & 1 ? TW_ST_SLA_ACK : TW_SR_SLA_ACK);
-		} else if (status & TWI_AP_STOP_gc)
-			i2c_state_machine(TW_SR_STOP);
+		} else {
+			state.mode = TW_YE;
+			TWI0.SCTRLB = TWI_SCMD_COMPTRANS_gc;
+		}
 	}
 
 	if (status & TWI_DIF_bm) {
