@@ -17,7 +17,7 @@ static const enum ec11_rot transition_table[16] = {
 
 // read everything from a single function
 static struct ec11_state read_state(struct ec11 *self) {
-	return (struct ec11_state){.button = !pin_get(self->btn),
+	return (struct ec11_state){.button = pin_get(self->btn),
 							   .rot = (pin_get(self->a) ? _BV(1) : 0) |
 									  (pin_get(self->b) ? _BV(0) : 0)};
 }

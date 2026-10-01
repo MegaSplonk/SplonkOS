@@ -4,7 +4,8 @@ PROJECT_NAME     = test-ec11
 
 #PINOUT            = promicro
 #PINOUT            = nano
-PINOUT            = attiny
+#PINOUT            = attiny
+PINOUT            = splonknob
 ifeq ($(PINOUT),nano)
 MCU              = atmega328p
 PORT             = /dev/ttyUSB0
@@ -26,11 +27,20 @@ PROGRAMMER       = serialupdi
 MCU              = attiny1614
 F_CPU            = 20000000UL
 BOARD            = splonknob_test
+else ifeq ($(PINOUT),splonknob)
+PORT             = /dev/ttyUSB0
+BAUD_RATE        = 57600
+PROGRAMMER       = serialupdi
+MCU              = attiny1614
+F_CPU            = 20000000UL
+BOARD            = splonknob_test
 endif
 
 
 TARGET           = $(PROJECT_NAME)
 
 BASE_MAKEFILE    = $(dir $(PROJECT_MAKEFILE))/../Base.mk
+
+CPPFLAGS_ADD     = -DSPLONKNOB
 
 include $(BASE_MAKEFILE)
