@@ -131,19 +131,19 @@ void splonk_loop() {
 
 i2c_peer *self;
 
-#if defined(MCU_atmega328p) // for testing purposes
-
-#define R_BTN D2
-#define R_A	  D3
-#define R_B	  D4
-
-#elif defined(MCU_attiny1614)
-
-#define R_BTN P13
-#define R_A	  P12
-#define R_B	  P11
-
-#endif
+// #if defined(MCU_atmega328p) // for testing purposes
+//
+// #define R_BTN D2
+// #define R_A	  D3
+// #define R_B	  D4
+//
+// #elif defined(MCU_attiny1614)
+//
+// #define R_BTN P13
+// #define R_A	  P12
+// #define R_B	  P11
+//
+// #endif
 
 I2C_SLOT(knob1, dummy, splonknob);
 
@@ -161,17 +161,29 @@ void splonk_loop() {
 	timer_t		t = timer_reset();
 	splonknob	sk = {};
 	timer_t		tt = timer_reset();
-	struct ec11 ec;
-	ec11_init(&ec, (pin)R_A, (pin)R_B, (pin)R_BTN);
+	timer_t		ttt = timer_reset();
+	struct ec11 ec_l, ec_r;
+	ec11_init(&ec_l, (pin)L_A, (pin)L_B, (pin)L_BTN);
+	ec11_init(&ec_r, (pin)R_A, (pin)R_B, (pin)R_BTN);
 	splonknob last = {};
 	// add second ec11 when wired in
 	while (true) {
-		switch (ec11_poll(&ec, &sk.butn_l)) {
+		switch (ec11_poll(&ec_l, &sk.butn_l)) {
 		case (ROT_A):
 			sk.knob_l += 1;
 			break;
 		case (ROT_B):
 			sk.knob_l -= 1;
+			break;
+		case (ROT_NONE):
+			break;
+		}
+    switch (ec11_poll(&ec_r, &sk.butn_r)) {
+		case (ROT_A):
+			sk.knob_r += 1;
+			break;
+		case (ROT_B):
+			sk.knob_r -= 1;
 			break;
 		case (ROT_NONE):
 			break;
