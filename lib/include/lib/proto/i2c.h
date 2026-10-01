@@ -61,7 +61,7 @@ typedef union gcall {
 constexpr usize gcall_size[__GCI_LAST] = {
 	sizeof(gcall_),
 	sizeof(gcall_),
-	sizeof(gcall_ack_type) + 1,
+	sizeof(gcall_ack_type),
 };
 
 typedef enum i2c_peer_direction : u8 {

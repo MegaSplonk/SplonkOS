@@ -4,6 +4,7 @@ PROJECTS =                                                                     \
 	test-rgb                                                                   \
 	test-usb                                                                   \
 	test-splonkreen                                                            \
+	test-i2c                                                                   \
 
 GLOBAL_DEPS = lib Base.mk .clang-format .github Makefile flake.nix flake.lock
 
