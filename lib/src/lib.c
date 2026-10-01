@@ -2,6 +2,7 @@
 #include <stdint.h>
 
 #include <avr/io.h>
+#include <avr/wdt.h>
 
 char FMT_BUF[256] = {};
 
@@ -19,3 +20,9 @@ __attribute__((constructor)) void mcu_init(void) {
 #else
 
 #endif
+
+void soft_reset(void) {
+	wdt_enable(WDTO_30MS);
+	while (1) {
+	};
+}

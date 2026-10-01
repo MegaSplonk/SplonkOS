@@ -1,6 +1,5 @@
 #include <avr/interrupt.h>
 #include <avr/io.h>
-#include <avr/wdt.h>
 #include <util/atomic.h>
 #include <util/twi.h>
 
@@ -229,9 +228,7 @@ static void handle_gcall() {
 		debug_print("RESET %d", call.reset.data);
 		if (call.reset.data != 0 && call.reset.data != peers[I2C_SELF_IDX].info.addr)
 			break;
-		wdt_enable(WDTO_30MS);
-		while (1) {
-		};
+		// soft_reset();
 		break;
 	case GCI_USE_ADDR:
 		i2c_set_addr(call.use_addr.data, 1);

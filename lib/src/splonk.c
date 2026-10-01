@@ -208,6 +208,9 @@ void splonk_loop() {
 				last = sk;
 			}
 		}
+		if (timer_wait(&ttt, 30000)) { // for debugging purposes
+			soft_reset();
+		}
 	}
 }
 
