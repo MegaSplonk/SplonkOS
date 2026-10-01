@@ -52,3 +52,4 @@ extern char FMT_BUF[256];
 #endif
 
 void mcu_init(void);
+void soft_reset(void);
