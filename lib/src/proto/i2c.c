@@ -101,11 +101,9 @@ void i2c_ignore(void) {
 	state.mode = TW_UH;
 }
 
-// #ifdef SPLONK
+#ifdef SPLONK
 const pin bus_enable[] = I2C_BE_PINS;
 const u8  be_logic[] = I2C_BE_LOGIC;
-const u8  addr_pool[] = I2C_ADDR_POOL;
-bool	  addr_used[tabsize(addr_pool)] = {};
 
 static void i2c_bus_enable(void) {
 	ipd dir = state.peer_idx == I2C_GCALL_IDX ? state.bus_enable : IPD_ALL;
@@ -127,9 +125,9 @@ static void i2c_bus_enable(void) {
 // 		pin_output(bus_enable[be]);
 //   return dir;
 // }
-// #else
-// static void i2c_bus_enable(void) {}
-// #endif
+#else
+static void i2c_bus_enable(void) {}
+#endif
 
 static void i2c_start(void) {
 	i2c_bus_enable();
@@ -145,16 +143,16 @@ static void i2c_start(void) {
 }
 
 // Use when master does not ever get called as slave?
-// static void i2c_stop(void) {
-// 	state.mode = TW_UH;
-// #ifdef TWI_UNIFIED
-// 	//     CLR INT    | ENABLE    |  STOP     | INTERRUPT;
-// 	TWCR = _BV(TWINT) | _BV(TWEN) | _BV(TWSTO) | _BV(TWIE);
-// 	// debug_print("stop %d", state.mode);
-// #elifdef TWI_SPLIT
-// 	TWI0.MCTRLB = TWI_MCMD_STOP_gc;
-// #endif
-// }
+static void i2c_stop(void) {
+	state.mode = TW_UH;
+#ifdef TWI_UNIFIED
+	//     CLR INT    | ENABLE    |  STOP     | INTERRUPT;
+	TWCR = _BV(TWINT) | _BV(TWEN) | _BV(TWSTO) | _BV(TWIE);
+	// debug_print("stop %d", state.mode);
+#elifdef TWI_SPLIT
+	TWI0.MCTRLB = TWI_MCMD_STOP_gc;
+#endif
+}
 
 static void i2c_stop_listen(void) {
 	state.mode = TW_YE;
@@ -245,13 +243,15 @@ static void handle_gcall() {
 	}
 }
 
+bool	  addr_used[tabsize(i2c_addr_pool)] = {};
+
 static t_error i2c_new_addr(u8 *addr) {
-	for (usize a = 0; addr && a < tabsize(addr_pool); a++) {
+	for (usize a = 0; addr && a < tabsize(i2c_addr_pool); a++) {
 
 		if (addr_used[a])
 			continue;
 
-		*addr = addr_pool[a];
+		*addr = i2c_addr_pool[a];
 		addr_used[a] = true;
 
 		return SUCCESS;
@@ -260,9 +260,9 @@ static t_error i2c_new_addr(u8 *addr) {
 }
 
 static t_error i2c_free_addr(u8 addr) {
-	for (usize a = 0; a < tabsize(addr_pool); a++) {
+	for (usize a = 0; a < tabsize(i2c_addr_pool); a++) {
 
-		if (addr_pool[a] != addr)
+		if (i2c_addr_pool[a] != addr)
 			continue;
 
 		addr_used[a] = false;
@@ -586,20 +586,30 @@ void i2c_poll(void) {
 		if (state.mode == TW_UH || state.mode == TW_YE) {
 			i2c_keep_or_rel_bus();
 			handle_gcall();
+			// #ifdef SPLONK
 			if (peers[I2C_SELF_IDX].info.type == IPT_SPLONK) {
 				if (!disco_timeout && i2c_discover(&peers[I2C_SELF_IDX]))
 					disco_timeout = true;
 				i2c_alzheimer();
 			}
+			// #endif
 		}
 		static u16 test = 0;
 		if (test++ > 4000) {
 			test = 0;
 			disco_timeout = false;
+#ifdef TWI_UNIFIED
 			debug_print("R%xS%xM%dA%d-I%d I%d O%d", TW_STATUS, TWCR, state.mode,
-						peers[I2C_SELF_IDX].info.addr, grb_count(&peers[0].io->input),
+						peers[I2C_SELF_IDX].info.addr, grb_count(&peers[I2C_GCALL_IDX].io->input),
 						grb_count(&peers[state.peer_idx].io->input),
 						grb_count(&peers[state.peer_idx].io->output));
+#elifdef TWI_SPLIT
+			debug_print("R%xSA%xSB%xM%dA%d-I%d I%d O%d", TWI0.SSTATUS, TWI0.SCTRLA, TWI0.SCTRLB,
+						state.mode, peers[I2C_SELF_IDX].info.addr,
+						grb_count(&peers[I2C_GCALL_IDX].io->input),
+						grb_count(&peers[state.peer_idx].io->input),
+						grb_count(&peers[state.peer_idx].io->output));
+#endif
 		}
 	}
 }

@@ -15,6 +15,8 @@
 #define I2C_ADDR_POOL {42, 43, 44, 45, 46, 47, 48, 49, 50}
 #endif
 
+constexpr u8  i2c_addr_pool[] = I2C_ADDR_POOL;
+
 #define I2C_MAX_PEERS 9 // gcall and self use 2 spots already
 #define I2C_MAX_SLOTS 7
 
