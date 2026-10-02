@@ -29,6 +29,7 @@ ifeq ($(MCU), attiny1614)
     )
 endif
 
+
 # FLAGS
 WERROR       ?= 
 WFLAGS        = $(WERROR) -Wenum-conversion -Wimplicit-fallthrough -Wpedantic \
@@ -42,7 +43,7 @@ CFLAGS        = -std=c23 -g3 -Os -mmcu=$(MCU) $(CFLAGS_ADD) -flto -ffunction-sec
 CPPFLAGS      = $(if $(filter 1,$(USE_LIB)),\
                    -include$(BASE_DIRECTORY)/lib/include/lib/config.h \
                    -include$(BASE_DIRECTORY)/lib/include/lib/lib.h) \
-                -DF_CPU=$(F_CPU) -MMD -DMCU_$(MCU)=1 -DBOARD_$(BOARD)=1 $(CPPFLAGS_ADD)
+                -DF_CPU=$(F_CPU) -MMD -DMCU_$(MCU)=1 -DBOARD_$(BOARD)=1 -DPINOUT_$(PINOUT)=1 $(CPPFLAGS_ADD)
 IFLAGS        = -I$(INC_DIR) $(IFLAGS_ADD)
 LDFLAGS       = $(FUCKNIXOS_LDFLAGS) -Wl,--gc-sections -Wl,-flto $(LDFLAGS_ADD)
 AVRDUDE_FLAGS = -c$(PROGRAMMER) -P$(PORT) -b$(BAUD_RATE)
@@ -87,6 +88,8 @@ OUTPUT_ARCHIVE   ?= 0
 LIB_DIR           = $(BASE_DIRECTORY)/lib
 LIB_SRC_DIR       = $(call relpath,$(LIB_DIR)/src/)
 LIB_FILELIST      = $(LIB_DIR)/Filelist.mk
+
+PINOUT           ?= $(BOARD)
 
 override OBJ_DIR_BASE := $(call relpath,$(OBJ_DIR_BASE))
 

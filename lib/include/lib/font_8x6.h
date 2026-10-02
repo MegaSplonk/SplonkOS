@@ -1,5 +1,7 @@
 #pragma once
 
+#ifdef SPLONKLIB_ENABLE_SCREEN
+
 #include <avr/pgmspace.h>
 #include <stdint.h>
 
@@ -9,3 +11,4 @@
 #define FONT_LAST_CHAR	126
 
 extern const u8 font_8x6[FONT_LAST_CHAR - FONT_FIRST_CHAR + 1][FONT_WIDTH] PROGMEM;
+#endif

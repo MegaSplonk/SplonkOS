@@ -1,3 +1,4 @@
+#ifdef SPLONKLIB_ENABLE_SCREEN
 #include "lib/font_8x6.h"
 #include "lib/images.h"
 
@@ -103,3 +104,4 @@ const u8 font_8x6[FONT_LAST_CHAR - FONT_FIRST_CHAR + 1][FONT_WIDTH] PROGMEM = {
 	{0x00, 0x41, 0x41, 0x36, 0x08, 0x00}, // '}' (125)
 	{0x08, 0x04, 0x08, 0x10, 0x08, 0x00}  // '~' (126)
 };
+#endif

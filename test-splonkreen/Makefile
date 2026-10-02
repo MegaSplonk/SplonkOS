@@ -6,7 +6,8 @@ BAUD_RATE        = 115200
 PROGRAMMER       = arduino
 MCU              = atmega328p
 F_CPU            = 16000000
-BOARD            = nano
+BOARD            = splonkreen_test
+PINOUT           = nano
 
 #PORT             = /dev/ttyACM0
 #BAUD_RATE        = 57600

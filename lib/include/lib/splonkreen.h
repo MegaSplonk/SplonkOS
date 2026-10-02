@@ -1,5 +1,7 @@
 #pragma once
 
+#ifdef SPLONKLIB_ENABLE_SCREEN
+
 #include "lib/font_8x6.h"
 #include "lib/images.h"
 #include "lib/pin.h"
@@ -20,3 +22,5 @@ void send_sentence(const char *str, u8 page, int column);
 void clear_screen(void);
 void draw(u8 page, u8 col, t_image img);
 void screen_init(void);
+
+#endif

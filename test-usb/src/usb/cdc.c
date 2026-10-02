@@ -218,8 +218,10 @@ static bool pu_cdc_setup(struct pu_module *self, struct usb_setup *setup) {
 
 static u8 pu_cdc_get_shortname(struct pu_module *self, char *serialString) {
 	(void)(self);
-	serialString[0] = 'S';
-	return 1;
+	serialString[0] = 'C';
+	serialString[1] = 'D';
+	serialString[2] = 'C';
+	return 3;
 }
 
 static struct pu_module_vtable PU_CDC_VTABLE = {
