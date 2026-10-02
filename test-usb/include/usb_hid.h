@@ -47,43 +47,31 @@ struct hid_desc_descriptor {
 	u8 descLenH;
 };
 
-struct hid_descriptor {
-	InterfaceDescriptor		   hid;
-	struct hid_desc_descriptor desc;
-	EndpointDescriptor		   in;
-};
-
-typedef struct hid_desc_node hid_desc_node;
 struct hid_desc_node {
-	hid_desc_node *next;
-	const void	  *data;
-	usize		   length;
+	struct hid_desc_node *next;
+	const void			 *data;
+	usize				  length;
 };
 
-struct pu_hid {
-	struct pu_module module;
-
-	u8 ep_type[1];
-
-	hid_desc_node *root_desc;
-	usize		   desc_size;
-
-	u8 protocol;
-	u8 idle;
-};
-
+struct pu_hid;
 struct pu_hid *pu_hid(void);
 
-void  pu_hid_add_desc(hid_desc_node *node);
-isize hid_send_report(uint8_t id, const void *data, usize len);
+enum e_hid_report_id : u8 {
+	HID_REPORT_ID_NKRO = 0x01,
+	HID_REPORT_ID_MOUSE = 0x02,
+	HID_REPORT_ID_CC = 0x03,
+	HID_REPORT_ID_SLIDER = 0x04,
+};
+
+void  pu_hid_add_desc(struct hid_desc_node *node);
+isize hid_send_report(enum e_hid_report_id id, const void *data, usize len);
 
 #define D_HIDREPORT(length) {9, 0x21, 0x01, 0x01, 0, 1, 0x22, lowByte(length), highByte(length)}
 
-extern hid_desc_node nkro_descriptor;
-extern hid_desc_node mouse_descriptor;
-
-#define HID_NKRO_REPORT_ID	0x01
-#define HID_MOUSE_REPORT_ID 0x02
+extern struct hid_desc_node nkro_descriptor;
+extern struct hid_desc_node mouse_descriptor;
+extern struct hid_desc_node cc_descriptor;
+extern struct hid_desc_node slider_descriptor;
 
 struct HID_NKRO_report {
 	union {
@@ -115,4 +103,21 @@ struct HID_MOUSE_report {
 	};
 	i8 x; // negative == left   | positive == right
 	i8 y; // negative == bottom | positive == top
+};
+
+struct HID_CC_report {
+	u8 vol_inc : 1;
+	u8 vol_dec : 1;
+	u8 mute : 1;
+	u8 play_pause : 1;
+	u8 next : 1;
+	u8 previous : 1;
+	u8 _pad : 2;
+};
+
+struct HID_SLIDER_report {
+	u16 slider1 : 10;
+	u16 slider2 : 10;
+	u16 slider3 : 10;
+	u16 slider4 : 10;
 };

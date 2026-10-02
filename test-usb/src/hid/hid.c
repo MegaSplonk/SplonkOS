@@ -2,6 +2,23 @@
 #include "usb_hid.h"
 #include <util/atomic.h>
 
+struct hid_descriptor {
+	InterfaceDescriptor		   hid;
+	struct hid_desc_descriptor desc;
+	EndpointDescriptor		   in;
+};
+struct pu_hid {
+	struct pu_module module;
+
+	u8 ep_type[1];
+
+	struct hid_desc_node *root_desc;
+	usize				  desc_size;
+
+	u8 protocol;
+	u8 idle;
+};
+
 static int	hid_get_interface(struct pu_module *self, u8 *i);
 static int	hid_get_descriptor(struct pu_module *self, struct usb_setup *setup);
 static bool hid_setup(struct pu_module *self, struct usb_setup *setup);
@@ -18,10 +35,14 @@ static struct pu_module_vtable PU_HID_VTABLE = {
 static u8 hid_get_short_name(struct pu_module *self_, char *name) {
 	struct pu_hid *self = (typeof(self))self_;
 	name[0] = 'H';
-	name[1] = 'A' + (self->desc_size & 0x0F);
-	name[2] = 'A' + ((self->desc_size >> 4) & 0x0F);
+	name[1] = 'I';
+	name[2] = 'D';
+	name[3] = '[';
+	name[4] = "0123456789abcdef"[(self->desc_size & 0x0F)];
+	name[5] = "0123456789abcdef"[((self->desc_size >> 4) & 0x0F)];
+	name[6] = ']';
 
-	return 3;
+	return 7;
 }
 
 static int hid_get_interface(struct pu_module *self_, u8 *i) {
@@ -52,8 +73,8 @@ static int hid_get_descriptor(struct pu_module *self_, struct usb_setup *setup) 
 		return 0;
 	}
 
-	int			   total = 0;
-	hid_desc_node *node;
+	int					  total = 0;
+	struct hid_desc_node *node;
 	for (node = self->root_desc; node; node = node->next) {
 		int res = USB_SendControl(TRANSFER_PGM, node->data, node->length);
 		if (res == -1)
@@ -140,12 +161,12 @@ struct pu_hid *pu_hid(void) {
 	return &val;
 }
 
-void pu_hid_add_desc(hid_desc_node *node) {
+void pu_hid_add_desc(struct hid_desc_node *node) {
 	struct pu_hid *self = pu_hid();
 	if (!self->root_desc) {
 		self->root_desc = node;
 	} else {
-		hid_desc_node *current = self->root_desc;
+		struct hid_desc_node *current = self->root_desc;
 		while (current->next) {
 			current = current->next;
 		}
@@ -154,7 +175,7 @@ void pu_hid_add_desc(hid_desc_node *node) {
 	self->desc_size += node->length;
 }
 
-isize hid_send_report(uint8_t id, const void *data, usize len) {
+isize hid_send_report(enum e_hid_report_id id, const void *data, usize len) {
 	struct pu_hid *self = pu_hid();
 	isize		   ret = USB_Send(self->module.pluggedEndpoint, &id, 1);
 	if (ret < 0)

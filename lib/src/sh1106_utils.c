@@ -2,6 +2,8 @@
 #include "lib/pinout.h"
 #include "lib/splonkreen.h"
 
+#ifdef SPLONKLIB_ENABLE_SCREEN
+
 #define FONT_FIRST_CHAR 32
 #define FONT_LAST_CHAR	126
 #define FONT_WIDTH		6
@@ -125,3 +127,5 @@ void draw(u8 page, u8 col, t_image img) {
 		for (u8 c = 0; c < img.width; c++)
 			screenBuffer[page + p][col + c] = pgm_read_byte(&img.data[p * img.width + c]);
 }
+
+#endif

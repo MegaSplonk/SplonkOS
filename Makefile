@@ -1,9 +1,6 @@
 PROJECTS =                                                                     \
-	test-adc                                                                   \
-	test-attiny                                                                \
 	test-ec11                                                                  \
 	test-matrix                                                                \
-	test-nano                                                                  \
 	test-rgb                                                                   \
 	test-usb                                                                   \
 	test-splonkreen                                                            \

@@ -1,11 +1,11 @@
 #pragma once
 
-#if defined(BOARD_promicro)
+#if defined(PINOUT_promicro)
 #include "lib/pinout/promicro.h"
-#elif defined(BOARD_nano)
+#elif defined(PINOUT_nano)
 #include "lib/pinout/nano.h"
-#elif defined(BOARD_attiny)
+#elif defined(PINOUT_attiny)
 #include "lib/pinout/attiny.h"
 #else
-#error "Board not defined or not known by splonklib"
+#error "PINOUT not defined or not known by splonklib"
 #endif

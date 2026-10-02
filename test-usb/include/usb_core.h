@@ -18,6 +18,15 @@
 
 #include "usb_api.h"
 
+#define PLUGGABLE_USB_ENABLED
+
+#define USB_ENDPOINTS	7
+#define ISERIAL_MAX_LEN 32
+
+#define IMANUFACTURER 1
+#define IPRODUCT	  2
+#define ISERIAL		  3
+
 //	Standard requests
 #define GET_STATUS		  0
 #define CLEAR_FEATURE	  1

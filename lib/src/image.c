@@ -1,4 +1,4 @@
-#ifdef SPLONKREEN
+#ifdef SPLONKLIB_ENABLE_SCREEN
 
 #include "lib/images.h"
 #include "lib/splonkreen.h"

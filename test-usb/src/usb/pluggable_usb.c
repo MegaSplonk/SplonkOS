@@ -39,6 +39,8 @@ void pu_get_shortname(char *iSerialNum) {
 	struct pu_module *node = nullptr;
 	for (node = self->root; node; node = node->next) {
 		iSerialNum += node->vtable->get_shortname(node, iSerialNum);
+		if (node->next)
+			*(iSerialNum++) = ',';
 	}
 	*iSerialNum = 0;
 }

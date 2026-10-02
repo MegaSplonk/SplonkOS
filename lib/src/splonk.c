@@ -9,6 +9,8 @@
 #include <util/atomic.h>
 #include <util/delay.h>
 
+#if defined(SPLONKLIB_ENABLE_I2C)
+
 #if !defined(SPLONK) && !defined(SPLONKNOB)
 #define SPLONK
 #endif
@@ -212,4 +214,5 @@ void splonk_loop() {
 	}
 }
 
+#endif
 #endif

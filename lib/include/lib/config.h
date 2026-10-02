@@ -1,34 +1,75 @@
 #pragma once
 
-#if defined(MCU_atmega32u4)
+// all feature defines
+#if false
 
+#define SPLONKLIB_ENABLE_EC11
+#define SPLONKLIB_ENABLE_I2C
+#define SPLONKLIB_ENABLE_LED
+#define SPLONKLIB_ENABLE_SCREEN
+#define SPLONKLIB_ENABLE_SPI
+#define SPLONKLIB_ENABLE_UART
 #define SPLONKLIB_ENABLE_USB
-#define SPLONKLIB_ENABLE_SPI
-#define SPLONKLIB_ENABLE_I2C
-// the atmega32u4 has uart, but it is weird and not wired to the USB.
-#define SPLONKLIB_ENABLE_EC11
-#define SPLONKLIB_ENABLE_UART
-#define SPLONKLIB_ENABLE_LED
+
+#define SPLONKLIB_DISABLE_USB_LED
+
 #define SPLONKLIB_LED_SPI
-
-#elif defined(MCU_atmega328p)
-
-#define SPLONKLIB_ENABLE_UART
-#define SPLONKLIB_ENABLE_SPI
-#define SPLONKLIB_ENABLE_I2C
-#define SPLONKLIB_ENABLE_EC11
-#define SPLONKLIB_ENABLE_LED
-
 #define SPLONKLIB_LED_BITBANG
 
-// #define SPLONK
+#endif
 
-#elif defined(MCU_attiny1614)
+#if defined(BOARD_usb_test)
 
-#define SPLONKLIB_ENABLE_EC11
 #define SPLONKLIB_ENABLE_UART
-#define SPLONKLIB_ENABLE_I2C
+#define SPLONKLIB_ENABLE_USB
 
-// #define SPLONKNOB
+#elif defined(BOARD_matrix_test)
 
+#define SPLONKLIB_ENABLE_UART
+#define SPLONKLIB_ENABLE_LED
+#define SPLONKLIB_ENABLE_SPI
+#define SPLONKLIB_LED_SPI
+// #define SPLONKLIB_LED_BITBANG
+
+#elif defined(BOARD_rgb_test)
+
+#define SPLONKLIB_ENABLE_UART
+#define SPLONKLIB_ENABLE_LED
+#define SPLONKLIB_ENABLE_SPI
+#define SPLONKLIB_LED_SPI
+// #define SPLONKLIB_LED_BITBANG
+
+#elif defined(BOARD_splonkpad_test)
+
+#define SPLONKLIB_ENABLE_UART
+#define SPLONLLIB_ENABLE_I2C
+#define SPLONKLIB_ENABLE_USB
+
+#elif defined(BOARD_splonkreen_test)
+
+#define SPLONKLIB_ENABLE_UART
+#define SPLONKLIB_ENABLE_SPI
+#define SPLONKLIB_ENABLE_SCREEN
+
+#elif defined(BOARD_splonknob_test)
+
+#define SPLONKLIB_ENABLE_UART
+#define SPLONKLIB_ENABLE_EC11
+
+#elif defined(BOARD_splonkbar_test)
+
+#define SPLONKLIB_ENABLE_UART
+
+#elif defined(BOARD_splonko_test)
+
+#define SPLONKLIB_ENABLE_UART
+
+#elif defined(BOARD_splonk)
+#elif defined(BOARD_splonkpad)
+#elif defined(BOARD_splonkreen)
+#elif defined(BOARD_splonknob)
+#elif defined(BOARD_splonkbar)
+#elif defined(BOARD_splonko)
+#else
+#error "No known board has been defined !"
 #endif

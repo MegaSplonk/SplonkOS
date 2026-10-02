@@ -6,7 +6,7 @@
 #include <avr/io.h>
 #include <util/delay.h>
 
-#if defined(BOARD_promicro)
+#if defined(PINOUT_promicro)
 #define R_BTN D9
 #define R_A	  D10
 #define R_B	  D16
@@ -14,7 +14,7 @@
 #define R_A_LED D6
 #define R_B_LED D7
 
-#elif defined(BOARD_nano)
+#elif defined(PINOUT_nano)
 
 #define R_BTN D10
 #define R_A	  D11
@@ -23,7 +23,7 @@
 #define R_A_LED D3
 #define R_B_LED D4
 
-#elif defined(BOARD_attiny)
+#elif defined(PINOUT_attiny)
 
 #define R_BTN P13
 #define R_A	  P12
