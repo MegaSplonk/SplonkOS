@@ -356,6 +356,12 @@ t_error i2c_unregister(i2c_peer *p) {
 			continue;
 		debug_print("I forgor %d\n", p->info.addr);
 
+		for (usize d = 0; d < tabsize(peers[I2C_SELF_IDX].downstream); d++) {
+			if (peers[I2C_SELF_IDX].downstream[d] != p)
+				continue;
+			peers[I2C_SELF_IDX].downstream[d] = NULL;
+		}
+
 		slots[slot].taken = false;
 		i2c_free_addr(p->info.addr);
 		*p = (i2c_peer){};
@@ -498,26 +504,40 @@ static t_error i2c_write(i2c_peer *p) {
 	return SUCCESS;
 }
 
+static bool read_should_nack(i2c_peer *p) {
+	if (p->query == 1)
+		return true;
+	if (state.peer_idx == I2C_GCALL_IDX) {
+		u8	  peek[2];
+		usize p_bytes = 0;
+		grb_peek(&peers[I2C_GCALL_IDX].io->input, peek, 2, &p_bytes);
+		if (p_bytes <= 1)
+			return false;
+		bool ret = (gcall_instruction)peek[0] == GCI_ACK_TYPE &&
+				   (ipt)peek[1] != peers[I2C_SELF_IDX].info.type;
+		return ret;
+	}
+	return false;
+}
+
 static t_error i2c_read(i2c_peer *p) {
 	grbio *g = p->io;
 	if (grb_full(&g->input)) {
 		// debug_print("INBUFFULL");
 		return ERROR;
 	}
-	usize	  useless;
-	u8		  data = 0;
-	static u8 prev = 0;
+	usize	useless;
+	u8		data = 0;
+	t_error ret = SUCCESS;
 #ifdef TWI_UNIFIED
 	data = TWDR;
+	ret = grb_write(&g->input, &data, 1, &useless);
 	if (state.mode == TW_MR && !--p->query) // TW_MR_DATA_NACK
 		i2c_stop_listen();
 	else {
-		bool should_nack = (p->query == 1) || (state.peer_idx == I2C_GCALL_IDX &&
-											   (gcall_instruction)prev == GCI_ACK_TYPE &&
-											   (ipt)data != peers[I2C_SELF_IDX].info.type);
+		bool should_nack = read_should_nack(p);
+		// debug_print("shouldnack %d", should_nack);
 		TWCR = _BV(TWINT) | _BV(TWEN) | (should_nack ? 0 : _BV(TWEA)) | _BV(TWIE);
-		// debug_print("shouldnack%d-%d-%d=%d+%d", state.peer_idx == I2C_GCALL_IDX ,
-		// (gcall_instruction)prev == GCI_ACK_TYPE, data, should_nack, TWCR);
 	}
 #elifdef TWI_SPLIT
 	if (state.mode == TW_SR) {
@@ -526,17 +546,15 @@ static t_error i2c_read(i2c_peer *p) {
 		// smart mode sends ack/nack automatically when sdata is read, so I need to
 		// disable it to make a decision on whether to nack or ack before proceeding
 		data = TWI0.SDATA;
-		bool should_nack = (p->query == 1) || (state.peer_idx == I2C_GCALL_IDX &&
-											   (gcall_instruction)prev == GCI_ACK_TYPE &&
-											   (ipt)data != peers[I2C_SELF_IDX].info.type);
-		// debug_print("shouldnack%d-%d-%d=%d", state.peer_idx == I2C_GCALL_IDX,
-		// (gcall_instruction)prev == GCI_ACK_TYPE, data, should_nack);
+		ret = grb_write(&g->input, &data, 1, &useless);
+		bool should_nack = read_should_nack(p);
 		TWI0.SCTRLB = (should_nack ? TWI_ACKACT_bm : 0) |
 					  (p->dnack ? TWI_SCMD_COMPTRANS_gc : TWI_SCMD_RESPONSE_gc);
 		TWI0.SCTRLA = TWI_DIEN_bm | TWI_APIEN_bm | TWI_PIEN_bm | TWI_SMEN_bm |
 					  TWI_ENABLE_bm; // re-enable smart mode
 	} else if (state.mode == TW_MR) {
 		data = TWI0.MDATA;
+		ret = grb_write(&g->input, &data, 1, &useless);
 		//            READ INTRPT | QUICK COMND | SMART MODE  | ENABLE       ;
 		TWI0.MCTRLA = TWI_RIEN_bm | TWI_QCEN_bm | TWI_SMEN_bm | TWI_ENABLE_bm;
 
@@ -547,8 +565,7 @@ static t_error i2c_read(i2c_peer *p) {
 						  TWI_MCMD_RECVTRANS_gc;
 	}
 #endif
-	prev = data;
-	return grb_write(&g->input, &data, 1, &useless);
+	return ret;
 }
 
 static void find_peer() {
@@ -642,6 +659,7 @@ static void i2c_state_machine(u8 status) {
 		// debug_print("%s", data);
 		state.mode = TW_MT;
 		peers[state.peer_idx].snack = 0;
+		peers[state.peer_idx].dnack = 0;
 		peers[state.peer_idx].timeout = 0;
 		// ok now either load a data byte
 		// or set TWSTA or set TWSTO or both
@@ -669,7 +687,6 @@ static void i2c_state_machine(u8 status) {
 		// ok now either load a data byte
 		// or set TWSTA or set TWSTO or both
 		// and set TWINT
-		peers[state.peer_idx].dnack = 0;
 		if (i2c_write(&peers[state.peer_idx])) {
 			// debug_print("last byte sent");
 			i2c_keep_or_rel_bus();
@@ -788,6 +805,7 @@ static void i2c_state_machine(u8 status) {
 		// data = "SLA+W rx, ACK returned";
 		// debug_print("%s", data);
 		state.mode = TW_SR;
+		peers[state.peer_idx].dnack = 0;
 		state.peer_idx = I2C_SELF_IDX;
 		// No action to TWDR, just set TWINT to start getting DATA
 		// Or send NACK by setting TWEA to 0
@@ -798,6 +816,7 @@ static void i2c_state_machine(u8 status) {
 		// data = "arbitration lost in SLA+RW, SLA+W rx, ACK returned";
 		// debug_print("%s", data);
 		state.mode = TW_SR;
+		peers[state.peer_idx].dnack = 0;
 		state.peer_idx = I2C_SELF_IDX;
 		// No action to TWDR, just set TWINT to start getting DATA
 		// Or send NACK by setting TWEA to 0
@@ -808,6 +827,7 @@ static void i2c_state_machine(u8 status) {
 		// data = "general call rx, ACK returned";
 		// debug_print("%s", data);
 		state.mode = TW_SR;
+		peers[state.peer_idx].dnack = 0;
 		state.peer_idx = I2C_GCALL_IDX;
 		// No action to TWDR, just set TWINT to start getting DATA
 		// Or send NACK by setting TWEA to 0
@@ -819,7 +839,6 @@ static void i2c_state_machine(u8 status) {
 		// debug_print("%s", data);
 		// Either read one byte and send ACK by setting TWEA to 1
 		// Or read and send NACK by setting TWEA to 0
-		peers[state.peer_idx].dnack = 0;
 		i2c_read(&peers[state.peer_idx]);
 		break;
 	}
@@ -827,6 +846,7 @@ static void i2c_state_machine(u8 status) {
 		// data = "arbitration lost in SLA+RW, general call rx, ACK returned";
 		// debug_print("%s", data);
 		state.mode = TW_SR;
+		peers[state.peer_idx].dnack = 0;
 		state.peer_idx = I2C_GCALL_IDX;
 		// No action to TWDR, just set TWINT to start getting DATA
 		// Or send NACK by setting TWEA to 0
@@ -850,7 +870,6 @@ static void i2c_state_machine(u8 status) {
 		// debug_print("%s", data);
 		// Either read one byte and send ACK by setting TWEA to 1
 		// Or read and send NACK by setting TWEA to 0
-		peers[state.peer_idx].dnack = 0;
 		i2c_read(&peers[state.peer_idx]);
 		break;
 	}

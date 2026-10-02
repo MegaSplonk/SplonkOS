@@ -131,19 +131,22 @@ void splonk_loop() {
 
 i2c_peer *self;
 
-// #if defined(MCU_atmega328p) // for testing purposes
-//
-// #define R_BTN D2
-// #define R_A	  D3
-// #define R_B	  D4
-//
+#if defined(MCU_atmega328p) // for testing purposes
+
+#define R_BTN D2
+#define R_A	  D3
+#define R_B	  D4
+#define L_BTN D5
+#define L_A	  D6
+#define L_B	  D7
+
 // #elif defined(MCU_attiny1614)
 //
 // #define R_BTN P13
 // #define R_A	  P12
 // #define R_B	  P11
 //
-// #endif
+#endif
 
 I2C_SLOT(knob1, dummy, splonknob);
 
