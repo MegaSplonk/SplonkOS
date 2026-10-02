@@ -23,6 +23,8 @@
             pkgs.bear
             pkgs.llvmPackages_22.clang-tools
             pkgs.usbutils
+            (pkgs.python3.withPackages (ps: with ps; [ tkinter ]))
+            pkgs.arduino-cli
           ];
         };
       }
