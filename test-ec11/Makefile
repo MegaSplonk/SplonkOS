@@ -33,7 +33,7 @@ BAUD_RATE        = 57600
 PROGRAMMER       = serialupdi
 MCU              = attiny1614
 F_CPU            = 20000000UL
-BOARD            = splonknob_test
+BOARD            = splonknob
 endif
 
 
