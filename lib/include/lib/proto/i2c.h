@@ -46,7 +46,7 @@ u16			 checksum;                                                                
 typedef enum gcall_instruction : u8 {
 	GCI_RESET,
 	GCI_USE_ADDR,
-	GCI_ACK_TYPE,
+	GCI_ACK_TYPE = 77,
 	__GCI_LAST,
 } gcall_instruction;
 
@@ -61,9 +61,9 @@ typedef union gcall {
 } gcall;
 
 constexpr usize gcall_size[__GCI_LAST] = {
-	sizeof(gcall_),
-	sizeof(gcall_),
-	sizeof(gcall_ack_type),
+	[GCI_RESET] = sizeof(gcall_),
+	[GCI_USE_ADDR]=sizeof(gcall_),
+	[GCI_ACK_TYPE]=sizeof(gcall_ack_type),
 };
 
 typedef enum i2c_peer_direction : u8 {
