@@ -15,7 +15,7 @@
 #define I2C_ADDR_POOL {42, 43, 44, 45, 46, 47, 48, 49, 50}
 #endif
 
-constexpr u8  i2c_addr_pool[] = I2C_ADDR_POOL;
+constexpr u8 i2c_addr_pool[] = I2C_ADDR_POOL;
 
 #define I2C_MAX_PEERS 9 // gcall and self use 2 spots already
 #define I2C_MAX_SLOTS 7
@@ -62,8 +62,8 @@ typedef union gcall {
 
 constexpr usize gcall_size[__GCI_LAST] = {
 	[GCI_RESET] = sizeof(gcall_),
-	[GCI_USE_ADDR]=sizeof(gcall_),
-	[GCI_ACK_TYPE]=sizeof(gcall_ack_type),
+	[GCI_USE_ADDR] = sizeof(gcall_),
+	[GCI_ACK_TYPE] = sizeof(gcall_ack_type),
 };
 
 typedef enum i2c_peer_direction : u8 {

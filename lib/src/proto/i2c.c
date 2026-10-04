@@ -126,74 +126,51 @@ static void i2c_bus_enable(void) {
 // 		pin_output(bus_enable[be]);
 //   return dir;
 // }
-#else
+#elifdef TWI_UNIFIED
 static void i2c_bus_enable(void) {}
 #endif
 
+#ifdef TWI_UNIFIED
 static void i2c_start(void) {
 	i2c_bus_enable();
-#ifdef TWI_UNIFIED
 	//     CLR INT    | SET MASTER |  ENABLE   | INTERRUPT;
 	TWCR = _BV(TWINT) | _BV(TWSTA) | _BV(TWEN) | _BV(TWIE);
 	// debug_print("start %d", peers[state.peer_idx].timeout);
-#elifdef TWI_SPLIT
-	TWI0.MADDR =
-		(u8)I2C_ADDR(peers[state.peer_idx].info.addr, state.mode == TW_MR ? TW_READ : TW_WRITE);
-	// TWI0.MCTRLB = TWI_MCMD_REPSTART_gc; // how?
-#endif
 }
 
 // Use when master does not ever get called as slave?
-static void i2c_stop(void) {
-	state.mode = TW_UH;
-#ifdef TWI_UNIFIED
-	//     CLR INT    | ENABLE    |  STOP     | INTERRUPT;
-	TWCR = _BV(TWINT) | _BV(TWEN) | _BV(TWSTO) | _BV(TWIE);
-	// debug_print("stop %d", state.mode);
-#elifdef TWI_SPLIT
-	TWI0.MCTRLB = TWI_MCMD_STOP_gc;
-#endif
-}
+// static void i2c_stop(void) {
+// 	state.mode = TW_UH;
+// 	//     CLR INT    | ENABLE    |  STOP     | INTERRUPT;
+// 	TWCR = _BV(TWINT) | _BV(TWEN) | _BV(TWSTO) | _BV(TWIE);
+// 	// debug_print("stop %d", state.mode);
+// }
 
 static void i2c_stop_listen(void) {
 	state.mode = TW_YE;
-#ifdef TWI_UNIFIED
 	//     CLR INT    | LISTEN    | ENABLE    |  STOP     | INTERRUPT;
 	TWCR = _BV(TWINT) | _BV(TWEA) | _BV(TWEN) | _BV(TWSTO) | _BV(TWIE);
 	// debug_print("stop %d", state.mode);
-#elifdef TWI_SPLIT
-	i2c_stop();
-	i2c_listen();
-#endif
 }
 
 static void i2c_int(void) {
-#ifdef TWI_UNIFIED
 	//     CLR INT    | ENABLE    | INTERRUPT;
 	TWCR = _BV(TWINT) | _BV(TWEN) | _BV(TWIE);
-#elifdef TWI_SPLIT
-	TWI0.SCTRLB = TWI_ACKACT_bm | TWI_SCMD_COMPTRANS_gc;
-#endif
 }
 
 static void i2c_int_listen(void) {
-#ifdef TWI_UNIFIED
 	//     CLR INT    | LISTEN    | ENABLE    | INTERRUPT;
 	TWCR = _BV(TWINT) | _BV(TWEA) | _BV(TWEN) | _BV(TWIE);
-#elifdef TWI_SPLIT
-	TWI0.SCTRLB = TWI_SCMD_RESPONSE_gc;
-#endif
 }
 
 static void i2c_select() {
-#ifdef TWI_UNIFIED
 	// set addr to write
 	TWDR = (u8)I2C_ADDR(peers[state.peer_idx].info.addr, state.mode == TW_MR ? TW_READ : TW_WRITE);
 	//     CLR INT    | ENABLE    | INTERRUPT;
 	TWCR = _BV(TWINT) | _BV(TWEN) | _BV(TWIE);
-#endif
 	// debug_print("select %d", peers[state.peer_idx].snack);
 }
+#endif
 
 static void handle_bus_error() {
 #ifdef TWI_UNIFIED
@@ -495,7 +472,6 @@ static t_error i2c_write(i2c_peer *p) {
 		TWI0.MCTRLA = TWI_WIEN_bm | TWI_QCEN_bm | TWI_SMEN_bm | TWI_ENABLE_bm;
 	}
 #endif
-	debug_print("hello %x", data);
 	return SUCCESS;
 }
 
@@ -506,7 +482,8 @@ static bool read_should_nack(i2c_peer *p) {
 		u8	  peek[sizeof(gcall_ack_type)];
 		usize p_bytes = 0;
 		grb_peek(&peers[I2C_GCALL_IDX].io->input, peek, sizeof(peek), &p_bytes);
-		if (p_bytes < sizeof(peek) - 1) // FIXME NEEDS TO BEHAVE DIFFERENTLY ATMEGA (size-1) VS ATTINY (size)
+		if (p_bytes <
+			sizeof(peek) - 1) // FIXME NEEDS TO BEHAVE DIFFERENTLY ATMEGA (size-1) VS ATTINY (size)
 			return false;
 		bool ret = (gcall_instruction)peek[0] == GCI_ACK_TYPE &&
 				   (ipt)peek[1] != peers[I2C_SELF_IDX].info.type;
@@ -540,7 +517,7 @@ static t_error i2c_read(i2c_peer *p) {
 	}
 #elifdef TWI_SPLIT
 	if (state.mode == TW_SR) {
-    TWI0.SCTRLA &= ~TWI_SMEN_bm;
+		TWI0.SCTRLA &= (u8)~TWI_SMEN_bm;
 		// smart mode sends ack/nack automatically when sdata is read, so I need to
 		// disable it to make a decision on whether to nack or ack before proceeding
 		data = TWI0.SDATA;
@@ -563,7 +540,7 @@ static t_error i2c_read(i2c_peer *p) {
 #endif
 	return ret;
 }
-
+#ifdef TWI_UNIFIED
 static void find_peer() {
 	for (usize peer = 0; peer < I2C_MAX_PEERS; peer++) {
 		grbio *g = peers[peer].io;
@@ -597,6 +574,10 @@ static void i2c_keep_or_rel_bus() {
 		return;
 	}
 }
+#else
+// ATTINY is never master so never needs to poll for possible starts (for now)
+static void i2c_keep_or_rel_bus() {}
+#endif
 
 void i2c_poll(void) {
 	static bool disco_timeout = false;
@@ -604,13 +585,11 @@ void i2c_poll(void) {
 		if (state.mode == TW_UH || state.mode == TW_YE) {
 			i2c_keep_or_rel_bus();
 			handle_gcall();
-#ifdef DISCO
 			if (peers[I2C_SELF_IDX].info.type == IPT_SPLONK) {
 				if (!disco_timeout && i2c_discover(&peers[I2C_SELF_IDX]))
 					disco_timeout = true;
 				i2c_alzheimer();
 			}
-#endif
 		}
 		static u16 test = 0;
 		if (test++ > 4000) {
@@ -632,6 +611,7 @@ void i2c_poll(void) {
 	}
 }
 
+#ifdef TWI_UNIFIED
 static void i2c_state_machine(u8 status) {
 	const char *data = nullptr;
 	switch (status) {
@@ -907,18 +887,17 @@ static void i2c_state_machine(u8 status) {
 	// debug_print("I2C POLL: %s", data);
 }
 
-#ifdef TWI_UNIFIED
 ISR(TWI_INTERRUPT) { i2c_state_machine(TW_STATUS); }
 #elifdef TWI_SPLIT
 ISR(TWI_INTERRUPT_S) {
-	u8 status = TWI0.SSTATUS;
-	u8 action = 0;
-  static u8 rxack_mask = 0;
+	u8		  status = TWI0.SSTATUS;
+	u8		  action = 0;
+	static u8 rxack_mask = 0;
 	if (status & TWI_COLL_bm || status & TWI_BUSERR_bm) {
-    u8 errors = status & (TWI_BUSERR_bm | TWI_COLL_bm);
-    TWI0.SSTATUS = errors;
-		i2c_state_machine(TW_BUS_ERROR);
-    action = TWI_SCMD_COMPTRANS_gc;
+		u8 errors = status & (TWI_BUSERR_bm | TWI_COLL_bm);
+		TWI0.SSTATUS = errors;
+		handle_bus_error();
+		action = TWI_SCMD_COMPTRANS_gc;
 	} else if (status & TWI_APIF_bm) {
 		if (status & TWI_AP_bm) { // ADDR
 			u8 addr = TWI0.SDATA;
@@ -946,9 +925,9 @@ ISR(TWI_INTERRUPT_S) {
 								 : TWI_SCMD_RESPONSE_gc;
 				}
 			} else { // 10 bit addr or whatever else
-        state.mode = TW_YE;
-        action = TWI_ACKACT_bm | TWI_SCMD_COMPTRANS_gc;
-      }
+				state.mode = TW_YE;
+				action = TWI_ACKACT_bm | TWI_SCMD_COMPTRANS_gc;
+			}
 		} else { // STOP
 			state.mode = TW_YE;
 			action = TWI_SCMD_COMPTRANS_gc;
@@ -956,26 +935,26 @@ ISR(TWI_INTERRUPT_S) {
 	} else if (status & TWI_DIF_bm) {
 		if (!(status & TWI_DIR_bm)) {
 			if (i2c_read(&peers[state.peer_idx]))
-        action = TWI_ACKACT_bm | TWI_SCMD_COMPTRANS_gc;
-      else
-        return; // return since SCTRLB is set inside read()
+				action = TWI_ACKACT_bm | TWI_SCMD_COMPTRANS_gc;
+			else
+				return; // return since SCTRLB is set inside read()
 
 		} else if (status & rxack_mask) {
-      rxack_mask = 0;
+			rxack_mask = 0;
 			state.mode = TW_YE;
 			action = TWI_SCMD_COMPTRANS_gc;
 		} else {
-      if (i2c_write(&peers[state.peer_idx])) {
-        rxack_mask = 0;
-        state.mode = TW_YE;
-			  action = TWI_SCMD_COMPTRANS_gc;
-      } else {
-        rxack_mask = TWI_RXACK_bm;
-        return;
-      }
-    }
+			if (i2c_write(&peers[state.peer_idx])) {
+				rxack_mask = 0;
+				state.mode = TW_YE;
+				action = TWI_SCMD_COMPTRANS_gc;
+			} else {
+				rxack_mask = TWI_RXACK_bm;
+				return;
+			}
+		}
 	}
-  TWI0.SCTRLB = action;
+	TWI0.SCTRLB = action;
 }
 ISR(TWI_INTERRUPT_M) {
 	// TODO (optional) finish impl master stuff (not that we'll ever use those)
