@@ -42,7 +42,7 @@
 #elif defined(BOARD_splonkpad_test)
 
 #define SPLONKLIB_ENABLE_UART
-#define SPLONLLIB_ENABLE_I2C
+#define SPLONKLIB_ENABLE_I2C
 #define SPLONKLIB_ENABLE_USB
 
 #elif defined(BOARD_splonkreen_test)
@@ -68,8 +68,18 @@
 #elif defined(BOARD_splonkpad)
 #elif defined(BOARD_splonkreen)
 #elif defined(BOARD_splonknob)
+
+#define SPLONKLIB_ENABLE_UART
+#define SPLONKLIB_ENABLE_EC11
+#define SPLONKLIB_ENABLE_I2C
+
 #elif defined(BOARD_splonkbar)
 #elif defined(BOARD_splonko)
+#elif defined(BOARD_i2c_test)
+
+#define SPLONKLIB_ENABLE_UART
+#define SPLONKLIB_ENABLE_I2C
+
 #else
 #error "No known board has been defined !"
 #endif
