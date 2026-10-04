@@ -85,9 +85,9 @@ void splonk_loop() {
 	debug_print("%s\n", "I'm alive");
 	i2c_register_peer(nullptr, &gcall1, (ipi){});
 	i2c_register_peer(&self, &splonk1, (ipi){SELF_ADDR, IPD_ALL, IPT_SPLONK});
-	// i2c_register_slot(&splonk2, IPT_SPLONK);
-	// i2c_register_slot(&knob1, IPT_SPLONKNOB); // add more slots as needed
-	i2c_register_peer(&peer1, &knob1, (ipi){PEER_ADDR, IPD_ALL, IPT_SPLONK});
+	i2c_register_slot(&splonk2, IPT_SPLONK);
+	i2c_register_slot(&knob1, IPT_SPLONKNOB); // add more slots as needed
+	// i2c_register_peer(&peer1, &knob1, (ipi){PEER_ADDR, IPD_ALL, IPT_SPLONK});
 	i2c_init();
 	i2c_set_addr(SELF_ADDR, 1);
 	i2c_listen();
@@ -159,7 +159,7 @@ void splonk_loop() {
 	debug_print("%s\n", "I'm splonknob");
 	i2c_register_peer(nullptr, &gcall1, (ipi){});
 	i2c_register_peer(&self, &knob1, (ipi){SELF_ADDR, IPD_NONE, IPT_SPLONKNOB});
-	i2c_set_addr(SELF_ADDR, 0);
+	i2c_set_addr(SELF_ADDR, 1);
 	i2c_init();
 	i2c_listen();
 	debug_print("SELF %d type%d", self->info.addr, self->info.type);
