@@ -97,7 +97,7 @@ void splonk_loop() {
 	// debug_print("I'm alive %p, %d, %p", (void *)peer1, peer1->addr, (void *)peer1->io);
 	timer_t t = timer_reset();
 	// timer_t	  tt = timer_reset();
-	timer_t	  ttt = timer_reset();
+	// timer_t	  ttt = timer_reset();
 	splonknob sk = {};
 	// splonk sp = {};
 
@@ -184,7 +184,7 @@ void splonk_loop() {
 		case (ROT_NONE):
 			break;
 		}
-    switch (ec11_poll(&ec_r, &sk.butn_r)) {
+		switch (ec11_poll(&ec_r, &sk.butn_r)) {
 		case (ROT_A):
 			sk.knob_r += 1;
 			break;
