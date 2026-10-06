@@ -7,6 +7,7 @@ PROJECTS =                                                                     \
 	splonko                                                                    \
 	splonknob                                                                  \
 	splonkpad                                                                  \
+	splonkbar                                                                  \
 
 GLOBAL_DEPS = lib Base.mk .clang-format .github Makefile flake.nix flake.lock
 

@@ -42,6 +42,7 @@ I2C_DATA(
 			u8 _pad : 5;
 		};
 	};)
+I2C_DATA(splonkbar, u16 value;)
 
 I2C_DATA(dummy, u8 junk;)
 

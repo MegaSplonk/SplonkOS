@@ -10,6 +10,7 @@
 #define SPLONKLIB_ENABLE_SPI
 #define SPLONKLIB_ENABLE_UART
 #define SPLONKLIB_ENABLE_USB
+#define SPLONKLIB_ENABLE_ADC
 
 #define SPLONKLIB_DISABLE_USB_LED
 
@@ -66,6 +67,8 @@
 #elif defined(BOARD_splonkbar_test)
 
 #define SPLONKLIB_ENABLE_UART
+#define SPLONKLIB_ENABLE_ADC
+#define SPLONKLIB_ENABLE_I2C
 
 #elif defined(BOARD_splonko_test)
 
@@ -101,6 +104,11 @@
 #define SPLONKLIB_ENABLE_I2C
 
 #elif defined(BOARD_splonkbar)
+
+#define SPLONKLIB_ENABLE_UART
+#define SPLONKLIB_ENABLE_ADC
+#define SPLONKLIB_ENABLE_I2C
+
 #elif defined(BOARD_splonko)
 
 #define SPLONKLIB_ENABLE_I2C
