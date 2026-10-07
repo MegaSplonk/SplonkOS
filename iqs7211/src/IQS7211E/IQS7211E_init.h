@@ -12,12 +12,14 @@
 /* Memory Map Position 0x1F - 0x20 */
 #include <assert.h>
 #include <stdint.h>
-#pragma GCC diagnostic push
-#pragma GCC diagnostic warning "-Wpadded"
-#pragma GCC diagnostic warning "-Wmissing-field-initializers"
-#pragma GCC diagnostic warning "-Wmissing-braces"
-#define lowByte(x)	((uint8_t)((x) & 0xFF))
-#define highByte(x) ((uint8_t)(((x) >> 8) & 0xFF))
+
+#ifndef lowByte
+#define lowByte(w) ((uint8_t)((w) & 0xff))
+#endif
+
+#ifndef highByte
+#define highByte(w) ((uint8_t)((w) >> 8))
+#endif
 
 #define ALP_COMPENSATION_A_0 0x51
 #define ALP_COMPENSATION_A_1 0x01
@@ -41,7 +43,6 @@
 #define ALP_ATI_TARGET_0			   0xC8
 #define ALP_ATI_TARGET_1			   0x00
 
-/* Change the Report Rates and Timing */
 /* Memory Map Position 0x28 - 0x32 */
 #define ACTIVE_MODE_REPORT_RATE_0	  0x1E
 #define ACTIVE_MODE_REPORT_RATE_1	  0x00
@@ -151,8 +152,25 @@ constexpr uint8_t  XY_DYNAMIC_FILTER_BOTTOM_BETA_VAL = 0x01;
 constexpr uint8_t  XY_DYNAMIC_FILTER_STATIC_FILTER_BETA_VAL = 0x00;
 constexpr uint8_t  STATIONARY_TOUCH_MOV_THRESHOLD_VAL = 0x14;
 constexpr uint8_t  FINGER_SPLIT_FACTOR_VAL = 0x03;
-constexpr uint8_t  X_TRIM_VALUE_VAL = 0xFF;
-constexpr uint8_t  Y_TRIM_VALUE_VAL = 0xFF;
+constexpr uint8_t  X_TRIM_VALUE_VAL = 0x00;
+constexpr uint8_t  Y_TRIM_VALUE_VAL = 0x00;
+
+struct s_config_0x41 {
+	struct s_trackpad_settings settings;
+	uint16_t				   x_resolution;
+	uint16_t				   y_resolution;
+	uint16_t				   xy_dynamic_filter_bottom_speed;
+	uint16_t				   xy_dynamic_filter_top_speed;
+	uint8_t					   xy_dynamic_filter_bottom_beta;
+	uint8_t					   xy_dynamic_filter_static_filter_beta;
+	uint8_t					   stationary_touch_mov_threshold;
+	uint8_t					   x_trim_value;
+	uint8_t					   y_trim_value;
+};
+
+constexpr struct s_config_0x41 settings_0x41 {
+	.settings = {},
+};
 
 /* Change the Trackpad Settings */
 /* Memory Map Position 0x41 - 0x49 */
@@ -183,50 +201,47 @@ constexpr uint8_t  Y_TRIM_VALUE_VAL = 0xFF;
 /* Change the Gesture Settings */
 /* Memory Map Position 0x4B - 0x55 */
 
+struct s_gesture_enable_bitfield {
+	bool	single_tap : 1;
+	bool	double_tap : 1;
+	bool	triple_tap : 1;
+	bool	press_hold : 1;
+	bool	palm : 1;
+	uint8_t _unused : 3;
+	bool	swipe_xP : 1;
+	bool	swipe_xN : 1;
+	bool	swipe_yP : 1;
+	bool	swipe_yN : 1;
+	bool	swipe_hold_xP : 1;
+	bool	swipe_hold_xN : 1;
+	bool	swipe_hold_yP : 1;
+	bool	swipe_hold_yN : 1;
+};
+
 struct s_gesture_enable {
 	union {
-		struct {
-			bool	single_tap : 1;
-			bool	double_tap : 1;
-			bool	triple_tap : 1;
-			bool	press_hold : 1;
-			bool	palm : 1;
-			uint8_t _unused : 3;
-			bool	swipe_xP : 1;
-			bool	swipe_xN : 1;
-			bool	swipe_yP : 1;
-			bool	swipe_yN : 1;
-			bool	swipe_hold_xP : 1;
-			bool	swipe_hold_xN : 1;
-			bool	swipe_hold_yP : 1;
-			bool	swipe_hold_yN : 1;
-		} val;
-		uint16_t raw;
+		struct s_gesture_enable_bitfield val;
+		uint16_t						 raw;
 	};
 };
 static_assert(sizeof(struct s_gesture_enable) == 2);
 
-constexpr struct s_gesture_enable GESTURE = {
-	/*.val = {
-			.single_tap = false,
-			.double_tap = false,
-			.triple_tap = false,
-			.press_hold = false,
-			.palm = false,
-			._unused = 0,
-			.swipe_xP = false,
-			.swipe_xN = false,
-			.swipe_yP = false,
-			.swipe_yN = false,
-			.swipe_hold_xP = false,
-			.swipe_hold_xN = false,
-			.swipe_hold_yP = false,
-			.swipe_hold_yN = false,
-		}
-	*/
-	//.raw = 0,
-};
-// constexpr uint16_t GESTURE_RAW = GESTURE.raw;
+constexpr struct s_gesture_enable GESTURE = {.val = {
+												 .single_tap = false,
+												 .double_tap = false,
+												 .triple_tap = false,
+												 .press_hold = false,
+												 .palm = false,
+												 ._unused = 0,
+												 .swipe_xP = false,
+												 .swipe_xN = false,
+												 .swipe_yP = false,
+												 .swipe_yN = false,
+												 .swipe_hold_xP = false,
+												 .swipe_hold_xN = false,
+												 .swipe_hold_yP = false,
+												 .swipe_hold_yN = false,
+											 }};
 
 #define GESTURE_ENABLE_0	(lowByte(GESTURE.raw))
 #define GESTURE_ENABLE_1	(highByte(GESTURE.raw))
@@ -368,6 +383,5 @@ constexpr uint8_t CH_2[21] = {
 #define PLACEHOLDER_20 0x05
 #define CH_1_CYCLE_20  (CH_1[20])
 #define CH_2_CYCLE_20  (CH_2[20])
-#pragma GCC diagnostic pop
 
 #endif /* IQS7211E_INIT_H */

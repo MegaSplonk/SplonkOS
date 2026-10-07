@@ -14,6 +14,7 @@ MAKEFLAGS += --no-builtin-rules
 
 # TOOLS
 CC            = avr-gcc
+CXX           = avr-g++
 OBJCOPY       = avr-objcopy
 AR            = avr-gcc-ar
 
@@ -47,6 +48,15 @@ CPPFLAGS      = $(if $(filter 1,$(USE_LIB)),\
 IFLAGS        = -I$(INC_DIR) $(IFLAGS_ADD)
 LDFLAGS       = $(FUCKNIXOS_LDFLAGS) -Wl,--gc-sections -Wl,-flto $(LDFLAGS_ADD)
 AVRDUDE_FLAGS = -c$(PROGRAMMER) -P$(PORT) -b$(BAUD_RATE)
+
+
+CXXFLAGS        = -std=c++23 -g3 -Os -mmcu=$(MCU) $(CXXFLAGS_ADD) -flto -ffunction-sections -fdata-sections -fno-threadsafe-statics
+WXXFLAGS        = $(WERROR) -Wenum-conversion -Wimplicit-fallthrough -Wpedantic \
+                -Wextra -Wall -Wshadow -Wpadded -Wconversion  \
+                -Wmissing-declarations -Wundef -Winline \
+                -Wsign-conversion -Wcast-align -Wcast-qual -Wwrite-strings \
+                -Wuninitialized -Wdouble-promotion -Wfloat-equal \
+                -Wnull-dereference -Wformat=2
 
 # PROJ OPTIONS
 
@@ -102,9 +112,13 @@ endif
 OBJ_DIR = $(OBJ_DIR_BASE)/$(PROJECT_NAME)
 
 SRC=$(addsuffix .c,$(addprefix $(SRC_DIR)/,$(SRC_FILES)))
-OBJ=$(addsuffix .o,$(addprefix $(OBJ_DIR)/,$(SRC_FILES)))
-DEP=$(addsuffix .d,$(addprefix $(OBJ_DIR)/,$(SRC_FILES)))
+OBJ=$(addsuffix .o,$(addprefix $(OBJ_DIR)/,$(SRC_FILES) $(SRC_FILES_CPP)))
+DEP=$(addsuffix .d,$(addprefix $(OBJ_DIR)/,$(SRC_FILES) $(SRC_FILES_CPP)))
 
+
+SRC_CXX=$(addsuffix .cpp,$(addprefix $(SRC_DIR)/,$(SRC_FILES_CXX)))
+OBJ_CXX=$(addsuffix .o,$(addprefix $(OBJ_DIR)/,$(SRC_FILES_CXX)))
+DEP_CXX=$(addsuffix .d,$(addprefix $(OBJ_DIR)/,$(SRC_FILES_CXX)))
 
 LIB_SRC=$(addsuffix .c,$(addprefix $(LIB_SRC_DIR), $(LIB_SRC_FILES)))
 LIB_OBJ=$(addsuffix .o,$(addprefix $(OBJ_DIR)/lib/,$(LIB_SRC_FILES)))
@@ -174,16 +188,28 @@ define cc_obj
 	$(CC) $(CPPFLAGS) $(WFLAGS) $(CFLAGS) $(IFLAGS) -c $< -o $@
 endef
 
+define cxx_obj
+	mkdir -p $(shell dirname $@)
+	printf " CXX $<\n"
+	$(CXX) $(CPPFLAGS) $(WXXFLAGS) $(CXXFLAGS) $(IFLAGS) -c $< -o $@
+endef
+
 $(OBJ_DIR)/%.o: $(SRC_DIR)/%.c
 	@$(cc_obj)
+
+$(OBJ_DIR)/%.o: $(SRC_DIR)/%.cpp
+	@$(cxx_obj)
 
 $(OBJ_DIR)/lib/%.o: $(LIB_SRC_DIR)/%.c
 	@$(cc_obj)
 
-$(ELF_FILE): $(OBJ) $(LIB_OBJ)
+$(ELF_FILE): $(OBJ) $(LIB_OBJ) $(OBJ_CPP)
 	@printf " CCLD $@ $(if $(filter 1,$(USE_LIB)),[With Lib])\n"
+ifneq ($(PROJECT_USE_CPP),y)
 	@$(CC) $(CFLAGS) $^ $(LDFLAGS) -o $@
-
+else
+	@$(CXX) $(CXXFLAGS) $^ $(LDFLAGS) -o $@
+endif
 
 $(HEX_FILE): $(ELF_FILE)
 	@printf " OBJCOPY $@\n"
@@ -198,6 +224,14 @@ filelist:
 		| sort \
 		| while read f; do printf '%-78s\\\n' "$$f"; done >> "$(PROJECT_FILELIST)"
 	@echo "" >> "$(PROJECT_FILELIST)"
+ifeq ($(PROJECT_USE_CPP),y)
+	@printf '%-78s\\\n' "SRC_FILES_CPP =" >> "$(PROJECT_FILELIST)"
+	@find -L "$(SRC_DIR)" -type f -name '*.cpp' \
+		| sed -e 's|^$(SRC_DIR)/||' -e 's|\.cpp$$||' \
+		| sort \
+		| while read f; do printf '%-78s\\\n' "$$f"; done >> "$(PROJECT_FILELIST)"
+	@echo "" >> "$(PROJECT_FILELIST)"
+endif
 	@echo "-include $(LIB_DIR)/Filelist.mk" >> "$(PROJECT_FILELIST)"
 	@$(MAKE) --no-print-directory -C $(LIB_DIR) filelist
 	@printf "Filelist: $(PROJECT_NAME)\n"

@@ -64,6 +64,11 @@
 
 #define SPLONKLIB_ENABLE_UART
 
+#elif defined(BOARD_iqs7211e_test)
+
+#define SPLONKLIB_ENABLE_USB
+#define SPLONKLIB_ENABLE_UART
+
 #elif defined(BOARD_splonk)
 
 #define SPLONKLIB_ENABLE_I2C

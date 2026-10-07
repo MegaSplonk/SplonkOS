@@ -12,4 +12,5 @@ int	   usb_serial_availableForWrite(void);
 void   usb_serial_flush(void);
 size_t usb_serial_write1(uint8_t byte);
 size_t usb_serial_write(const uint8_t *buf, size_t size);
+u8	   usb_serial_line_state(void);
 // }
