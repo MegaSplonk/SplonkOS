@@ -73,6 +73,11 @@ void usb_serial_flush(void) {
 	USB_Flush(CDC_TX(cdc));
 }
 
+u8 usb_serial_line_state(void) {
+	struct pu_cdc *cdc = pu_cdc();
+	return cdc->_usbLineInfo.lineState;
+}
+
 usize usb_serial_write(const u8 *buffer, usize size) {
 	struct pu_cdc *cdc = pu_cdc();
 	/* only try to send bytes if the high-level CDC connection itself

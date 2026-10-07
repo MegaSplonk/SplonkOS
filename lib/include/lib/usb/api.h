@@ -3,13 +3,24 @@
 #include "lib/usb/core.h"
 
 #define _NBV(b)		   ((uint8_t)~(1 << (b)))
+
+#ifndef TX_RX_LED_INIT
 #define TX_RX_LED_INIT DDRD |= _BV(5), DDRB |= _BV(0)
+#endif
 
+#ifndef TXLED0
 #define TXLED0 PORTD |= _BV(5)
+#endif
+#ifndef TXLED1
 #define TXLED1 PORTD &= _NBV(5)
+#endif
 
+#ifndef RXLED0
 #define RXLED0 PORTB |= _BV(0)
+#endif
+#ifndef RXLED1
 #define RXLED1 PORTB &= _NBV(0)
+#endif
 
 #define USB_EP_SIZE 64
 

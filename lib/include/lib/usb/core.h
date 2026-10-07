@@ -110,8 +110,12 @@
 #define USB_CONFIG_POWER (500)
 #endif
 
+#ifndef lowByte
 #define lowByte(val)  ((u8)((val) & 0xff))
+#endif
+#ifndef highByte
 #define highByte(val) ((u8)((val) & 0xff00) >> 8)
+#endif
 
 // bEndpointAddress in Endpoint Descriptor
 #define USB_ENDPOINT_DIRECTION_MASK 0x80
