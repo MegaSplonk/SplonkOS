@@ -100,6 +100,11 @@ void splonk_loop() {
 	// timer_t	  ttt = timer_reset();
 	splonknob sk = {};
 	// splonk sp = {};
+#ifdef PINOUT_splonk
+  pin_output((pin)ACT_LED);
+  pin_set((pin)ACT_LED, true);
+#endif
+  ugly_and_evil_usb_symlink();
 
 	while (true) {
 		if (timer_wait(&t, 10)) {

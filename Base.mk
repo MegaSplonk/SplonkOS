@@ -158,12 +158,12 @@ wait-device:
 .PHONY: flash
 flash: hex
 	@$(MAKE) --no-print-directory wait-device
-ifeq ($(MCU),atmega32u4)
-	@printf " STTY $(PORT) 1200\n"
-	@stty -F $(PORT) speed 1200 >/dev/null
-	@sleep 1
-	@$(MAKE) --no-print-directory wait-device
-endif
+# ifeq ($(MCU),atmega32u4)
+# 	@printf " STTY $(PORT) 1200\n"
+# 	@stty -F $(PORT) speed 1200 >/dev/null
+# 	@sleep 1
+# 	@$(MAKE) --no-print-directory wait-device
+# endif
 	@printf " FLASH[$(MCU)] $(HEX_FILE)\n"
 	@avrdude -p $(MCU) $(AVRDUDE_FLAGS) -U flash:w:$(HEX_FILE):i
 
@@ -193,7 +193,7 @@ $(HEX_FILE): $(ELF_FILE)
 filelist:
 	@rm -f "$(PROJECT_FILELIST)"
 	@printf '%-78s\\\n' "SRC_FILES =" > "$(PROJECT_FILELIST)"
-	@find "$(SRC_DIR)" -type f -name '*.c' \
+	@find -L "$(SRC_DIR)" -type f -name '*.c' \
 		| sed -e 's|^$(SRC_DIR)/||' -e 's|\.c$$||' \
 		| sort \
 		| while read f; do printf '%-78s\\\n' "$$f"; done >> "$(PROJECT_FILELIST)"
