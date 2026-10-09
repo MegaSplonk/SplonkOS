@@ -38,7 +38,7 @@ int main(void) {
 
 	// struct HID_NKRO_report report_nkro = {};
 	// struct HID_MOUSE_report report_mouse = {};
-	struct HID_CC_report report_cc = {};
+	// struct HID_CC_report report_cc = {};
 	// struct HID_SLIDER_report report_slider = {};
 
 	pin_input((pin)D10);
@@ -51,12 +51,12 @@ int main(void) {
 			// report_nkro.lmeta = true;
 			// report_nkro.keys[KEY >> 3] = _BV((KEY & 7));
 			// report_mouse.x = 10;
-			report_cc.vol_inc = 1;
+			// report_cc.vol_inc = 1;
 		} else {
 			// report_mouse.x = 0;
 			// report_nkro.lmeta = false;
 			// report_nkro.keys[KEY >> 3] = 0;
-			report_cc.vol_inc = 0;
+			// report_cc.vol_inc = 0;
 		}
 		// u16	  adc_val = adc_read_pin(ADC_ADC13);
 		// char  itoa_buf[20] = {};

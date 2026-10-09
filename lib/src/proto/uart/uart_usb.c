@@ -6,16 +6,6 @@
 #include "lib/time.h"
 #include "lib/usb/cdc.h"
 
-static usize ft_strlen(const char *s) {
-	usize i = 0;
-	if (!s)
-		return i;
-	while (s[i]) {
-		i++;
-	}
-	return i;
-}
-
 GRBIO_INIT(UART_BUF, UART_IBUF, UART_OBUF, UART_IBUF_LEN, UART_OBUF_LEN);
 
 static void _inner_uart_send(void) {
