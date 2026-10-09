@@ -1,190 +1,233 @@
-#!/usr/bin/env python3
-
 import sys
-import tkinter as tk
-import threading
+import re
 import queue
+import threading
+import tkinter as tk
+from collections import deque
 
+# ============================================================
+# Configuration
+# ============================================================
 
+MAX_SIZE = 500
 MAX_VALUE = 0x3FFF
+POINT_RADIUS = 5
+POLL_INTERVAL_MS = 30
+TRACE_LINES = 5
 
-# Queue used to safely pass stdin data to the Tkinter thread.
-data_queue = queue.Queue()
+LINE_PATTERN = re.compile(r"@([0-9]+)'([0-9]+)#")
+
+# Thread-safe communication between stdin reader and GUI
+input_queue = queue.Queue()
 
 
-class PointViewer:
-    def __init__(self, root):
-        self.root = root
-        self.root.title("XY Point Viewer")
-
-        self.canvas_size = 500
-        self.margin = 40
-
-        # ---- Canvas ----
-        self.canvas = tk.Canvas(
-            root,
-            width=self.canvas_size,
-            height=self.canvas_size,
-            bg="white",
-            highlightthickness=1,
-            highlightbackground="black",
-        )
-        self.canvas.pack(padx=10, pady=10)
-
-        # Draw coordinate square.
-        self.canvas.create_rectangle(
-            self.margin,
-            self.margin,
-            self.canvas_size - self.margin,
-            self.canvas_size - self.margin,
-            outline="black",
-        )
-
-        # Axis labels
-        self.canvas.create_text(
-            self.canvas_size / 2,
-            self.canvas_size - 15,
-            text="X",
-        )
-
-        self.canvas.create_text(
-            15,
-            self.canvas_size / 2,
-            text="Y",
-            angle=90,
-        )
-
-        # ---- Information ----
-        self.coordinate_label = tk.Label(
-            root,
-            text="X: --    Y: --",
-            font=("TkDefaultFont", 14),
-        )
-        self.coordinate_label.pack(pady=(0, 5))
-
-        self.status_label = tk.Label(
-            root,
-            text="Waiting for data...",
-            font=("TkDefaultFont", 14),
-            fg="green",
-        )
-        self.status_label.pack(pady=(0, 10))
-
-        self.point = None
-
-        # Check the input queue periodically.
-        self.root.after(20, self.process_queue)
-
-    def process_queue(self):
-        try:
-            while True:
-                line = data_queue.get_nowait()
-                self.process_line(line)
-        except queue.Empty:
-            pass
-
-        self.root.after(20, self.process_queue)
-
-    def process_line(self, line):
-        line = line.strip()
-
-        if not line:
-            return
-
-        # Split on arbitrary whitespace.
-        fields = line.split()
-
-        # We need at least:
-        # field 0 = unused
-        # field 1 = X
-        # field 2 = Y
-        if len(fields) < 3:
-            self.show_error(f"Invalid input: {line}")
-            return
-
-        try:
-            x = int(fields[1], 0)
-            y = int(fields[2], 0)
-        except ValueError:
-            self.show_error(f"Invalid numbers: {line}")
-            return
-
-        self.coordinate_label.config(text=f"X: {x} (0x{x:X})    Y: {y} (0x{y:X})")
-
-        # Check for error.
-        if x > MAX_VALUE or y > MAX_VALUE:
-            self.show_error(f"ERROR: coordinate exceeds 0x{MAX_VALUE:X}")
-            return
-
-        # Valid point.
-        self.status_label.config(
-            text="OK",
-            fg="green",
-        )
-
-        self.draw_point(x, y)
-
-    def show_error(self, message):
-        self.status_label.config(
-            text=message,
-            fg="red",
-        )
-
-    def draw_point(self, x, y):
-        # Remove previous point.
-        if self.point is not None:
-            self.canvas.delete(self.point)
-
-        # Map 0..0x1000 to the square.
-        plot_size = self.canvas_size - 2 * self.margin
-
-        px = self.margin + (x / MAX_VALUE) * plot_size
-
-        # Canvas Y coordinates increase downward,
-        # so invert Y.
-        py = self.canvas_size - self.margin - (y / MAX_VALUE) * plot_size
-
-        radius = 6
-
-        self.point = self.canvas.create_oval(
-            px - radius,
-            py - radius,
-            px + radius,
-            py + radius,
-            fill="blue",
-            outline="black",
-        )
+# ============================================================
+# Input handling
+# ============================================================
 
 
 def stdin_reader():
     """
-    Read stdin continuously.
+    Read stdin in a background thread.
 
-    This runs in a separate thread so that blocking on stdin
-    does not freeze the Tkinter GUI.
+    Every received line is forwarded to the GUI, including
+    invalid lines. EOF is reported explicitly.
     """
-    for line in sys.stdin:
-        data_queue.put(line)
+    try:
+        while True:
+            line = sys.stdin.readline()
 
-    # stdin closed
-    data_queue.put("__EOF__")
+            if line == "":
+                input_queue.put(("EOF", None))
+                break
+
+            # Remove only the line terminator, not other whitespace
+            line = line.rstrip("\r\n")
+            input_queue.put(("LINE", line))
+
+    except Exception as exc:
+        input_queue.put(("ERROR", str(exc)))
 
 
-def main():
-    root = tk.Tk()
+def parse_line(line):
+    """
+    Return (x, y, status).
 
-    viewer = PointViewer(root)
+    Invalid input never raises an exception.
+    """
+    match = LINE_PATTERN.fullmatch(line)
 
-    # stdin must be read from a separate thread because
-    # sys.stdin.readline() can block.
-    thread = threading.Thread(
-        target=stdin_reader,
-        daemon=True,
+    if not match:
+        return None, None, "INVALID FORMAT"
+
+    try:
+        x = int(match.group(1))
+        y = int(match.group(2))
+    except ValueError:
+        return None, None, "INVALID NUMBER"
+
+    if not (0 <= x <= MAX_VALUE):
+        return None, None, "X OUT OF RANGE"
+
+    if not (0 <= y <= MAX_VALUE):
+        return None, None, "Y OUT OF RANGE"
+
+    return x, y, "OK"
+
+
+# ============================================================
+# GUI callbacks
+# ============================================================
+
+trace = deque(maxlen=TRACE_LINES)
+last_point = None
+stdin_finished = False
+
+
+def draw_point(x, y):
+    """Draw a point, with (0, 0) at the bottom-left."""
+    px = x * (MAX_SIZE - 1) / MAX_VALUE
+    py = (MAX_VALUE - y) * (MAX_SIZE - 1) / MAX_VALUE
+
+    canvas.delete("point")
+
+    canvas.create_oval(
+        px - POINT_RADIUS,
+        py - POINT_RADIUS,
+        px + POINT_RADIUS,
+        py + POINT_RADIUS,
+        fill="red",
+        outline="black",
+        tags="point",
     )
-    thread.start()
-
-    root.mainloop()
 
 
-if __name__ == "__main__":
-    main()
+def render_trace():
+    """Refresh the trace area with the last five input lines."""
+    trace_list.delete(0, tk.END)
+
+    for raw_line, status in trace:
+        # repr() makes blank lines and whitespace visible
+        display_line = repr(raw_line)
+        trace_list.insert(tk.END, f"{display_line}  ->  {status}")
+
+
+def process_line(line):
+    """Record every input line and update the point if valid."""
+    global last_point
+
+    x, y, status = parse_line(line)
+
+    # Record valid and invalid lines alike
+    trace.append((line, status))
+    render_trace()
+
+    if status != "OK":
+        return
+
+    last_point = (x, y)
+
+    coordinates_label.config(text=f"X: {x}    Y: {y}")
+    draw_point(x, y)
+
+
+def poll_input():
+    """Process queued input without blocking Tkinter."""
+    global stdin_finished
+
+    # Limit work per callback to keep the GUI responsive
+    for _ in range(500):
+        try:
+            kind, data = input_queue.get_nowait()
+        except queue.Empty:
+            break
+
+        if kind == "LINE":
+            process_line(data)
+
+        elif kind == "EOF":
+            stdin_finished = True
+            status_label.config(text="stdin closed — displaying last point")
+
+        elif kind == "ERROR":
+            stdin_finished = True
+            status_label.config(text=f"stdin error: {data}")
+
+    root.after(POLL_INTERVAL_MS, poll_input)
+
+
+def clear_point():
+    """Clear the point without clearing the input trace."""
+    global last_point
+
+    last_point = None
+    canvas.delete("point")
+    coordinates_label.config(text="X: --    Y: --")
+
+
+# ============================================================
+# Build the GUI
+# ============================================================
+
+root = tk.Tk()
+root.title("Coordinate Viewer")
+root.resizable(False, False)
+
+coordinates_label = tk.Label(
+    root,
+    text="X: --    Y: --",
+    font=("Arial", 14),
+)
+coordinates_label.pack(pady=(10, 5))
+
+canvas = tk.Canvas(
+    root,
+    width=MAX_SIZE,
+    height=MAX_SIZE,
+    bg="white",
+    highlightthickness=1,
+    highlightbackground="black",
+)
+canvas.pack(padx=10, pady=5)
+
+# Draw a subtle center crosshair
+center = (MAX_SIZE - 1) / 2
+canvas.create_line(center, 0, center, MAX_SIZE, fill="#dddddd")
+canvas.create_line(0, center, MAX_SIZE, center, fill="#dddddd")
+
+status_label = tk.Label(
+    root,
+    text="Waiting for stdin...",
+    anchor="w",
+    font=("Arial", 9),
+)
+status_label.pack(fill="x", padx=10, pady=5)
+
+# Input trace at the bottom
+trace_frame = tk.LabelFrame(
+    root,
+    text="Last 5 input lines (newest at bottom)",
+    padx=5,
+    pady=5,
+)
+trace_frame.pack(fill="x", padx=10, pady=(0, 10))
+
+trace_list = tk.Listbox(
+    trace_frame,
+    width=65,
+    height=TRACE_LINES,
+    font=("Courier New", 9),
+    activestyle="none",
+)
+trace_list.pack(fill="x")
+
+# Start the reader. It never accesses Tkinter widgets.
+reader_thread = threading.Thread(
+    target=stdin_reader,
+    name="stdin-reader",
+    daemon=True,
+)
+reader_thread.start()
+
+root.after(POLL_INTERVAL_MS, poll_input)
+root.mainloop()

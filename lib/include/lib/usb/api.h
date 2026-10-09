@@ -2,7 +2,7 @@
 
 #include "lib/usb/core.h"
 
-#define _NBV(b)		   ((uint8_t)~(1 << (b)))
+#define _NBV(b) ((uint8_t)~(1 << (b)))
 
 #ifndef TX_RX_LED_INIT
 #define TX_RX_LED_INIT DDRD |= _BV(5), DDRB |= _BV(0)

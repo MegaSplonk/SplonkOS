@@ -28,6 +28,7 @@
 extern "C" {
 #endif
 unsigned long micros(void);
+unsigned long millis(void);
 #ifdef __cplusplus
 }
 #endif

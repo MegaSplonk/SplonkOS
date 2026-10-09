@@ -28,8 +28,13 @@
  ******************************************************************************/
 
 #include "./IQS7211E/IQS7211E.h"
+extern "C" {
+#include "lib/pinout.h"
+#include "lib/proto/uart.h"
+#include "lib/usb/cdc.h"
 #include "shim/Arduino.h"
 #include "shim/ArduinoPin.h"
+}
 
 void printPowerMode(void);
 void show_iqs7211e_data(void);
@@ -57,21 +62,11 @@ iqs7211e_gestures_e	 running_gestures = IQS7211E_GESTURE_NONE;
 
 extern "C" void setup() {
 	/* Start Serial Communication */
-	Serial.begin(115200);
-	while (!Serial)
-		;
-	Serial.println("Start Serial communication");
-
-	/* Power On IQS7211E */
-	pinMode(DEMO_IQS7211E_POWER_PIN, OUTPUT);
-	delay(200);
-	digitalWrite(DEMO_IQS7211E_POWER_PIN, LOW);
-	delay(200);
-	digitalWrite(DEMO_IQS7211E_POWER_PIN, HIGH);
+	uart_sendstring("Start Serial communication\r\n");
 
 	/* Initialize the IQS7211E with input parameters device address and RDY pin */
-	iqs7211e.begin(DEMO_IQS7211E_ADDR, DEMO_IQS7211E_RDY_PIN);
-	Serial.println("IQS7211E Ready");
+	iqs7211e.begin(SoftwareWire(D2, D3, false, true), DEMO_IQS7211E_ADDR, D1);
+	uart_sendstring("IQS7211E Ready\r\n");
 	delay(1);
 }
 
@@ -99,6 +94,7 @@ extern "C" void loop() {
 		/* Check if a force comms command was sent and if we should display the data read */
 		show_iqs7211e_data();
 	}
+	delay(1);
 }
 
 /* Check if one of the gesture flags is set and display which one */
@@ -108,59 +104,59 @@ void printGesture(void) {
 
 	switch (buffer) {
 	case IQS7211E_GESTURE_SINGLE_TAP:
-		Serial.print("Single Tap\t\t");
+		uart_sendstring("Single Tap\t\t");
 		break;
 
 	case IQS7211E_GESTURE_DOUBLE_TAP:
-		Serial.print("Double Tap\t\t");
+		uart_sendstring("Double Tap\t\t");
 		break;
 
 	case IQS7211E_GESTURE_TRIPLE_TAP:
-		Serial.print("Triple Tap\t\t");
+		uart_sendstring("Triple Tap\t\t");
 		break;
 
 	case IQS7211E_GESTURE_PRESS_HOLD:
-		Serial.print("Press and Hold\t\t");
+		uart_sendstring("Press and Hold\t\t");
 		break;
 
 	case IQS7211E_GESTURE_PALM_GESTURE:
-		Serial.print("Palm Gesture\t\t");
+		uart_sendstring("Palm Gesture\t\t");
 		break;
 
 	case IQS7211E_GESTURE_SWIPE_X_POSITIVE:
-		Serial.print("Swipe X +\t\t");
+		uart_sendstring("Swipe X +\t\t");
 		break;
 
 	case IQS7211E_GESTURE_SWIPE_X_NEGATIVE:
-		Serial.print("Swipe X -\t\t");
+		uart_sendstring("Swipe X -\t\t");
 		break;
 
 	case IQS7211E_GESTURE_SWIPE_Y_POSITIVE:
-		Serial.print("Swipe Y +\t\t");
+		uart_sendstring("Swipe Y +\t\t");
 		break;
 
 	case IQS7211E_GESTURE_SWIPE_Y_NEGATIVE:
-		Serial.print("Swipe Y -\t\t");
+		uart_sendstring("Swipe Y -\t\t");
 		break;
 
 	case IQS7211E_GESTURE_SWIPE_HOLD_X_POSITIVE:
-		Serial.print("Swipe and Hold X +\t");
+		uart_sendstring("Swipe and Hold X +\t");
 		break;
 
 	case IQS7211E_GESTURE_SWIPE_HOLD_X_NEGATIVE:
-		Serial.print("Swipe and Hold X -\t");
+		uart_sendstring("Swipe and Hold X -\t");
 		break;
 
 	case IQS7211E_GESTURE_SWIPE_HOLD_Y_POSITIVE:
-		Serial.print("Swipe and Hold Y +\t");
+		uart_sendstring("Swipe and Hold Y +\t");
 		break;
 
 	case IQS7211E_GESTURE_SWIPE_HOLD_Y_NEGATIVE:
-		Serial.print("Swipe and Hold Y -\t");
+		uart_sendstring("Swipe and Hold Y -\t");
 		break;
 
 	default:
-		Serial.print("-\t\t\t");
+		uart_sendstring("-\t\t\t");
 		break;
 	}
 
@@ -171,32 +167,32 @@ void printGesture(void) {
 /* Check Power mode and print out the current power mode */
 void printPowerMode(void) {
 	iqs7211e_power_modes buffer = iqs7211e.getPowerMode();
-	Serial.println();
+	uart_sendstring("\r\n");
 	return;
 
 	switch (buffer) {
 	case IQS7211E_ACTIVE:
-		Serial.println("Active Mode");
+		uart_sendstring("Active Mode\r\n");
 		break;
 
 	case IQS7211E_IDLE_TOUCH:
-		Serial.println("Idle-Touch Mode");
+		uart_sendstring("Idle-Touch Mode\r\n");
 		break;
 
 	case IQS7211E_IDLE:
-		Serial.println("Idle Mode");
+		uart_sendstring("Idle Mode\r\n");
 		break;
 
 	case IQS7211E_LP1:
-		Serial.println("Low Power 1 Mode");
+		uart_sendstring("Low Power 1 Mode\r\n");
 		break;
 
 	case IQS7211E_LP2:
-		Serial.println("Low Power 2 Mode");
+		uart_sendstring("Low Power 2 Mode\r\n");
 		break;
 
 	default:
-		Serial.println("Unknown Mode");
+		uart_sendstring("Unknown Mode\r\n");
 		break;
 	}
 
@@ -210,7 +206,7 @@ void printHeading(void) {
 	if ((iqs7211e.getAbsXCoordinate(FINGER_1) == 65535) &&
 		(iqs7211e.getAbsYCoordinate(FINGER_1) == 65535) &&
 		(iqs7211e.IQSMemoryMap.GESTURES[0] == 0) && (iqs7211e.IQSMemoryMap.GESTURES[1] == 0)) {
-		// Serial.println("Finger 1 X:\tFinger 1 Y:");
+		// uart_sendstring("Finger 1 X:\tFinger 1 Y:\r\n");
 	}
 }
 
@@ -232,17 +228,14 @@ bool printData(void) {
 
 /* Function to print the X and Y coordinates of finger 1 */
 void printCoordinates(void) {
-	uint16_t buffer = iqs7211e.getAbsXCoordinate(FINGER_1);
+	uint16_t x = iqs7211e.getAbsXCoordinate(FINGER_1);
+	uint16_t y = iqs7211e.getAbsYCoordinate(FINGER_1);
 
-	Serial.print(buffer); // Print X coordinates
-	running_x_output = buffer;
-	Serial.print("\t\t"); // Spacing to match headings in Print
-
-	buffer = iqs7211e.getAbsYCoordinate(FINGER_1);
-
-	Serial.print(buffer); // Print Y coordinates
-	running_y_output = buffer;
-	Serial.print("\t\t"); // Spacing to match headings in Print
+	uart_sendstring("@");
+	uart_send_u16(x);
+	uart_sendstring("'");
+	uart_send_u16(y);
+	uart_sendstring("#");
 }
 
 /* Force the IQS7211E to open a RDY window and read the current state of the device */
@@ -258,7 +251,7 @@ void force_comms_and_reset(void) {
 
 	/* If an 'r' was received over serial, request a software(SW) reset */
 	if (message == 'r') {
-		Serial.println("Software Reset Requested!");
+		uart_sendstring("Software Reset Requested!");
 		iqs7211e.force_I2C_communication(); // Request a RDY window
 		iqs7211e.iqs7211e_state.state = IQS7211E_STATE_SW_RESET;
 		running_power_mode = IQS7211E_IDLE;
@@ -270,10 +263,8 @@ void force_comms_and_reset(void) {
 
 /* Read message sent over serial communication */
 char read_message(void) {
-	while (Serial.available()) {
-		if (Serial.available() > 0) {
-			return Serial.read();
-		}
+	if (usb_serial_available() > 0) {
+		return uart_rx();
 	}
 
 	return '\n';
@@ -282,18 +273,18 @@ char read_message(void) {
 /* Shows the current IQS7211E data when a force comms command was sent */
 void show_iqs7211e_data() {
 	if (show_data) {
-		Serial.println(
-			"\n**************************************************************************");
-		Serial.println(
-			"********************* IQS7211E DATA - FORCED COMMS ***********************");
-		Serial.println(
-			"**************************************************************************");
-		Serial.println("Gesture:\t\tFinger 1 X:\tFinger 1 Y:\tPower Mode:");
+		uart_sendstring(
+			"\n**************************************************************************\r\n");
+		uart_sendstring(
+			"********************* IQS7211E DATA - FORCED COMMS ***********************\r\n");
+		uart_sendstring(
+			"**************************************************************************\r\n");
+		uart_sendstring("Gesture:\t\tFinger 1 X:\tFinger 1 Y:\tPower Mode:\r\n");
 		printGesture();
 		printCoordinates();
 		printPowerMode();
-		Serial.println(
-			"**************************************************************************");
+		uart_sendstring(
+			"**************************************************************************\r\n");
 		show_data = false;
 	}
 }

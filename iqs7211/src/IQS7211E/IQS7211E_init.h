@@ -168,7 +168,7 @@ struct s_config_0x41 {
 	uint8_t					   y_trim_value;
 };
 
-constexpr struct s_config_0x41 settings_0x41 {
+constexpr struct s_config_0x41 settings_0x41{
 	.settings = {},
 };
 

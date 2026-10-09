@@ -111,7 +111,7 @@
 #endif
 
 #ifndef lowByte
-#define lowByte(val)  ((u8)((val) & 0xff))
+#define lowByte(val) ((u8)((val) & 0xff))
 #endif
 #ifndef highByte
 #define highByte(val) ((u8)((val) & 0xff00) >> 8)

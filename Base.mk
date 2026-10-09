@@ -50,7 +50,7 @@ LDFLAGS       = $(FUCKNIXOS_LDFLAGS) -Wl,--gc-sections -Wl,-flto $(LDFLAGS_ADD)
 AVRDUDE_FLAGS = -c$(PROGRAMMER) -P$(PORT) -b$(BAUD_RATE)
 
 
-CXXFLAGS        = -std=c++23 -g3 -Os -mmcu=$(MCU) $(CXXFLAGS_ADD) -flto -ffunction-sections -fdata-sections -fno-threadsafe-statics
+CXXFLAGS        = -std=c++23 -g3 -Os -mmcu=$(MCU) $(CXXFLAGS_ADD) -fno-threadsafe-statics -flto -ffunction-sections -fdata-sections
 WXXFLAGS        = $(WERROR) -Wenum-conversion -Wimplicit-fallthrough -Wpedantic \
                 -Wextra -Wall -Wshadow -Wpadded -Wconversion  \
                 -Wmissing-declarations -Wundef -Winline \

@@ -5,12 +5,14 @@ extern "C" {
 #endif
 
 #include "lib/lib.h"
+#include "lib/pin.h"
 
 t_error pinMode(uint8_t p, uint8_t mode);
 t_error digitalWrite(uint8_t pin, uint8_t state);
 uint8_t digitalRead(uint8_t pin);
 void	attachInterrupt(uint8_t interruptNum, void (*userFunc)(void), int mode);
 void	detachInterrupt(uint8_t interruptNum);
+pin		convertPin(uint8_t p);
 
 #ifdef __cplusplus
 }
