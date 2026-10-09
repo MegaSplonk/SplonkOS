@@ -16,8 +16,6 @@
 #define ROW4 _P(F, 0)
 
 #define KM_ROWS {ROW1, ROW2, ROW3, ROW4}
-constexpr pin	km_rows[] = KM_ROWS;
-constexpr usize km_rows_size = tabsize(km_rows);
 
 #define COL1 _P(D, 4)
 #define COL2 _P(D, 6)
@@ -27,6 +25,4 @@ constexpr usize km_rows_size = tabsize(km_rows);
 #define COL6 _P(B, 6)
 
 #define KM_COLS {COL1, COL2, COL3, COL4, COL5, COL6}
-constexpr pin	km_cols[] = KM_COLS;
-constexpr usize km_cols_size = tabsize(km_cols);
-constexpr usize km_size = km_rows_size * km_cols_size;
+
