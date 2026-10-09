@@ -46,12 +46,13 @@ bear:
 		$(MAKE) USE_ABSOLUTE_PATH=1 --no-print-directory -C $(p) hex;\
 	)
 
-.PHONY: .allhex
 .allhex:
-	@$(foreach p,$(PROJECTS),\
-		printf "Building: $(p) [only hex]\n";\
-		$(MAKE) --no-print-directory -C $(p) hex;\
-	)
+	@status=0; \
+	$(foreach p,$(PROJECTS),\
+		printf "Building: $(p) [only hex]\n"; \
+		$(MAKE) --no-print-directory -C $(p) hex || status=1; \
+	) \
+	exit $$status
 
 .PHONY: format
 format:
