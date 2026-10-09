@@ -17,18 +17,18 @@ constexpr usize km_cols_size = tabsize(km_cols);
 constexpr usize km_size = km_rows_size * km_cols_size;
 
 #ifdef KM_SENSE_COLS
-constexpr pin km_sense[] = km_cols;
+constexpr pin	km_sense[] = KM_COLS;
 constexpr usize km_sense_size = km_cols_size;
-constexpr pin km_probe[] = km_rows;
+constexpr pin	km_probe[] = KM_ROWS;
 constexpr usize km_probe_size = km_rows_size;
 #else
-constexpr pin km_sense[] = km_rows;
+constexpr pin	km_sense[] = KM_ROWS;
 constexpr usize km_sense_size = km_rows_size;
-constexpr pin km_probe[] = km_cols;
+constexpr pin	km_probe[] = KM_COLS;
 constexpr usize km_probe_size = km_cols_size;
 #endif
 
-void km_init(void);
-void km_scan(void);
+void	km_init(void);
+t_error km_scan(u8 *keys, usize m_size);
 
 #endif
