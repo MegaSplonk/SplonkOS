@@ -22,7 +22,7 @@
 // #include "Arduino.h"
 // #include "Wire.h"
 
-#include "shim/Serial.h"
+#include "SoftwareWire.h"
 
 #include "./inc/iqs7211e_addresses.h"
 
@@ -196,7 +196,7 @@ class IQS7211E {
 	bool				new_data_available;
 
 	/* Public Methods */
-	void	 begin(uint8_t deviceAddressIn, uint8_t readyPinIn);
+	void	 begin(SoftwareWire wire_, uint8_t deviceAddressIn, pin readyPinIn);
 	bool	 init(void);
 	void	 run(void);
 	void	 queueValueUpdates(void);
@@ -227,6 +227,7 @@ class IQS7211E {
 	void force_I2C_communication(void);
 
   private:
+	SoftwareWire wire;
 	/* Private Variables */
 	uint8_t _deviceAddress;
 

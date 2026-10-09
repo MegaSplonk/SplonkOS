@@ -19,14 +19,17 @@
 #include "IQS7211E.h"
 #include "IQS7211E_init.h"
 
+extern "C" {
+#include "lib/proto/uart.h"
+#include "lib/pin.h"
 #include "shim/Arduino.h"
 #include "shim/ArduinoPin.h"
-
-#include "shim/Wire.h"
+}
+#include "SoftwareWire.h"
 
 /* Private Global Variables */
-bool	iqs7211e_deviceRDY = false;
-uint8_t iqs7211e_ready_pin;
+bool iqs7211e_deviceRDY = false;
+pin	 iqs7211e_ready_pin;
 
 /* Private Functions */
 void iqs7211e_ready_interrupt(void);
@@ -57,15 +60,16 @@ IQS7211E::IQS7211E() {}
  *         - If communication is successfully established then it is unlikely
  *           that initialization will fail.
  */
-void IQS7211E::begin(uint8_t deviceAddressIn, uint8_t readyPinIn) {
+void IQS7211E::begin(SoftwareWire wire_, uint8_t deviceAddressIn, pin readyPinIn) {
+	wire = wire_;
 	/* Initialize I2C communication here, since this library can't function
 	  without it. */
-	Wire.begin();
-	Wire.setClock(400000);
+	wire.begin();
+	wire.setClock(100'000);
 
 	_deviceAddress = deviceAddressIn;
-	iqs7211e_ready_pin = readyPinIn;
-	attachInterrupt(digitalPinToInterrupt(iqs7211e_ready_pin), iqs7211e_ready_interrupt, CHANGE);
+	iqs7211e_ready_pin = (readyPinIn);
+	attachInterrupt(digitalPinToInterrupt(0), iqs7211e_ready_interrupt, CHANGE);
 
 	/* Initialize "running" and "init" state machine variables. */
 	iqs7211e_state.state = IQS7211E_STATE_START;
@@ -82,7 +86,7 @@ void IQS7211E::begin(uint8_t deviceAddressIn, uint8_t readyPinIn) {
  * @note   - No false return will be given, the program will thus be stuck when
  *           one of the cases is not able to finish.
  *         - See serial communication to find the ERROR case.
- *         - Note that the Serial.println commands can be commented out to save
+ *         - Note that the Serial::println commands can be commented out to save
  *           on dynamic memory.
  */
 bool IQS7211E::init(void) {
@@ -94,21 +98,22 @@ bool IQS7211E::init(void) {
 	for this example */
 	case IQS7211E_INIT_VERIFY_PRODUCT:
 		if (iqs7211e_deviceRDY) {
-			Serial.println("\tIQS7211E_INIT_VERIFY_PRODUCT");
+			uart_sendstring("\tIQS7211E_INIT_VERIFY_PRODUCT\r\n");
 			prod_num = getProductNum(RESTART);
 			ver_maj = getmajorVersion(RESTART);
 			ver_min = getminorVersion(STOP);
-			Serial.print("\t\tProduct number is: ");
-			Serial.print(prod_num);
-			Serial.print(" v");
-			Serial.print(ver_maj);
-			Serial.print(".");
-			Serial.println(ver_min);
+			uart_sendstring("\t\tProduct number is: ");
+			uart_send_u16(prod_num);
+			uart_sendstring(" v");
+			uart_send_u16(ver_maj);
+			uart_sendstring(".");
+			uart_send_u16(ver_min);
+			uart_sendstring("\r\n");
 			if (prod_num == IQS7211E_PRODUCT_NUM) {
-				Serial.println("\t\tIQS7211E Release UI Confirmed!");
+				uart_sendstring("\t\tIQS7211E Release UI Confirmed!\r\n");
 				iqs7211e_state.init_state = IQS7211E_INIT_READ_RESET;
 			} else {
-				Serial.println("\t\tDevice is not a IQS7211E!");
+				uart_sendstring("\t\tDevice is not a IQS7211E!\r\n");
 				iqs7211e_state.init_state = IQS7211E_INIT_NONE;
 			}
 		}
@@ -117,13 +122,13 @@ bool IQS7211E::init(void) {
 	/* Verify if a reset has occurred */
 	case IQS7211E_INIT_READ_RESET:
 		if (iqs7211e_deviceRDY) {
-			Serial.println("\tIQS7211E_INIT_READ_RESET");
+			uart_sendstring("\tIQS7211E_INIT_READ_RESET\r\n");
 			updateInfoFlags(RESTART);
 			if (checkReset()) {
-				Serial.println("\t\tReset event occurred.");
+				uart_sendstring("\t\tReset event occurred.\r\n");
 				iqs7211e_state.init_state = IQS7211E_INIT_UPDATE_SETTINGS;
 			} else {
-				Serial.println("\t\t No Reset Event Detected - Request SW Reset");
+				uart_sendstring("\t\t No Reset Event Detected - Request SW Reset\r\n");
 				iqs7211e_state.init_state = IQS7211E_INIT_CHIP_RESET;
 			}
 		}
@@ -132,11 +137,11 @@ bool IQS7211E::init(void) {
 	/* Perform SW Reset */
 	case IQS7211E_INIT_CHIP_RESET:
 		if (iqs7211e_deviceRDY) {
-			Serial.println("\tIQS7211E_INIT_CHIP_RESET");
+			uart_sendstring("\tIQS7211E_INIT_CHIP_RESET\r\n");
 
 			// Perform SW Reset
 			SW_Reset(STOP);
-			Serial.println("\t\tSoftware Reset Bit Set.");
+			uart_sendstring("\t\tSoftware Reset Bit Set.\r\n");
 			delay(100);
 			iqs7211e_state.init_state = IQS7211E_INIT_READ_RESET;
 		}
@@ -145,7 +150,7 @@ bool IQS7211E::init(void) {
 	/* Write all settings to IQS7211E from .h file */
 	case IQS7211E_INIT_UPDATE_SETTINGS:
 		if (iqs7211e_deviceRDY) {
-			Serial.println("\tIQS7211E_INIT_UPDATE_SETTINGS");
+			uart_sendstring("\tIQS7211E_INIT_UPDATE_SETTINGS\r\n");
 			writeMM(RESTART);
 			iqs7211e_state.init_state = IQS7211E_INIT_ACK_RESET;
 		}
@@ -154,7 +159,7 @@ bool IQS7211E::init(void) {
 	/* Acknowledge that the device went through a reset */
 	case IQS7211E_INIT_ACK_RESET:
 		if (iqs7211e_deviceRDY) {
-			Serial.println("\tIQS7211E_INIT_ACK_RESET");
+			uart_sendstring("\tIQS7211E_INIT_ACK_RESET\r\n");
 			acknowledgeReset(STOP);
 			iqs7211e_state.init_state = IQS7211E_INIT_ATI;
 		}
@@ -164,10 +169,10 @@ bool IQS7211E::init(void) {
 	settings */
 	case IQS7211E_INIT_ATI:
 		if (iqs7211e_deviceRDY) {
-			Serial.println("\tIQS7211E_INIT_ATI");
+			uart_sendstring("\tIQS7211E_INIT_ATI\r\n");
 			ReATI(STOP);
 			iqs7211e_state.init_state = IQS7211E_INIT_WAIT_FOR_ATI;
-			Serial.println("\tIQS7211E_INIT_WAIT_FOR_ATI");
+			uart_sendstring("\tIQS7211E_INIT_WAIT_FOR_ATI\r\n");
 		}
 		break;
 
@@ -175,7 +180,7 @@ bool IQS7211E::init(void) {
 	case IQS7211E_INIT_WAIT_FOR_ATI:
 		if (iqs7211e_deviceRDY) {
 			if (!readATIactive()) {
-				Serial.println("\t\tDONE");
+				uart_sendstring("\t\tDONE\r\n");
 				iqs7211e_state.init_state = IQS7211E_INIT_READ_DATA;
 			}
 		}
@@ -184,7 +189,7 @@ bool IQS7211E::init(void) {
 	/* Read the latest data from the iqs7211e */
 	case IQS7211E_INIT_READ_DATA:
 		if (iqs7211e_deviceRDY) {
-			Serial.println("\tIQS7211E_INIT_READ_DATA");
+			uart_sendstring("\tIQS7211E_INIT_READ_DATA\r\n");
 			queueValueUpdates();
 			iqs7211e_state.init_state = IQS7211E_INIT_ACTIVATE_EVENT_MODE;
 		}
@@ -193,7 +198,7 @@ bool IQS7211E::init(void) {
 	/* Turn on I2C Event mode */
 	case IQS7211E_INIT_ACTIVATE_EVENT_MODE:
 		if (iqs7211e_deviceRDY) {
-			Serial.println("\tIQS7211E_INIT_ACTIVATE_EVENT_MODE");
+			uart_sendstring("\tIQS7211E_INIT_ACTIVATE_EVENT_MODE\r\n");
 			setEventMode(STOP);
 			iqs7211e_state.init_state = IQS7211E_INIT_DONE;
 		}
@@ -202,7 +207,7 @@ bool IQS7211E::init(void) {
 	/* Turn on I2C Stream mode */
 	case IQS7211E_INIT_ACTIVATE_STREAM_MODE:
 		if (iqs7211e_deviceRDY) {
-			Serial.println("\tIQS7211E_INIT_ACTIVATE_STREAM_MODE");
+			uart_sendstring("\tIQS7211E_INIT_ACTIVATE_STREAM_MODE\r\n");
 			setStreamMode(STOP);
 			iqs7211e_state.init_state = IQS7211E_INIT_DONE;
 		}
@@ -211,7 +216,7 @@ bool IQS7211E::init(void) {
 	/* If all operations have been completed correctly, the RDY pin can be set
 	 * up as an interrupt to indicate when new data is available */
 	case IQS7211E_INIT_DONE:
-		Serial.println("\tIQS7211E_INIT_DONE");
+		uart_sendstring("\tIQS7211E_INIT_DONE\r\n");
 		new_data_available = true;
 		return true;
 		break;
@@ -238,14 +243,14 @@ void IQS7211E::run(void) {
 	/* After a hardware reset, this is the starting position of the running state
 	machine */
 	case IQS7211E_STATE_START:
-		Serial.println("IQS7211E Initialization:");
+		uart_sendstring("IQS7211E Initialization:\r\n");
 		iqs7211e_state.state = IQS7211E_STATE_INIT;
 		break;
 
 	/* Perform the initialization routine on the IQS7211E */
 	case IQS7211E_STATE_INIT:
 		if (init()) {
-			Serial.println("IQS7211E Initialization complete!\n");
+			uart_sendstring("IQS7211E Initialization complete!\n\r\n");
 			iqs7211e_state.state = IQS7211E_STATE_RUN;
 		}
 		break;
@@ -262,7 +267,7 @@ void IQS7211E::run(void) {
 	for data to be valid */
 	case IQS7211E_STATE_CHECK_RESET:
 		if (checkReset()) {
-			Serial.println("Reset Occurred!\n");
+			uart_sendstring("Reset Occurred!\n\r\n");
 			new_data_available = false;
 			iqs7211e_state.state = IQS7211E_STATE_START;
 			iqs7211e_state.init_state = IQS7211E_INIT_VERIFY_PRODUCT;
@@ -298,7 +303,7 @@ void IQS7211E::run(void) {
  *         and slow operations.
  */
 void iqs7211e_ready_interrupt(void) {
-	if (digitalRead(iqs7211e_ready_pin)) {
+	if (pin_get(iqs7211e_ready_pin)) {
 		iqs7211e_deviceRDY = false;
 	} else {
 		iqs7211e_deviceRDY = true;
@@ -821,7 +826,7 @@ void IQS7211E::writeMM(bool stopOrRestart) {
 	transferBytes[3] = ALP_COMPENSATION_B_1;
 
 	writeRandomBytes(IQS7211E_MM_ALP_ATI_COMP_A, 4, transferBytes, RESTART);
-	Serial.println("\t\t1. Write ALP Compensation");
+	uart_sendstring("\t\t1. Write ALP Compensation\r\n");
 
 	/* Change the ATI Settings */
 	/* Memory Map Position 0x21 - 0x27 */
@@ -841,7 +846,7 @@ void IQS7211E::writeMM(bool stopOrRestart) {
 	transferBytes[13] = ALP_ATI_TARGET_1;
 
 	writeRandomBytes(IQS7211E_MM_TP_GLOBAL_MIRRORS, 14, transferBytes, RESTART);
-	Serial.println("\t\t2. Write ATI Settings");
+	uart_sendstring("\t\t2. Write ATI Settings\r\n");
 
 	/* Change the RR and Timing Settings */
 	/* Memory Map Position 0x28 - 0x32 */
@@ -869,7 +874,7 @@ void IQS7211E::writeMM(bool stopOrRestart) {
 	transferBytes[21] = I2C_TIMEOUT_1;
 
 	writeRandomBytes(IQS7211E_MM_ACTIVE_MODE_RR, 22, transferBytes, RESTART);
-	Serial.println("\t\t3. Write Report rates and timings");
+	uart_sendstring("\t\t3. Write Report rates and timings\r\n");
 
 	/* Change the System Settings */
 	/* Memory Map Position 0x33 - 0x35 */
@@ -880,7 +885,7 @@ void IQS7211E::writeMM(bool stopOrRestart) {
 	transferBytes[4] = OTHER_SETTINGS_0;
 	transferBytes[5] = OTHER_SETTINGS_1;
 	writeRandomBytes(IQS7211E_MM_SYS_CONTROL, 6, transferBytes, RESTART);
-	Serial.println("\t\t4. Write System control settings");
+	uart_sendstring("\t\t4. Write System control settings\r\n");
 
 	/* Change the ALP Settings */
 	/* Memory Map Position 0x36 - 0x37 */
@@ -889,7 +894,7 @@ void IQS7211E::writeMM(bool stopOrRestart) {
 	transferBytes[2] = ALP_TX_ENABLE_0;
 	transferBytes[3] = ALP_TX_ENABLE_1;
 	writeRandomBytes(IQS7211E_MM_ALP_SETUP, 4, transferBytes, RESTART);
-	Serial.println("\t\t5. Write ALP Settings");
+	uart_sendstring("\t\t5. Write ALP Settings\r\n");
 
 	/* Change the Threshold Settings */
 	/* Memory Map Position 0x38 - 0x3A */
@@ -901,7 +906,7 @@ void IQS7211E::writeMM(bool stopOrRestart) {
 	transferBytes[5] = ALP_CLEAR_DEBOUNCE;
 
 	writeRandomBytes(IQS7211E_MM_TP_TOUCH_SET_CLEAR_THR, 6, transferBytes, RESTART);
-	Serial.println("\t\t6. Write Threshold settings");
+	uart_sendstring("\t\t6. Write Threshold settings\r\n");
 
 	/* Change the Button and ALP count and LTA betas */
 	/* Memory Map Position 0x3B - 0x3C */
@@ -911,7 +916,7 @@ void IQS7211E::writeMM(bool stopOrRestart) {
 	transferBytes[3] = ALP_LTA_BETA_LP2;
 
 	writeRandomBytes(IQS7211E_MM_LP1_FILTERS, 4, transferBytes, RESTART);
-	Serial.println("\t\t7. Write Filter Betas");
+	uart_sendstring("\t\t7. Write Filter Betas\r\n");
 
 	/* Change the Hardware Settings */
 	/* Memory Map Position 0x3D - 0x40 */
@@ -925,7 +930,7 @@ void IQS7211E::writeMM(bool stopOrRestart) {
 	transferBytes[7] = ALP_HARDWARE_SETTINGS_1;
 
 	writeRandomBytes(IQS7211E_MM_TP_CONV_FREQ, 8, transferBytes, RESTART);
-	Serial.println("\t\t8. Write Hardware settings");
+	uart_sendstring("\t\t8. Write Hardware settings\r\n");
 
 	/* Change the TP Setup */
 	/* Memory Map Position 0x41 - 0x49 */
@@ -949,7 +954,7 @@ void IQS7211E::writeMM(bool stopOrRestart) {
 	transferBytes[17] = Y_TRIM_VALUE;
 
 	writeRandomBytes(IQS7211E_MM_TP_RX_SETTINGS, 18, transferBytes, RESTART);
-	Serial.println("\t\t9. Write TP Settings");
+	uart_sendstring("\t\t9. Write TP Settings\r\n");
 
 	/* Change the Settings Version Numbers */
 	/* Memory Map Position 0x4A - 0x4A */
@@ -957,7 +962,7 @@ void IQS7211E::writeMM(bool stopOrRestart) {
 	transferBytes[1] = MAJOR_VERSION;
 
 	writeRandomBytes(IQS7211E_MM_SETTINGS_VERSION, 2, transferBytes, RESTART);
-	Serial.println("\t\t10. Write Version numbers");
+	uart_sendstring("\t\t10. Write Version numbers\r\n");
 
 	/* Change the Gesture Settings */
 	/* Memory Map Position 0x4B - 0x55 */
@@ -985,7 +990,7 @@ void IQS7211E::writeMM(bool stopOrRestart) {
 	transferBytes[21] = PALM_THRESHOLD;
 
 	writeRandomBytes(IQS7211E_MM_GESTURE_ENABLE, 22, transferBytes, RESTART);
-	Serial.println("\t\t11. Write Gesture Settings");
+	uart_sendstring("\t\t11. Write Gesture Settings\r\n");
 
 	/* Change the RxTx Mapping */
 	/* Memory Map Position 0x56 - 0x5C */
@@ -1005,7 +1010,7 @@ void IQS7211E::writeMM(bool stopOrRestart) {
 	transferBytes[13] = RX_TX_MAP_FILLER;
 
 	writeRandomBytes(IQS7211E_MM_RX_TX_MAPPING_0_1, 14, transferBytes, RESTART);
-	Serial.println("\t\t12. Write Rx Tx Map Settings");
+	uart_sendstring("\t\t12. Write Rx Tx Map Settings\r\n");
 
 	/* Change the Allocation of channels into cycles 0-9 */
 	/* Memory Map Position 0x5D - 0x6B */
@@ -1041,7 +1046,7 @@ void IQS7211E::writeMM(bool stopOrRestart) {
 	transferBytes[29] = CH_2_CYCLE_9;
 
 	writeRandomBytes(IQS7211E_MM_PROXA_CYCLE0, 30, transferBytes, RESTART);
-	Serial.println("\t\t13. Write Cycle 0 - 9 Settings");
+	uart_sendstring("\t\t13. Write Cycle 0 - 9 Settings\r\n");
 
 	/* Change the Allocation of channels into cycles 10-19 */
 	/* Memory Map Position 0x6C - 0x7A */
@@ -1077,7 +1082,7 @@ void IQS7211E::writeMM(bool stopOrRestart) {
 	transferBytes[29] = CH_2_CYCLE_19;
 
 	writeRandomBytes(IQS7211E_MM_PROXA_CYCLE10, 30, transferBytes, RESTART);
-	Serial.println("\t\t14. Write Cycle 10 - 19 Settings");
+	uart_sendstring("\t\t14. Write Cycle 10 - 19 Settings\r\n");
 
 	/* Change the Allocation of channels into cycles 20 */
 	/* Memory Map Position 0x7B - 0x7C */
@@ -1086,7 +1091,7 @@ void IQS7211E::writeMM(bool stopOrRestart) {
 	transferBytes[2] = CH_2_CYCLE_20;
 
 	writeRandomBytes(IQS7211E_MM_PROXA_CYCLE20, 3, transferBytes, RESTART);
-	Serial.println("\t\t15. Write Cycle 20  Settings");
+	uart_sendstring("\t\t15. Write Cycle 20  Settings\r\n");
 }
 
 /*****************************************************************************/
@@ -1120,23 +1125,23 @@ void IQS7211E::readRandomBytes(uint8_t memoryAddress, uint8_t numBytes, uint8_t 
 	uint8_t i = 0; // A simple counter to assist with loading bytes into the user-supplied array.
 
 	// Select the device with the address of "_deviceAddress" and start communication.
-	Wire.beginTransmission(_deviceAddress);
+	wire.beginTransmission(_deviceAddress);
 	// Send a bit asking for the "memoryAddress" register.
-	Wire.write(memoryAddress);
+	wire.write(memoryAddress);
 	// Complete the selection and communication initialization.
-	Wire.endTransmission(RESTART); // Restart transmission for reading that follows.
+	wire.endTransmission(RESTART); // Restart transmission for reading that follows.
 	/* The required device has now been selected and it has been told which register
 	 to send information from.*/
 
 	// Request "numBytes" bytes from the device which has the address: "_deviceAddress"
 	do {
-		Wire.requestFrom((int)_deviceAddress, (int)numBytes, (int)stopOrRestart);
-	} while (Wire.available() == 0); // Wait for response, this sometimes takes a few attempts
+		wire.requestFrom((int)_deviceAddress, (int)numBytes, (int)stopOrRestart);
+	} while (wire.available() == 0); // Wait for response, this sometimes takes a few attempts
 
 	// Load the received bytes into the array until there are no more
-	while (Wire.available()) {
+	while (wire.available()) {
 		// Load the received bytes into the user-supplied array
-		bytesArray[i] = Wire.read();
+		bytesArray[i] = wire.read();
 		i++;
 	}
 
@@ -1173,17 +1178,17 @@ void IQS7211E::readRandomBytes(uint8_t memoryAddress, uint8_t numBytes, uint8_t 
 void IQS7211E::writeRandomBytes(uint8_t memoryAddress, uint8_t numBytes, uint8_t bytesArray[],
 								bool stopOrRestart) {
 	/* Select the device with the address: "_deviceAddress" and start communication. */
-	Wire.beginTransmission(_deviceAddress);
+	wire.beginTransmission(_deviceAddress);
 	/* Specify the memory address where the IQS7211E must start saving the data,
 	  as designated by the "memoryAddress" variable. */
-	Wire.write(memoryAddress);
+	wire.write(memoryAddress);
 	/* Write the bytes as specified in the array which "arrayAddress" pointer
 	  points. */
 	for (int i = 0; i < numBytes; i++) {
-		Wire.write(bytesArray[i]);
+		wire.write(bytesArray[i]);
 	}
 	/* End the transmission, user decides to STOP or RESTART. */
-	Wire.endTransmission(stopOrRestart);
+	wire.endTransmission(stopOrRestart);
 
 	/* Always manually close the RDY window after a STOP is sent to prevent
 	  writing while the RDY window closes */
@@ -1218,21 +1223,21 @@ void IQS7211E::writeRandomBytes(uint8_t memoryAddress, uint8_t numBytes, uint8_t
 void IQS7211E::writeRandomBytes16(uint16_t memoryAddress, uint8_t numBytes, uint8_t bytesArray[],
 								  bool stopOrRestart) {
 	/* Select the device with the address: "_deviceAddress" and start communication. */
-	Wire.beginTransmission(_deviceAddress);
+	wire.beginTransmission(_deviceAddress);
 	/* Specify the memory address where the IQS7211E must start saving the data,
 	  as designated by the "memoryAddress" variable. */
 	uint8_t addr_h, addr_l;
 	addr_h = memoryAddress >> 8;
 	addr_l = memoryAddress;
-	Wire.write(addr_h);
-	Wire.write(addr_l);
+	wire.write(addr_h);
+	wire.write(addr_l);
 	/* Write the bytes as specified in the array which "arrayAddress" pointer
 	  points to. */
 	for (int i = 0; i < numBytes; i++) {
-		Wire.write(bytesArray[i]);
+		wire.write(bytesArray[i]);
 	}
 	/* End the transmission, and the user decides to STOP or RESTART. */
-	Wire.endTransmission(stopOrRestart);
+	wire.endTransmission(stopOrRestart);
 
 	/* Always manually close the RDY window after a STOP is sent to prevent
 	  writing while the RDY window closes */
@@ -1287,14 +1292,14 @@ void IQS7211E::force_I2C_communication(void) {
 	if (!iqs7211e_deviceRDY) {
 		/* Select the device with the address: "DEMO_IQS7211E_ADDR" and start
 		  communication. */
-		Wire.beginTransmission(_deviceAddress);
+		wire.beginTransmission(_deviceAddress);
 
 		/* Write to memory address 0xFF that will prompt the IQS7211E to open a
 		communication window.*/
-		Wire.write(0xFF);
-		Wire.write(0x00);
+		wire.write(0xFF);
+		wire.write(0x00);
 
 		/* End the transmission, user decides to STOP or RESTART. */
-		Wire.endTransmission(STOP);
+		wire.endTransmission(STOP);
 	}
 }
