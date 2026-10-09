@@ -3,7 +3,7 @@ PROJECT_NAME     = test-i2c
 
 
 #PINOUT           = promicro
-PINOUT            = nano
+#PINOUT           = nano
 #PINOUT           = attiny
 ifeq ($(PINOUT),nano)
 MCU              = atmega328p
@@ -19,6 +19,14 @@ PROGRAMMER       = avr109
 MCU              = atmega32u4
 F_CPU            = 16000000
 BOARD            = i2c_test
+else ifeq ($(PINOUT),splonk)
+PORT             = /dev/ttyACM0
+BAUD_RATE        = 57600
+PROGRAMMER       = arduino_as_isp #avr109
+MCU              = atmega32u4
+F_CPU            = 16000000
+BOARD            = splonk
+CPPFLAGS_ADD     = -DSPLONK
 else ifeq ($(PINOUT),attiny)
 PORT             = /dev/ttyUSB0
 BAUD_RATE        = 57600
@@ -26,6 +34,8 @@ PROGRAMMER       = serialupdi
 MCU              = attiny1614
 F_CPU            = 20000000UL
 BOARD            = i2c_test
+else
+$(error Specify a pinout! PINOUT=...)
 endif
 
 TARGET           = $(PROJECT_NAME)

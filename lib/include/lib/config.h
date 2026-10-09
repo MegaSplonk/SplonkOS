@@ -65,6 +65,14 @@
 #define SPLONKLIB_ENABLE_UART
 
 #elif defined(BOARD_splonk)
+
+#define SPLONKLIB_ENABLE_I2C
+#define SPLONKLIB_ENABLE_UART
+#define SPLONKLIB_ENABLE_LED
+#define SPLONKLIB_ENABLE_SPI
+#define SPLONKLIB_LED_SPI
+#define SPLONKLIB_ENABLE_USB
+
 #elif defined(BOARD_splonkpad)
 #elif defined(BOARD_splonkreen)
 #elif defined(BOARD_splonknob)

@@ -6,6 +6,8 @@
 #include "lib/pinout/nano.h"
 #elif defined(PINOUT_attiny)
 #include "lib/pinout/attiny.h"
+#elif defined(PINOUT_splonk)
+#include "lib/pinout/splonk.h"
 #elif defined(PINOUT_splonknob)
 #include "lib/pinout/splonknob.h"
 #else
