@@ -28,4 +28,7 @@ u8 uart_rx(void);
 void uart_disable_udre_int(void);
 void uart_enable_udre_int(void);
 
+#define UART_IBUF_LEN 16
+#define UART_OBUF_LEN 256
+
 #endif

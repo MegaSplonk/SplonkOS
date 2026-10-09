@@ -35,17 +35,17 @@ t_error timer_ontick_register(enum e_timer_ontick_slot slot, t_ontick_func func)
 	return SUCCESS;
 }
 
+#define TIMER_CLOCK_TARGET_HZ 100000UL
+
 #if defined(MCU_atmega32u4) || defined(MCU_atmega328p)
 
-#define TIMER_CLOCK_PRESCALER_VALUE 256UL
-#define TIMER_CLOCK_TARGET_HZ		1000UL
+#define TIMER_CLOCK_PRESCALER_VALUE 8UL
 #define TIMER_INTERUPT_VECTOR		TIMER0_COMPA_vect
 #define TIMER_TOP_MAX				255L
 
 #elif defined(MCU_attiny1614)
 
 #define TIMER_CLOCK_PRESCALER_VALUE 2UL
-#define TIMER_CLOCK_TARGET_HZ		1000UL
 #define TIMER_INTERUPT_VECTOR		TCB0_INT_vect
 #define TIMER_TOP_MAX				65535UL
 
@@ -57,8 +57,16 @@ t_error timer_ontick_register(enum e_timer_ontick_slot slot, t_ontick_func func)
 
 #define TIMER_TOP (F_CPU / (TIMER_CLOCK_PRESCALER_VALUE * TIMER_CLOCK_TARGET_HZ) - 1UL)
 static_assert(TIMER_TOP < TIMER_TOP_MAX, "TIMER_TOP can't be over TIMER_TOP_MAX");
+static_assert((TIMER_CLOCK_TARGET_HZ / 1000) < 255, "TIMER_CLOCK_TARGET_HZ too high");
 
-static void inc_milis(void) { MILIS++; }
+static void inc_milis(void) {
+	static u8 tick = 0;
+
+	if (++tick >= (TIMER_CLOCK_TARGET_HZ / 1000)) {
+		tick = 0;
+		MILIS++;
+	}
+}
 
 void timer_init(void) {
 	(void)timer_ontick_register(T_ONTICK_SLOT_MILIS, inc_milis);
@@ -68,7 +76,20 @@ void timer_init(void) {
 	OCR0A = (u8)TIMER_TOP;
 	TCCR0A = _BV(WGM01);
 	TIMSK0 = _BV(OCIE0A);
+
+#if TIMER_CLOCK_PRESCALER_VALUE == 1UL
+	TCCR0B = _BV(CS00);
+#elif TIMER_CLOCK_PRESCALER_VALUE == 8UL
+	TCCR0B = _BV(CS00) | _BV(CS01);
+#elif TIMER_CLOCK_PRESCALER_VALUE == 64UL
+	TCCR0B = _BV(CS00) | _BV(CS01);
+#elif TIMER_CLOCK_PRESCALER_VALUE == 256UL
 	TCCR0B = _BV(CS02);
+#elif TIMER_CLOCK_PRESCALER_VALUE == 1024UL
+	TCCR0B = _BV(CS02) | _BV(CS00);
+#else
+#error "Invalid TIMER_CLOCK_PRESCALER_VALUE"
+#endif
 
 #elif defined(MCU_attiny1614)
 
