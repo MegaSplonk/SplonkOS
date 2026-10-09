@@ -29,23 +29,31 @@ I2C_SLOT(gcall1, gcall, gcall);
 
 i2c_peer *self;
 i2c_peer *otherhalf;
-i2c_peer *peer1;
+i2c_peer *peerknob;
+
+#include "../../test-usb/include/usb_hid.h"
+// ^^^ ugly and evil import
+
+struct HID_NKRO_report report_nkro = {};
+struct HID_MOUSE_report report_mouse = {};
+struct HID_CC_report report_cc = {};
+struct HID_SLIDER_report report_slider = {};
 
 I2C_SLOT(splonk1, splonk, splonk);
 typedef splonk splonk_;
 I2C_SLOT(splonk2, splonk_, splonk_);
 I2C_SLOT(knob1, splonknob, dummy);
 
-static void knob1_input_to_uart() { // can be used for debugging for now i guess
-	if (!peer1 || !peer1->io)
+static void peer_input_handler() {
+	if (!peerknob || !peerknob->io)
 		return;
 
 	usize			 read_bytes = 0;
 	splonknob		 data;
 	static splonknob last;
 	ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {
-		if (grb_count(&peer1->io->input) >= sizeof(data)) {
-			grb_read(&peer1->io->input, (void *)&data, sizeof(data), &read_bytes);
+		if (grb_count(&peerknob->io->input) >= sizeof(data)) {
+			grb_read(&peerknob->io->input, (void *)&data, sizeof(data), &read_bytes);
 			bool same = true;
 			for (usize i = 0; i < sizeof(data); i++)
 				if (((u8 *)&data)[i] != ((u8 *)&last)[i])
@@ -56,24 +64,32 @@ static void knob1_input_to_uart() { // can be used for debugging for now i guess
 					i16 knob_l = data.knob_l;
 					uart_send_i16(knob_l);
 				}
+			  report_cc.vol_dec = data.knob_l > 0 ? 1 : 0;
+			  report_cc.vol_inc = data.knob_l < 0 ? 1 : 0;
+        // ^^^ send multiple reports if value is != +/-1?
 				if (data.butn_l) {
 					uart_sendstring("LB");
 					uart_send_u8(data.butn_l);
 				}
+			  report_cc.mute = data.butn_l ? 1 : 0;
 				if (data.knob_r) {
 					uart_sendstring("RK");
 					i16 knob_r = data.knob_r;
 					uart_send_i16(knob_r);
 				}
+        report_cc.previous = data.knob_r > 0 ? 1 : 0;
+			  report_cc.next = data.knob_r < 0 ? 1 : 0;
 				if (data.butn_r) {
 					uart_sendstring("RB");
 					uart_send_u8(data.butn_r);
 				}
+			  report_cc.play_pause = data.butn_r ? 1 : 0;
 				uart_sendstring("\r\n");
 				for (usize i = 0; i < sizeof(data); i++)
 					uart_send_u8_hex(((u8 *)&data)[i]);
 				uart_sendstring("\r\n");
 				last = data;
+		    hid_send_report(HID_REPORT_ID_CC, &report_cc, sizeof(report_cc));
 			}
 		}
 	}
@@ -87,14 +103,14 @@ void splonk_loop() {
 	i2c_register_peer(&self, &splonk1, (ipi){SELF_ADDR, IPD_ALL, IPT_SPLONK});
 	i2c_register_slot(&splonk2, IPT_SPLONK);
 	i2c_register_slot(&knob1, IPT_SPLONKNOB); // add more slots as needed
-	// i2c_register_peer(&peer1, &knob1, (ipi){PEER_ADDR, IPD_ALL, IPT_SPLONK});
+	// i2c_register_peer(&peerknob, &knob1, (ipi){PEER_ADDR, IPD_ALL, IPT_SPLONK});
 	i2c_init();
 	i2c_set_addr(SELF_ADDR, 1);
 	i2c_listen();
-	timer_ontick_register(T_ONTICK_SLOT_I2C_PEER, knob1_input_to_uart);
+	timer_ontick_register(T_ONTICK_SLOT_I2C_PEER, peer_input_handler);
 	// timer_ontick_register(T_ONTICK_SLOT_I2C_SELF, self_input_to_uart);
-	debug_print("SELF %d, PEER %d", self->info.addr, peer1->info.addr);
-	// debug_print("I'm alive %p, %d, %p", (void *)peer1, peer1->addr, (void *)peer1->io);
+	debug_print("SELF %d, PEER %d", self->info.addr, peerknob->info.addr);
+	// debug_print("I'm alive %p, %d, %p", (void *)peerknob, peerknob->addr, (void *)peerknob->io);
 	timer_t t = timer_reset();
 	// timer_t	  tt = timer_reset();
 	// timer_t	  ttt = timer_reset();
@@ -109,8 +125,8 @@ void splonk_loop() {
 	while (true) {
 		if (timer_wait(&t, 10)) {
 			t = timer_reset();
-			i2c_get_peer(&peer1, (ipi){0, 0, IPT_SPLONKNOB});
-			i2c_query(peer1, NULL, sizeof(sk));
+			i2c_get_peer(&peerknob, (ipi){0, 0, IPT_SPLONKNOB});
+			i2c_query(peerknob, NULL, sizeof(sk));
 			//    splonk self_data = {.keys = {}, .led_mode = 0, .peers = {}};
 			//    for (usize i = 0; i < tabsize(self_data.peers); i++)
 			//      self_data.peers[i] = self->downstream[i] ? self->downstream[i]->info : (ipi){};
