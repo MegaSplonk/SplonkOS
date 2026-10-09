@@ -8,8 +8,6 @@
 
 #if defined(SPLONKLIB_UART_HARDWARE) && defined(MCU_attiny1614)
 
-#warning "UART: ATTINY"
-
 #if !defined(BAUD_RATE)
 #define BAUD_RATE 115200
 #endif
