@@ -1,5 +1,7 @@
-#include "pluggable_usb.h"
-#include "usb_hid.h"
+#ifdef SPLONKLIB_ENABLE_USB
+
+#include "lib/usb/hid.h"
+#include "lib/usb/pu.h"
 #include <util/atomic.h>
 
 struct hid_descriptor {
@@ -185,3 +187,4 @@ isize hid_send_report(enum e_hid_report_id id, const void *data, usize len) {
 		return ret2;
 	return ret + ret2;
 }
+#endif

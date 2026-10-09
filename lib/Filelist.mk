@@ -14,4 +14,9 @@ proto/usb                                                                     \
 sh1106_utils                                                                  \
 splonk                                                                        \
 time                                                                          \
+usb/cdc                                                                       \
+usb/core                                                                      \
+usb/hid/descriptors                                                           \
+usb/hid/hid                                                                   \
+usb/pu                                                                        \
 

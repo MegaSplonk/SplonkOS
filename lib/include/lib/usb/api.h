@@ -1,6 +1,6 @@
 #pragma once
 
-#include "usb_core.h"
+#include "lib/usb/core.h"
 
 #define _NBV(b)		   ((uint8_t)~(1 << (b)))
 #define TX_RX_LED_INIT DDRD |= _BV(5), DDRB |= _BV(0)

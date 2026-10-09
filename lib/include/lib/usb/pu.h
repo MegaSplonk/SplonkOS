@@ -1,6 +1,6 @@
 #pragma once
 
-#include "usb_api.h"
+#include "lib/usb/api.h"
 
 struct pu_module_vtable;
 struct pu_module;
