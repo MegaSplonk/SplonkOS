@@ -1,9 +1,7 @@
 #pragma once
 
-// HID 'Driver'
-// ------------
-#include "pluggable_usb.h"
-#include "usb_core.h"
+#include "lib/usb/core.h"
+#include "lib/usb/pu.h"
 
 #define HID_GET_REPORT	 0x01
 #define HID_GET_IDLE	 0x02

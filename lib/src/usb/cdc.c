@@ -1,4 +1,4 @@
-
+#ifdef SPLONKLIB_ENABLE_USB
 
 /* Copyright (c) 2011, Peter Barrett
 **
@@ -16,9 +16,9 @@
 ** SOFTWARE.
 */
 
-#include "pluggable_usb.h"
-#include "usb_api.h"
-#include "usb_cdc.h"
+#include "lib/usb/cdc.h"
+#include "lib/usb/api.h"
+#include "lib/usb/pu.h"
 #include <avr/pgmspace.h>
 #include <avr/wdt.h>
 #include <util/atomic.h>
@@ -258,3 +258,4 @@ struct pu_cdc *pu_cdc(void) {
 	}
 	return (&val);
 }
+#endif

@@ -16,7 +16,7 @@
 
 #pragma once
 
-#include "usb_api.h"
+#include "lib/usb/api.h"
 
 #define PLUGGABLE_USB_ENABLED
 

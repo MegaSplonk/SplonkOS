@@ -1,10 +1,10 @@
 #include "lib/pin.h"
 #include "lib/pinout.h"
 #include "lib/proto/adc.h"
-#include "pluggable_usb.h"
-#include "usb_api.h"
-#include "usb_cdc.h"
-#include "usb_hid.h"
+#include "lib/usb/api.h"
+#include "lib/usb/cdc.h"
+#include "lib/usb/hid.h"
+#include "lib/usb/pu.h"
 #include <avr/interrupt.h>
 #include <avr/io.h>
 #include <stdio.h>
@@ -14,11 +14,9 @@
 #define KEY 0x07
 
 int main(void) {
-	adc_init(ADC_AVCC, ADC_PRESCALER_128);
 	sei();
 	pu_cdc();
 	pu_hid();
-	// pu_midi();
 	pu_hid_add_desc(&nkro_descriptor);
 	pu_hid_add_desc(&mouse_descriptor);
 	pu_hid_add_desc(&cc_descriptor);
@@ -67,7 +65,7 @@ int main(void) {
 		usb_serial_write((const void *)(pressed ? "P\r" : "X\r"), 2);
 		// hid_send_report(HID_REPORT_ID_NKRO, &report_nkro, sizeof(report_nkro));
 		// hid_send_report(HID_REPORT_ID_MOUSE, &report_mouse, sizeof(report_mouse));
-		hid_send_report(HID_REPORT_ID_CC, &report_cc, sizeof(report_cc));
+		// hid_send_report(HID_REPORT_ID_CC, &report_cc, sizeof(report_cc));
 		// hid_send_report(HID_REPORT_ID_SLIDER, &report_slider, sizeof(report_slider));
 		// usb_serial_flush();
 		_delay_ms(100);

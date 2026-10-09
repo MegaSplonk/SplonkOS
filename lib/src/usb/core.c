@@ -1,3 +1,5 @@
+#ifdef SPLONKLIB_ENABLE_USB
+
 /* Copyright (c) 2010, Peter Barrett
 ** Sleep/Wakeup support added by Michael Dreher
 **
@@ -15,8 +17,8 @@
 ** SOFTWARE.
 */
 
-#include "pluggable_usb.h"
-#include "usb_api.h"
+#include "lib/usb/api.h"
+#include "lib/usb/pu.h"
 
 #include <avr/interrupt.h>
 #include <avr/io.h>
@@ -647,3 +649,5 @@ bool usb_device_wakeupHost() {
 }
 
 bool usb_device_isSuspended() { return (_usbSuspendState & _BV(SUSPI)); }
+
+#endif

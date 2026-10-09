@@ -1,4 +1,6 @@
-#include "pluggable_usb.h"
+#ifdef SPLONKLIB_ENABLE_USB
+
+#include "lib/usb/pu.h"
 #include <util/atomic.h>
 
 extern uint8_t _initEndpoints[];
@@ -108,3 +110,5 @@ struct pu *pu_instance(void) {
 	}
 	return &pu;
 }
+
+#endif

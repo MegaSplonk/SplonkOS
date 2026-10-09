@@ -1,6 +1,6 @@
 #pragma once
 
-#include "pluggable_usb.h"
+#include "lib/usb/pu.h"
 
 struct pu_cdc;
 struct pu_cdc *pu_cdc(void);
