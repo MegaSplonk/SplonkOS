@@ -8,8 +8,10 @@ pin                                                                           \
 proto/i2c                                                                     \
 proto/rgb                                                                     \
 proto/spi                                                                     \
-proto/uart                                                                    \
-proto/uart_send                                                               \
+proto/uart/uart_atmega                                                        \
+proto/uart/uart_attiny                                                        \
+proto/uart/uart_send                                                          \
+proto/uart/uart_usb                                                           \
 proto/usb                                                                     \
 sh1106_utils                                                                  \
 splonk                                                                        \

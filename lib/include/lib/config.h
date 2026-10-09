@@ -83,3 +83,22 @@
 #else
 #error "No known board has been defined !"
 #endif
+
+// UART PART
+#if defined(SPLONKLIB_ENABLE_UART)
+
+#if defined(MCU_atmega32u4)
+
+#if defined(SPLONKLIB_ENABLE_USB) && !defined(SPLONKLIB_UART_FORCE_HARDWARE)
+#define SPLONKLIB_UART_USB
+#else
+#define SPLONKLIB_UART_HARDWARE
+#endif
+
+#else
+
+#define SPLONKLIB_UART_HARDWARE
+
+#endif
+
+#endif

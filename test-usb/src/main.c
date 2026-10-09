@@ -1,6 +1,8 @@
 #include "lib/pin.h"
 #include "lib/pinout.h"
 #include "lib/proto/adc.h"
+#include "lib/proto/uart.h"
+#include "lib/time.h"
 #include "lib/usb/api.h"
 #include "lib/usb/cdc.h"
 #include "lib/usb/hid.h"
@@ -15,6 +17,8 @@
 
 int main(void) {
 	sei();
+	uart_init();
+	timer_init();
 	pu_cdc();
 	pu_hid();
 	pu_hid_add_desc(&nkro_descriptor);
@@ -62,12 +66,12 @@ int main(void) {
 		// report_slider.slider1 = adc_val * 4;
 
 		// usb_serial_write((const void *)"Hello from USB !\r\n", 19);
-		usb_serial_write((const void *)(pressed ? "P\r" : "X\r"), 2);
+		debug_print((const void *)(pressed ? "P\r" : "X\r"));
 		// hid_send_report(HID_REPORT_ID_NKRO, &report_nkro, sizeof(report_nkro));
 		// hid_send_report(HID_REPORT_ID_MOUSE, &report_mouse, sizeof(report_mouse));
 		// hid_send_report(HID_REPORT_ID_CC, &report_cc, sizeof(report_cc));
 		// hid_send_report(HID_REPORT_ID_SLIDER, &report_slider, sizeof(report_slider));
 		// usb_serial_flush();
-		_delay_ms(100);
+		// _delay_ms(100);
 	}
 }
