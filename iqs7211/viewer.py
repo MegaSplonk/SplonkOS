@@ -44,7 +44,7 @@ def stdin_reader():
             # Remove only the line terminator, not other whitespace
             line = line.rstrip("\r\n")
             input_queue.put(("LINE", line))
-
+            print(f"{line=!r}\n")
     except Exception as exc:
         input_queue.put(("ERROR", str(exc)))
 
@@ -147,7 +147,7 @@ def poll_input():
 
         elif kind == "EOF":
             stdin_finished = True
-            status_label.config(text="stdin closed — displaying last point")
+            sys.exit(0)
 
         elif kind == "ERROR":
             stdin_finished = True
@@ -171,7 +171,7 @@ def clear_point():
 
 root = tk.Tk()
 root.title("Coordinate Viewer")
-root.resizable(False, False)
+root.resizable(True, True)
 
 coordinates_label = tk.Label(
     root,

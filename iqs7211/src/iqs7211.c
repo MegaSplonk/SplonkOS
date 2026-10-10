@@ -28,13 +28,10 @@
  ******************************************************************************/
 
 #include "./IQS7211E/IQS7211E.h"
-extern "C" {
 #include "lib/pinout.h"
 #include "lib/proto/uart.h"
 #include "lib/usb/cdc.h"
 #include "shim/Arduino.h"
-#include "shim/ArduinoPin.h"
-}
 
 void printPowerMode(void);
 void show_iqs7211e_data(void);
@@ -50,9 +47,6 @@ void printGesture(void);
 #define DEMO_IQS7211E_POWER_PIN 1
 #define DEMO_IQS7211E_RDY_PIN	0
 
-/*** Instances ***/
-IQS7211E iqs7211e;
-
 /*** Global Variables ***/
 bool				 show_data = false;
 iqs7211e_power_modes running_power_mode = IQS7211E_IDLE;
@@ -60,25 +54,28 @@ uint16_t			 running_x_output = 65535;
 uint16_t			 running_y_output = 65535;
 iqs7211e_gestures_e	 running_gestures = IQS7211E_GESTURE_NONE;
 
-extern "C" void setup() {
+void setup(void);
+void loop(void);
+
+void setup() {
 	/* Start Serial Communication */
 	uart_sendstring("Start Serial communication\r\n");
 
 	/* Initialize the IQS7211E with input parameters device address and RDY pin */
-	iqs7211e.begin(SoftwareWire(D2, D3, false, true), DEMO_IQS7211E_ADDR, D1);
+	iqs7211e_begin(&iqs7211e, DEMO_IQS7211E_ADDR, (pin)D1);
 	uart_sendstring("IQS7211E Ready\r\n");
 	delay(1);
 }
 
-extern "C" void loop() {
+void loop() {
 	/* Read new data from IQS7211E if available  (RDY Line Low) */
-	iqs7211e.run();
+	iqs7211e_run(&iqs7211e);
 
 	/* Function to initialize a force communication window. */
 	force_comms_and_reset();
 
 	/* If data was updated, display data read from IQS7211E */
-	if (iqs7211e.new_data_available) {
+	if (*iqs7211e_new_data_available(&iqs7211e)) {
 		/* Print the following if the new data did not come from a force comms command */
 		if (!show_data) {
 			if (printData()) {
@@ -90,7 +87,7 @@ extern "C" void loop() {
 		/* Display the heading when a finger is lifted from the trackpad */
 		printHeading();
 		/* Set this flag to false to indicate that the new data was already displayed/used */
-		iqs7211e.new_data_available = false;
+		*iqs7211e_new_data_available(&iqs7211e) = false;
 		/* Check if a force comms command was sent and if we should display the data read */
 		show_iqs7211e_data();
 	}
@@ -99,7 +96,7 @@ extern "C" void loop() {
 
 /* Check if one of the gesture flags is set and display which one */
 void printGesture(void) {
-	iqs7211e_gestures_e buffer = iqs7211e.get_touchpad_event();
+	iqs7211e_gestures_e buffer = iqs7211e_get_touchpad_event(&iqs7211e);
 	return;
 
 	switch (buffer) {
@@ -166,7 +163,7 @@ void printGesture(void) {
 
 /* Check Power mode and print out the current power mode */
 void printPowerMode(void) {
-	iqs7211e_power_modes buffer = iqs7211e.getPowerMode();
+	iqs7211e_power_modes buffer = iqs7211e_getPowerMode(&iqs7211e);
 	uart_sendstring("\r\n");
 	return;
 
@@ -203,9 +200,10 @@ void printPowerMode(void) {
 /* Function to print heading for the Serial data display demo purposes */
 void printHeading(void) {
 	/* Check if it is necessary to display the heading */
-	if ((iqs7211e.getAbsXCoordinate(FINGER_1) == 65535) &&
-		(iqs7211e.getAbsYCoordinate(FINGER_1) == 65535) &&
-		(iqs7211e.IQSMemoryMap.GESTURES[0] == 0) && (iqs7211e.IQSMemoryMap.GESTURES[1] == 0)) {
+	if ((iqs7211e_getAbsXCoordinate(&iqs7211e, FINGER_1) == 65535) &&
+		(iqs7211e_getAbsYCoordinate(&iqs7211e, FINGER_1) == 65535) &&
+		(iqs7211e_IQSMemoryMap(&iqs7211e)->GESTURES[0] == 0) &&
+		(iqs7211e_IQSMemoryMap(&iqs7211e)->GESTURES[1] == 0)) {
 		// uart_sendstring("Finger 1 X:\tFinger 1 Y:\r\n");
 	}
 }
@@ -214,10 +212,10 @@ void printHeading(void) {
 in the serial terminal */
 bool printData(void) {
 	/* See if it is necessary to display the button state, power mode or gestures */
-	if (((iqs7211e.getPowerMode() != running_power_mode) ||
-		 (iqs7211e.get_touchpad_event() != running_gestures) ||
-		 (iqs7211e.getAbsXCoordinate(FINGER_1) != running_x_output) ||
-		 (iqs7211e.getAbsYCoordinate(FINGER_1) != running_y_output))) {
+	if (((iqs7211e_getPowerMode(&iqs7211e) != running_power_mode) ||
+		 (iqs7211e_get_touchpad_event(&iqs7211e) != running_gestures) ||
+		 (iqs7211e_getAbsXCoordinate(&iqs7211e, FINGER_1) != running_x_output) ||
+		 (iqs7211e_getAbsYCoordinate(&iqs7211e, FINGER_1) != running_y_output))) {
 		return true; // Let the main loop know to display the latest values
 	} else {
 		return false; // Let the main loop know to not display the latest values
@@ -228,8 +226,8 @@ bool printData(void) {
 
 /* Function to print the X and Y coordinates of finger 1 */
 void printCoordinates(void) {
-	uint16_t x = iqs7211e.getAbsXCoordinate(FINGER_1);
-	uint16_t y = iqs7211e.getAbsYCoordinate(FINGER_1);
+	uint16_t x = iqs7211e_getAbsXCoordinate(&iqs7211e, FINGER_1);
+	uint16_t y = iqs7211e_getAbsYCoordinate(&iqs7211e, FINGER_1);
 
 	uart_sendstring("@");
 	uart_send_u16(x);
@@ -245,15 +243,15 @@ void force_comms_and_reset(void) {
 	/* If an 'f' was received over serial, open a forced communication window and
 	print the new data received */
 	if (message == 'f') {
-		iqs7211e.force_I2C_communication(); // prompt the IQS7211E
+		iqs7211e_force_I2C_communication(&iqs7211e); // prompt the IQS7211E
 		show_data = true;
 	}
 
 	/* If an 'r' was received over serial, request a software(SW) reset */
 	if (message == 'r') {
 		uart_sendstring("Software Reset Requested!");
-		iqs7211e.force_I2C_communication(); // Request a RDY window
-		iqs7211e.iqs7211e_state.state = IQS7211E_STATE_SW_RESET;
+		iqs7211e_force_I2C_communication(&iqs7211e); // Request a RDY window
+		iqs7211e_get_state(&iqs7211e)->state = IQS7211E_STATE_SW_RESET;
 		running_power_mode = IQS7211E_IDLE;
 		running_x_output = 65535;
 		running_y_output = 65535;

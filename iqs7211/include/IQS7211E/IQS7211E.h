@@ -22,9 +22,19 @@
 // #include "Arduino.h"
 // #include "Wire.h"
 
-#include "SoftwareWire.h"
+#ifdef __cplusplus
+extern "C" {
+#endif
+#include "lib/pin.h"
+#ifdef __cplusplus
+}
+#endif
 
-#include "./inc/iqs7211e_addresses.h"
+#ifdef __cplusplus
+#include "SoftwareWire.h"
+#endif
+
+#include "IQS7211E/addr.h"
 
 /* Device Firmware version select */
 #define IQS7211E_v1_0 1
@@ -182,6 +192,7 @@ typedef struct {
 } iqs7211e_s;
 #pragma pack(4)
 
+#ifdef __cplusplus
 /* Class Prototype */
 class IQS7211E {
   public:
@@ -242,4 +253,59 @@ class IQS7211E {
 	uint8_t setBit(uint8_t data, uint8_t bit_number);
 	uint8_t clearBit(uint8_t data, uint8_t bit_number);
 };
+#endif
+
+#ifndef __cplusplus
+
+typedef struct IQS7211E IQS7211E;
+
+#endif
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+/* Public Device States */
+iqs7211e_s *iqs7211e_get_state(IQS7211E *self);
+
+/* Public Variables */
+IQS7211E_MEMORY_MAP *iqs7211e_IQSMemoryMap(IQS7211E *self);
+bool				*iqs7211e_new_data_available(IQS7211E *self);
+
+/* iqs7211e_Public Methods */
+void	 iqs7211e_begin(IQS7211E *self, uint8_t deviceAddressIn, pin readyPinIn);
+bool	 iqs7211e_init(IQS7211E *self);
+void	 iqs7211e_run(IQS7211E *self);
+void	 iqs7211e_queueValueUpdates(IQS7211E *self);
+bool	 iqs7211e_readATIactive(IQS7211E *self);
+uint16_t iqs7211e_getProductNum(IQS7211E *self, bool stopOrRestart);
+uint8_t	 iqs7211e_getmajorVersion(IQS7211E *self, bool stopOrRestart);
+uint8_t	 iqs7211e_getminorVersion(IQS7211E *self, bool stopOrRestart);
+void	 iqs7211e_acknowledgeReset(IQS7211E *self, bool stopOrRestart);
+void	 iqs7211e_ReATI(IQS7211E *self, bool stopOrRestart);
+void	 iqs7211e_SW_Reset(IQS7211E *self, bool stopOrRestart);
+void	 iqs7211e_writeMM(IQS7211E *self, bool stopOrRestart);
+void	 iqs7211e_clearRDY(IQS7211E *self);
+bool	 iqs7211e_getRDYStatus(IQS7211E *self);
+
+void iqs7211e_setStreamMode(IQS7211E *self, bool stopOrRestart);
+void iqs7211e_setEventMode(IQS7211E *self, bool stopOrRestart);
+
+void				 iqs7211e_updateInfoFlags(IQS7211E *self, bool stopOrRestart);
+iqs7211e_power_modes iqs7211e_getPowerMode(IQS7211E *self);
+bool				 iqs7211e_checkReset(IQS7211E *self);
+void	 iqs7211e_updateAbsCoordinates(IQS7211E *self, bool stopOrRestart, uint8_t fingerNum);
+uint16_t iqs7211e_getAbsYCoordinate(IQS7211E *self, uint8_t fingerNum);
+uint16_t iqs7211e_getAbsXCoordinate(IQS7211E *self, uint8_t fingerNum);
+bool	 iqs7211e_touchpad_event_occurred(IQS7211E *self);
+iqs7211e_gestures_e iqs7211e_get_touchpad_event(IQS7211E *self);
+uint8_t				iqs7211e_getNumFingers(IQS7211E *self);
+
+void iqs7211e_force_I2C_communication(IQS7211E *self);
+
+#ifdef __cplusplus
+}
+#endif
+
+extern IQS7211E iqs7211e;
+
 #endif /* IQS7211E_h */

@@ -1,10 +1,11 @@
 SRC_FILES =                                                                   \
-shim/interupt                                                                 \
-shim/main                                                                     \
+IQS7211E/config                                                               \
+iqs7211                                                                       \
+rt                                                                            \
 
 SRC_FILES_CPP =                                                               \
 IQS7211E/IQS7211E                                                             \
+IQS7211E/shim                                                                 \
 SoftwareWire                                                                  \
-iqs7211                                                                       \
 
 -include ../lib/Filelist.mk
