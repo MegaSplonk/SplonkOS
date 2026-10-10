@@ -18,7 +18,7 @@ include $(BASE_MAKEFILE)
 
 
 viewer:
-	picocom -b $(SERIAL_BAUD_RATE) $(SERIAL_PORT) -q | tee /dev/tty /dev/stdout | python3 viewer.py
+	picocom -b $(SERIAL_BAUD_RATE) $(SERIAL_PORT) -q | python3 viewer.py
 
 WARNING_REMOVE = -Wno-inline -Wno-missing-declarations -Wno-conversion \
 				 -Wno-shadow -Wno-sign-conversion -Wno-unused-parameter \

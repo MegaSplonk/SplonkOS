@@ -1,34 +1,37 @@
-/* -*- mode: jde; c-basic-offset: 2; indent-tabs-mode: nil -*- */
-
-/*
-  Part of the Wiring project - http://wiring.uniandes.edu.co
-
-  Copyright (c) 2004-05 Hernando Barragan
-
-  This library is free software; you can redistribute it and/or
-  modify it under the terms of the GNU Lesser General Public
-  License as published by the Free Software Foundation; either
-  version 2.1 of the License, or (at your option) any later version.
-
-  This library is distributed in the hope that it will be useful,
-  but WITHOUT ANY WARRANTY; without even the implied warranty of
-  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-  Lesser General Public License for more details.
-
-  You should have received a copy of the GNU Lesser General
-  Public License along with this library; if not, write to the
-  Free Software Foundation, Inc., 59 Temple Place, Suite 330,
-  Boston, MA  02111-1307  USA
-
-  Modified 24 November 2006 by David A. Mellis
-  Modified 1 August 2010 by Mark Sproul
-*/
-
-#include "shim/ArduinoPin.h"
-
 #include <avr/interrupt.h>
 #include <avr/io.h>
-#include <avr/pgmspace.h>
+
+#include "lib/pin.h"
+#include "lib/proto/uart.h"
+#include "lib/time.h"
+#include "lib/usb/api.h"
+#include "lib/usb/cdc.h"
+
+void setup(void);
+void loop(void);
+
+#ifndef cbi
+#define cbi(sfr, bit) (_SFR_BYTE(sfr) &= ~_BV(bit))
+#endif
+#ifndef sbi
+#define sbi(sfr, bit) (_SFR_BYTE(sfr) |= _BV(bit))
+#endif
+
+int main(void) {
+	pu_cdc();
+	usb_device_attach();
+	timer_init();
+	uart_init();
+	sei();
+
+	setup();
+
+	for (;;) {
+		loop();
+	}
+
+	return 0;
+}
 
 #define EXTERNAL_NUM_INTERRUPTS 5
 
@@ -46,7 +49,10 @@ static volatile voidFuncPtr intFunc[EXTERNAL_NUM_INTERRUPTS] = {
 	nothing, nothing, nothing, nothing, nothing,
 };
 
-void attachInterrupt(uint8_t interruptNum, void (*userFunc)(void), int mode) {
+void attachInterrupt(u8 interruptNum, void (*userFunc)(), i16 mode);
+void detachInterrupt(u8 interruptNum);
+
+void attachInterrupt(u8 interruptNum, void (*userFunc)(void), i16 mode) {
 	if (interruptNum < EXTERNAL_NUM_INTERRUPTS) {
 		intFunc[interruptNum] = userFunc;
 
@@ -85,7 +91,7 @@ void attachInterrupt(uint8_t interruptNum, void (*userFunc)(void), int mode) {
 	}
 }
 
-void detachInterrupt(uint8_t interruptNum) {
+void detachInterrupt(u8 interruptNum) {
 	if (interruptNum < EXTERNAL_NUM_INTERRUPTS) {
 		// Disable the interrupt.  (We can't assume that interruptNum is equal
 		// to the number of the EIMSK bit to clear, as this isn't true on the

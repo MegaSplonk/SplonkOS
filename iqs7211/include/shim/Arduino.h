@@ -27,8 +27,18 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-unsigned long micros(void);
-unsigned long millis(void);
+
+u32 millis(void);
+
+void attachInterrupt(u8 interruptNum, void (*userFunc)(void), i16 mode);
+void detachInterrupt(u8 interruptNum);
+
 #ifdef __cplusplus
 }
 #endif
+
+#define NOT_AN_INTERRUPT -1
+#define digitalPinToInterrupt(p)                                                                   \
+	((p) == 0                                                                                      \
+		 ? 2                                                                                       \
+		 : ((p) == 1 ? 3 : ((p) == 2 ? 1 : ((p) == 3 ? 0 : ((p) == 7 ? 4 : NOT_AN_INTERRUPT)))))
