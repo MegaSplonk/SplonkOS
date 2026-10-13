@@ -1,5 +1,6 @@
 #include "lib/pin.h"
 #include "lib/pinout.h"
+#include "lib/pinout/splonk.h"
 #include "lib/proto/adc.h"
 #include "lib/proto/uart.h"
 #include "lib/time.h"
@@ -18,7 +19,7 @@
 int main(void) {
 	sei();
 	uart_init();
-	timer_init();
+	// timer_init();
 	pu_cdc();
 	pu_hid();
 	pu_hid_add_desc(&nkro_descriptor);
@@ -26,15 +27,15 @@ int main(void) {
 	pu_hid_add_desc(&cc_descriptor);
 	pu_hid_add_desc(&slider_descriptor);
 	usb_device_attach();
-	TX_RX_LED_INIT;
+	// TX_RX_LED_INIT;
 
-	while (!USBConnected()) {
-		TXLED1;
-		RXLED1;
-		_delay_ms(100);
-		TXLED0;
-		RXLED0;
-	};
+	// while (!USBConnected()) {
+	// 	TXLED1;
+	// 	RXLED1;
+	// 	_delay_ms(100);
+	// 	TXLED0;
+	// 	RXLED0;
+	// };
 
 	// struct HID_NKRO_report report_nkro = {};
 	// struct HID_MOUSE_report report_mouse = {};
@@ -42,7 +43,10 @@ int main(void) {
 	// struct HID_SLIDER_report report_slider = {};
 
 	pin_input((pin)D10);
-	PORTB |= _BV(PORTB6); // pullup
+	pin_output((pin)ACT_LED);
+	// PORTB |= _BV(PORTB6); // pullup
+
+	timer_t timer = timer_reset();
 
 	while (true) {
 		bool pressed = false;
@@ -64,6 +68,10 @@ int main(void) {
 
 		// usb_serial_write((const void *)itoa_buf, (usize)ret);
 		// report_slider.slider1 = adc_val * 4;
+		if (timer_wait(&timer, 500)) {
+			timer = timer_reset();
+			pin_toggle((pin)ACT_LED);
+		}
 
 		// usb_serial_write((const void *)"Hello from USB !\r\n", 19);
 		debug_print((const void *)(pressed ? "P\r" : "X\r"));

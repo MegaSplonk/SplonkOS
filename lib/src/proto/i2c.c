@@ -598,6 +598,8 @@ static void i2c_keep_or_rel_bus() {}
 #endif
 
 void i2c_poll(void) {
+	TIMER_TICK_MS(1);
+
 	static bool disco_timeout = false;
 	ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {
 		if (state.mode == TW_UH || state.mode == TW_YE) {

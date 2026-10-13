@@ -35,11 +35,9 @@ t_error timer_ontick_register(enum e_timer_ontick_slot slot, t_ontick_func func)
 	return SUCCESS;
 }
 
-#define TIMER_CLOCK_TARGET_HZ 100000UL
-
 #if defined(MCU_atmega32u4) || defined(MCU_atmega328p)
 
-#define TIMER_CLOCK_PRESCALER_VALUE 8UL
+#define TIMER_CLOCK_PRESCALER_VALUE 64UL
 #define TIMER_INTERUPT_VECTOR		TIMER0_COMPA_vect
 #define TIMER_TOP_MAX				255L
 
@@ -60,12 +58,8 @@ static_assert(TIMER_TOP < TIMER_TOP_MAX, "TIMER_TOP can't be over TIMER_TOP_MAX"
 static_assert((TIMER_CLOCK_TARGET_HZ / 1000) < 255, "TIMER_CLOCK_TARGET_HZ too high");
 
 static void inc_milis(void) {
-	static u8 tick = 0;
-
-	if (++tick >= (TIMER_CLOCK_TARGET_HZ / 1000)) {
-		tick = 0;
-		MILIS++;
-	}
+	TIMER_TICK_MS(1);
+	MILIS++;
 }
 
 void timer_init(void) {
@@ -80,7 +74,7 @@ void timer_init(void) {
 #if TIMER_CLOCK_PRESCALER_VALUE == 1UL
 	TCCR0B = _BV(CS00);
 #elif TIMER_CLOCK_PRESCALER_VALUE == 8UL
-	TCCR0B = _BV(CS00) | _BV(CS01);
+	TCCR0B = _BV(CS01);
 #elif TIMER_CLOCK_PRESCALER_VALUE == 64UL
 	TCCR0B = _BV(CS00) | _BV(CS01);
 #elif TIMER_CLOCK_PRESCALER_VALUE == 256UL

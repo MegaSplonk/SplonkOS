@@ -32,9 +32,23 @@ enum e_timer_ontick_slot {
 	T_ONTICK_SLOT_I2C,
 	T_ONTICK_SLOT_I2C_PEER,
 	T_ONTICK_SLOT_I2C_SELF,
+	T_ONTICK_SLOT_USB,
 	T_ONTICK_SLOT_USER1,
 	T_ONTICK_SLOT_USER2,
 	__T_ONTICK_SLOT_LAST,
 };
 
 t_error timer_ontick_register(enum e_timer_ontick_slot slot, t_ontick_func func);
+
+#define TIMER_CLOCK_TARGET_HZ 2'000UL
+#define TIMER_TICK_MS(_ms)                                                                         \
+	static u8 tick = 0;                                                                            \
+	if (++tick < ((((u32)(_ms) * TIMER_CLOCK_TARGET_HZ) / 1'000UL)))                               \
+		return;                                                                                    \
+	tick = 0
+
+#define TIMER_TICK_500US(_n)                                                                       \
+	static u8 tick = 0;                                                                            \
+	if (++tick < ((((u32)(_n) * TIMER_CLOCK_TARGET_HZ) / 2'000UL)))                                \
+		return;                                                                                    \
+	tick = 0
