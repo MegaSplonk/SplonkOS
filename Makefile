@@ -1,10 +1,10 @@
 PROJECTS =                                                                     \
-	test-ec11                                                                  \
 	test-matrix                                                                \
 	test-rgb                                                                   \
 	test-usb                                                                   \
 	test-splonkreen                                                            \
-	test-i2c                                                                   \
+	splonk                                                                     \
+	splonknob                                                                  \
 
 GLOBAL_DEPS = lib Base.mk .clang-format .github Makefile flake.nix flake.lock
 

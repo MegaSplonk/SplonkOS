@@ -1,9 +1,8 @@
-#include "lib/splonk.h"
-#include "lib/ec11.h"
 #include "lib/key_matrix.h"
 #include "lib/pinout.h"
 #include "lib/proto/i2c.h"
 #include "lib/proto/uart.h"
+#include "lib/splonk.h"
 #include "lib/time.h"
 #include "lib/usb/api.h"
 #include "lib/usb/hid.h"
@@ -13,32 +12,18 @@
 #include <util/atomic.h>
 #include <util/delay.h>
 
-#if defined(SPLONKLIB_ENABLE_I2C)
-
-#if !defined(SPLONK) && !defined(SPLONKNOB)
-#define SPLONK
-#endif
-
-#if defined(SPLONK)
 #define SELF_ADDR 0b00011111
 #define PEER_ADDR 0b01011111
-#elif defined(SPLONKNOB)
-#define SELF_ADDR 0b01011111
-#define PEER_ADDR 0b00011111
-#endif
 
 I2C_SLOT(gcall1, gcall, gcall);
-
-#ifdef SPLONK
 
 i2c_peer *self;
 i2c_peer *otherhalf;
 i2c_peer *peerknob;
 
-
-struct HID_NKRO_report report_nkro = {};
-struct HID_MOUSE_report report_mouse = {};
-struct HID_CC_report report_cc = {};
+struct HID_NKRO_report	 report_nkro = {};
+struct HID_MOUSE_report	 report_mouse = {};
+struct HID_CC_report	 report_cc = {};
 struct HID_SLIDER_report report_slider = {};
 
 bool usb_connected = false;
@@ -259,110 +244,7 @@ void splonk_loop() {
 	}
 }
 
-#elifdef SPLONKNOB
-
-i2c_peer *self;
-
-#if defined(MCU_atmega328p) // for testing purposes
-
-#define R_BTN D2
-#define R_A	  D3
-#define R_B	  D4
-#define L_BTN D5
-#define L_A	  D6
-#define L_B	  D7
-
-// #elif defined(MCU_attiny1614)
-//
-// #define R_BTN P13
-// #define R_A	  P12
-// #define R_B	  P11
-//
-#endif
-
-I2C_SLOT(knob1, dummy, splonknob);
-
-void splonk_loop() {
-	timer_init();
-	uart_init();
-	debug_print("%s\n", "I'm splonknob");
-	i2c_register_peer(nullptr, &gcall1, (ipi){});
-	i2c_register_peer(&self, &knob1, (ipi){SELF_ADDR, IPD_NONE, IPT_SPLONKNOB});
-	i2c_set_addr(SELF_ADDR, 1);
-	i2c_init();
-	i2c_listen();
-	debug_print("SELF %d type%d", self->info.addr, self->info.type);
-
-	timer_t		t = timer_reset();
-	splonknob	sk = {};
-	timer_t		tt = timer_reset();
-	timer_t		ttt = timer_reset();
-	struct ec11 ec_l, ec_r;
-	ec11_init(&ec_l, (pin)L_A, (pin)L_B, (pin)L_BTN);
-	ec11_init(&ec_r, (pin)R_A, (pin)R_B, (pin)R_BTN);
-	splonknob last = {};
-	// add second ec11 when wired in
-	while (true) {
-		switch (ec11_poll(&ec_l, &sk.butn_l)) {
-		case (ROT_A):
-			sk.knob_l += 1;
-			break;
-		case (ROT_B):
-			sk.knob_l -= 1;
-			break;
-		case (ROT_NONE):
-			break;
-		}
-		switch (ec11_poll(&ec_r, &sk.butn_r)) {
-		case (ROT_A):
-			sk.knob_r += 1;
-			break;
-		case (ROT_B):
-			sk.knob_r -= 1;
-			break;
-		case (ROT_NONE):
-			break;
-		}
-		if (timer_wait(&t, 5)) {
-			t = timer_reset();
-			if (grb_avail(&self->io->output) >= sizeof(sk)) {
-				i2c_send(self, (void *)&sk, sizeof(sk));
-				sk = (splonknob){.butn_l = sk.butn_l, .butn_r = sk.butn_r};
-			}
-		}
-		if (timer_wait(&tt, 5)) {
-			tt = timer_reset();
-			bool same = true;
-			for (usize i = 0; i < sizeof(sk); i++)
-				if (((u8 *)&sk)[i] != ((u8 *)&last)[i])
-					same = false;
-			if (!same) {
-				for (usize i = 0; i < sizeof(sk); i++)
-					uart_send_u8_hex(((u8 *)&sk)[i]);
-				uart_sendstring("\r\n");
-				last = sk;
-			}
-		}
-		if (timer_wait(&ttt, 30000)) { // for debugging purposes
-			soft_reset();
-		}
-	}
+int main(void) {
+	splonk_loop();
+	return 0;
 }
-
-#elifdef SPLONKO
-#elifdef SPLONKREEN
-#elifdef SPLONKPAD
-#elifdef SPLONKBAR
-
-#else
-
-void splonk_loop() {
-	uart_init();
-
-	while (true) {
-		uart_sendstring("dumbass\r\n");
-	}
-}
-
-#endif
-#endif
