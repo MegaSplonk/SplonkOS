@@ -13,6 +13,4 @@ I2C_DATA(dummy, u8 junk;)
 
 void splonk_loop();
 
-void ugly_and_evil_usb_symlink(void);
-
 #endif

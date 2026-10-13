@@ -47,6 +47,7 @@ int	  USB_Recv1(uint8_t ep);							 // non-blocking
 void  USB_Flush(uint8_t ep);
 
 u8 USBConnected(void);
+u8 USBFrameNumber(void);
 u8 USBGetConfiguration(void);
 
 // class USBDevice_ {

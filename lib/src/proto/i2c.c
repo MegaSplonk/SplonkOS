@@ -263,10 +263,18 @@ t_error i2c_get_peer(i2c_peer **p, ipi info) {
 	return ERROR;
 }
 
+void i2c_get_peers(i2c_peer **p, usize *s) {
+	*p = peers;
+	*s = tabsize(peers);
+}
+
 t_error i2c_register_peer(i2c_peer **p, grbio *io, ipi info) {
 	for (usize peer = 0; peer < I2C_MAX_PEERS; peer++) {
 
-		if (peers[peer].io) //  && peers[peer].info.addr != info.addr
+		if (peer != 0 && peers[peer].info.addr == info.addr)
+			return ERROR;
+
+		if (peers[peer].io)
 			continue;
 
 		if (io)
@@ -314,10 +322,20 @@ t_error i2c_register(i2c_peer **p, ipi info) {
 		if (!slots[slot].io || slots[slot].taken || slots[slot].type != info.type)
 			continue;
 
+		if (i2c_register_peer(p, slots[slot].io, info))
+			return ERROR;
 		slots[slot].taken = true;
-		return i2c_register_peer(p, slots[slot].io, info);
+		return SUCCESS;
 	}
 	return ERROR;
+}
+
+static void del_and_shift_peers(i2c_peer *p) {
+	usize pos = (usize)(((uintptr_t)p - (uintptr_t)peers) / sizeof(i2c_peer *));
+	for (; pos + 1 < sizeof(peers); pos++) {
+		peers[pos] = peers[pos + 1];
+	}
+	peers[pos] = (i2c_peer){};
 }
 
 t_error i2c_unregister(i2c_peer *p) {
@@ -335,7 +353,7 @@ t_error i2c_unregister(i2c_peer *p) {
 
 		slots[slot].taken = false;
 		i2c_free_addr(p->info.addr);
-		*p = (i2c_peer){};
+		del_and_shift_peers(p);
 		return SUCCESS;
 	}
 	return ERROR;
@@ -596,10 +614,10 @@ void i2c_poll(void) {
 			test = 0;
 			disco_timeout = false;
 #ifdef TWI_UNIFIED
-			debug_print("R%xS%xM%dA%d-I%d I%d O%d", TW_STATUS, TWCR, state.mode,
-						peers[I2C_SELF_IDX].info.addr, grb_count(&peers[I2C_GCALL_IDX].io->input),
-						grb_count(&peers[state.peer_idx].io->input),
-						grb_count(&peers[state.peer_idx].io->output));
+			// debug_print("R%xS%xM%dA%d-I%d I%d O%d", TW_STATUS, TWCR, state.mode,
+			// 			peers[I2C_SELF_IDX].info.addr, grb_count(&peers[I2C_GCALL_IDX].io->input),
+			// 			grb_count(&peers[state.peer_idx].io->input),
+			// 			grb_count(&peers[state.peer_idx].io->output));
 #elifdef TWI_SPLIT
 			debug_print("R%xSA%xSB%xM%dA%d-I%d I%d O%d", TWI0.SSTATUS, TWI0.SCTRLA, TWI0.SCTRLB,
 						state.mode, peers[I2C_SELF_IDX].info.addr,

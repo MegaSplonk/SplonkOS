@@ -25,4 +25,3 @@
 #define COL6 _P(B, 6)
 
 #define KM_COLS {COL1, COL2, COL3, COL4, COL5, COL6}
-
