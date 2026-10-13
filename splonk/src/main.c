@@ -5,6 +5,7 @@
 #include "lib/splonk.h"
 #include "lib/time.h"
 #include "lib/usb/api.h"
+#include "lib/usb/cdc.h"
 #include "lib/usb/hid.h"
 #include "lib/usb/pu.h"
 
@@ -162,9 +163,6 @@ static void query_peers() {
 }
 
 void splonk_loop() {
-	timer_init();
-	uart_init();
-	km_init();
 	debug_print("%s\n", "I'm alive");
 	i2c_register_peer(nullptr, &gcall1, (ipi){});
 	i2c_register_peer(&self, &splonk1, (ipi){SELF_ADDR, IPD_ALL, IPT_SPLONK});
@@ -176,7 +174,6 @@ void splonk_loop() {
 	timer_ontick_register(T_ONTICK_SLOT_I2C_PEER, peer_input_handler);
 	timer_t t = timer_reset();
 	timer_t act_timer = timer_reset();
-	timer_t usb_timer = timer_reset();
 	timer_t ttt = timer_reset();
 	splonk	self_data = {.keys = {}, .led_mode = 0, .peers = {}};
 	splonk	self_last = self_data;
@@ -184,30 +181,10 @@ void splonk_loop() {
 	pin_output((pin)ACT_LED);
 	pin_set((pin)ACT_LED, true);
 #endif
-	pu_hid();
-	pu_hid_add_desc(&nkro_descriptor);
-	pu_hid_add_desc(&mouse_descriptor);
-	pu_hid_add_desc(&cc_descriptor);
-	pu_hid_add_desc(&slider_descriptor);
-	usb_device_attach();
-	pin_output((pin)ACT_LED);
 	bool act = true;
-	u8	 usbframe = USBFrameNumber();
-	u32	 usbcheck = 5;
 
 	while (true) {
-		if (timer_wait(&usb_timer, usbcheck)) {
-			u8 frame = USBFrameNumber();
-			if (frame != usbframe) {
-				usb_connected = true;
-				usbcheck = 500;
-				usbframe = frame;
-			} else {
-				usb_connected = false;
-				usbcheck = 5;
-			}
-			usb_timer = timer_reset();
-		}
+		usb_connected = USBConnected();
 #ifdef PINOUT_splonk
 		if (!usb_connected && timer_wait(&act_timer, 500)) { // or !discovered other splonk?
 			act_timer = timer_reset();
@@ -245,6 +222,20 @@ void splonk_loop() {
 }
 
 int main(void) {
+	sei();
+	uart_init();
+	timer_init();
+	pu_cdc();
+	pu_hid();
+	pu_hid_add_desc(&nkro_descriptor);
+	pu_hid_add_desc(&mouse_descriptor);
+	pu_hid_add_desc(&cc_descriptor);
+	pu_hid_add_desc(&slider_descriptor);
+	usb_device_attach();
+	pin_output((pin)ACT_LED);
+	km_init();
+
 	splonk_loop();
+
 	return 0;
 }

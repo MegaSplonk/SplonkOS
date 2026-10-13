@@ -38,16 +38,28 @@ isize USB_SendControl(uint8_t flags, const void *d, usize len);
 isize USB_RecvControl(void *d, usize len);
 isize USB_RecvControlLong(void *d, usize len);
 
+// @nonblocking
 uint8_t USB_Available(uint8_t ep);
+// @nonblocking
 uint8_t USB_SendSpace(uint8_t ep);
 
-isize USB_Send(uint8_t ep, const void *data, usize len); // blocking
-isize USB_Recv(uint8_t ep, void *data, usize len);		 // non-blocking
-int	  USB_Recv1(uint8_t ep);							 // non-blocking
-void  USB_Flush(uint8_t ep);
+// @blocking
+isize USB_Send(uint8_t ep, const void *data, usize len);
+// @nonblocking
+isize USB_Send_nonblocking(u8 ep, const void *d, usize len);
+// @nonblocking
+isize USB_Recv(uint8_t ep, void *data, usize len);
+// @nonblocking
+int USB_Recv1(uint8_t ep);
+// @nonblocking
+void USB_Flush(uint8_t ep);
 
-u8 USBConnected(void);
-u8 USBFrameNumber(void);
+// @nonblocking
+bool USBConnected(void);
+
+// @blocking
+bool USBConnected_blocking(void);
+// @nonblocking
 u8 USBGetConfiguration(void);
 
 // class USBDevice_ {

@@ -9,6 +9,7 @@
 GRBIO_INIT(UART_BUF, UART_IBUF, UART_OBUF, UART_IBUF_LEN, UART_OBUF_LEN);
 
 static void _inner_uart_send(void) {
+	TIMER_TICK_500US(1);
 	int avail = usb_serial_availableForWrite();
 
 	if (avail > 0) {

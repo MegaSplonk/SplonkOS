@@ -17,6 +17,8 @@
 GRBIO_INIT(UART_BUF, UART_IBUF, UART_OBUF, UART_IBUF_LEN, UART_OBUF_LEN);
 
 static void uart_ontick_reenable_udre_int(void) {
+	TIMER_TICK_500US(1);
+
 	if (!(USART0.CTRLA & USART_DREIE_bm) && !grb_empty(&UART_BUF.output)) {
 		uart_enable_udre_int();
 	}

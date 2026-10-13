@@ -97,6 +97,8 @@ void uart_poll(void) {
 }
 
 static void uart_ontick_reenable_udre_int(void) {
+	TIMER_TICK_500US(1);
+
 	if (!(UART_UCSRB & _BV(UART_UDRIE)) && !grb_empty(&UART_BUF.output)) {
 		uart_enable_udre_int();
 	}
