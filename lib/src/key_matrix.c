@@ -15,8 +15,10 @@ static usize sense(usize p, u8 *keys, usize m_size) {
 	usize changes = 0;
 	for (usize s = 0; s < km_sense_size; s++) {
 		usize key = p * km_probe_size + s;
-		bool  old = keys[key / 8] & (1 << (key % 8));
-		bool  cur = pin_get(km_sense[s]);
+		if (key >= m_size * 8)
+			continue;
+		bool old = keys[key / 8] & (1 << (key % 8));
+		bool cur = pin_get(km_sense[s]);
 		if (cur == old)
 			continue;
 		changes += 1;

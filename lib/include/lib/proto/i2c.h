@@ -156,6 +156,7 @@ bool i2c_is_listening(void);
 void i2c_ignore(void);
 
 t_error i2c_get_peer(i2c_peer **p, ipi info);
+void	i2c_get_peers(i2c_peer **p, usize *s);
 t_error i2c_register_peer(i2c_peer **p, grbio *io, ipi info);
 t_error i2c_register_slot(grbio *io, ipt type);
 t_error i2c_register(i2c_peer **p, ipi info);

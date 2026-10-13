@@ -158,12 +158,12 @@ wait-device:
 .PHONY: flash
 flash: hex
 	@$(MAKE) --no-print-directory wait-device
-# ifeq ($(MCU),atmega32u4)
-# 	@printf " STTY $(PORT) 1200\n"
-# 	@stty -F $(PORT) speed 1200 >/dev/null
-# 	@sleep 1
-# 	@$(MAKE) --no-print-directory wait-device
-# endif
+ifeq ($(MCU)$(PROGRAMMER), atmega32u4avr109)
+	@printf " STTY $(PORT) 1200\n"
+	@stty -F $(PORT) speed 1200 >/dev/null
+	@sleep 1
+	@$(MAKE) --no-print-directory wait-device
+endif
 	@printf " FLASH[$(MCU)] $(HEX_FILE)\n"
 	@avrdude -p $(MCU) $(AVRDUDE_FLAGS) -U flash:w:$(HEX_FILE):i
 
