@@ -2,11 +2,11 @@ PROJECT_MAKEFILE := $(abspath $(lastword $(MAKEFILE_LIST)))
 PROJECT_NAME     = test-matrix
 
 PORT             = /dev/ttyUSB0
-BAUD_RATE        = 115200
-PROGRAMMER       = arduino
-MCU              = atmega328p
-F_CPU            = 16000000
-PINOUT           = nano
+BAUD_RATE        = 57600
+PROGRAMMER       = serialupdi
+MCU              = attiny1614
+F_CPU            = 20000000
+PINOUT           = attiny
 BOARD            = matrix_test
 
 TARGET           = $(PROJECT_NAME)

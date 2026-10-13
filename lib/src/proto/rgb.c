@@ -7,6 +7,13 @@
 #include <util/delay.h>
 
 #ifdef SPLONKLIB_ENABLE_LED
+#if !defined(SPLONKLIB_LED_BITBANG) && !defined(SPLONKLIB_LED_SPI)
+#error "You need to define either SPLONKLIB_LED_BITBANG or SPLONKLIB_LED_SPI"
+#endif
+
+#if !defined(SPLONKLIB_ENABLE_SPI) && defined(SPLONKLIB_LED_SPI)
+#error "SPLONKLIB_LED_SPI needs SPLONKLIB_ENABLE_SPI"
+#endif
 
 #if defined(SPLONKLIB_LED_BITBANG)
 
@@ -16,21 +23,10 @@
 static void fpi_init(void);
 static void fpi_write(u8);
 
-#elif defined(SPLONKLIB_LED_SPI)
-#if defined(SPLONKLIB_ENABLE_SPI)
+#elif defined(SPLONKLIB_ENABLE_SPI)
 
 #define L_spi_init	spi_init
 #define L_spi_write spi_write
-
-#else
-
-#error "SPLONKLIB_LED_SPI needs SPLONKLIB_ENABLE_SPI"
-
-#endif
-
-#else
-
-#error "You need to define either SPLONKLIB_LED_BITBANG or SPLONKLIB_LED_SPI"
 
 #endif
 
