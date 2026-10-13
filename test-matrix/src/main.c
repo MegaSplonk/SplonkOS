@@ -4,6 +4,7 @@
 #include <avr/io.h>
 #include <util/delay.h>
 
+/*
 #define COL1 A5
 #define COL2 A4
 #define COL3 A3
@@ -15,18 +16,21 @@
 #define ROW3 D6
 #define ROW4 D7
 #define ROWS {ROW1, ROW2, ROW3, ROW4}
+*/
 
+/*
 const pin		  rows[] = ROWS;
 const pin		  cols[] = COLS;
 constexpr uint8_t width = tabsize(cols);
 constexpr uint8_t height = tabsize(rows);
 constexpr uint8_t size = width * height;
-rgb				  leds[size] = {};
 const uint8_t	  led_matrix_idx[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15};
+*/
 #define RED ((rgb){255, 0, 0})
 #define OFF ((rgb){0, 0, 0})
 // void delay_ms(uint16_t ms);
 
+/*
 static bool btn_pressed(pin p) {
 	bool yes = pin_get(p);
 	_delay_ms(5);
@@ -54,24 +58,40 @@ static void check_cols(uint8_t r) {
 	led_update();
 	return;
 }
+*/
+
+rgb	  leds[6] = {};
+usize current_idx = 0;
 
 int main(void) {
 	uart_init();
 	led_init((led_config){
-		.buffer = leds, .buffer_len = tabsize(leds), .brightness = 1, .clock = D13, .data = D11});
+		.buffer = leds, .buffer_len = tabsize(leds), .brightness = 1, .clock = P13, .data = P11});
 
-	for (uint8_t r = 0; r < sizeof(rows) / sizeof(rows[0]); r++)
-		pin_output(rows[r]), pin_set(rows[r], false);
-	for (uint8_t c = 0; c < sizeof(cols) / sizeof(cols[0]); c++)
-		pin_input(cols[c]);
+	// for (uint8_t r = 0; r < sizeof(rows) / sizeof(rows[0]); r++)
+	//	pin_output(rows[r]), pin_set(rows[r], false);
+	// for (uint8_t c = 0; c < sizeof(cols) / sizeof(cols[0]); c++)
+	//	pin_input(cols[c]);
 
 	led_update();
 	while (true) {
-		for (uint8_t r = 0; r < sizeof(rows) / sizeof(rows[0]); r++) {
-			pin_set(rows[r], true);
-			check_cols(r);
-			pin_set(rows[r], false);
+		for (usize i = 0; i < tabsize(leds); i++) {
+			if (i == current_idx) {
+				leds[i] = RED;
+			} else {
+				leds[i] = OFF;
+			}
 		}
+
+		++current_idx;
+		current_idx %= tabsize(leds);
+		led_update();
+		_delay_ms(100);
+		// for (uint8_t r = 0; r < sizeof(rows) / sizeof(rows[0]); r++) {
+		//  pin_set(rows[r], true);
+		//  check_cols(r);
+		//  pin_set(rows[r], false);
+		//}
 	}
 
 	return 0;
