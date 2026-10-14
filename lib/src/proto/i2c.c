@@ -107,9 +107,9 @@ const pin bus_enable[] = I2C_BE_PINS;
 const u8  be_logic[] = I2C_BE_LOGIC;
 
 static void i2c_bus_enable(void) {
-	//ipd dir = state.peer_idx == I2C_GCALL_IDX ? state.bus_enable : IPD_ALL;
-	//for (u8 be = 0; be < tabsize(bus_enable); be++)
-	//	pin_output(bus_enable[be]), pin_set(bus_enable[be], (bool)(be_logic[dir] & (1 << be)));
+	ipd dir = IPD_ALL; // state.peer_idx == I2C_GCALL_IDX ? state.bus_enable : IPD_ALL;
+	for (u8 be = 0; be < tabsize(bus_enable); be++)
+		pin_output(bus_enable[be]), pin_set(bus_enable[be], (bool)(be_logic[dir] & (1 << be)));
 }
 
 // TODO - test
@@ -206,6 +206,11 @@ static void handle_gcall() {
 	case GCI_ACK_TYPE:
 		debug_print("ACK TYPE %d %d %d", call.ack_type.instruction, call.ack_type.data,
 					call.ack_type.more[0]);
+		// ack or nack handled during data transfer
+		break;
+	case GCI_ACK_ADDR:
+		debug_print("ACK ADDR %d %d %d", call.ack_addr.instruction, call.ack_addr.data,
+					call.ack_addr.more[0]);
 		// ack or nack handled during data transfer
 		break;
 	default:
@@ -378,8 +383,24 @@ static t_error i2c_discover(i2c_peer *peer) { // use with &peers[I2C_SELF_IDX]
 
 	p %= tabsize(peer->downstream);
 	for (; p < tabsize(peer->downstream); p++, t = 0, addr = 0) {
-		if (peer->downstream[p]) // peer already discovered
+		if (peer->downstream[p]) { // peer already discovered
+			if (!addr) {
+				addr = peer->downstream[p]->info.addr;
+				gcall data = {.ack_addr = {GCI_ACK_ADDR, addr, .more = {1}}};
+				i2c_gcall((gcall *)&data);
+				return SUCCESS;
+			}
+			if (!grb_empty(&peers[I2C_GCALL_IDX].io->output)) // keep waiting
+				return SUCCESS;
+			if (peers[I2C_GCALL_IDX].snack || peers[I2C_GCALL_IDX].dnack) {
+				debug_print("PURGED %d", addr);
+				i2c_unregister(peer->downstream[p]);
+				peer->downstream[p] = NULL;
+				p = 0, t = 0, addr = 0;
+				return SUCCESS;
+			}
 			continue;
+		}
 		if (state.bus_enable != ipdirections[p + 1]) { // start assessing peer type
 			state.bus_enable = ipdirections[p + 1];
 			gcall data = {.ack_type = {GCI_ACK_TYPE, iptypes[t++], .more = {1}}};
@@ -388,14 +409,17 @@ static t_error i2c_discover(i2c_peer *peer) { // use with &peers[I2C_SELF_IDX]
 		}
 		if (!grb_empty(&peers[I2C_GCALL_IDX].io->output)) // keep waiting
 			return SUCCESS;
-		if (peers[I2C_GCALL_IDX].snack) // next peer
+		if (peers[I2C_GCALL_IDX].snack) { // next peer
+			peers[I2C_GCALL_IDX].snack = 0;
 			continue;
+		}
 		if (t >= tabsize(iptypes)) {
 			debug_print("Unknown peer type???");
 			continue;
 		}
 		gcall data = {.ack_type = {GCI_ACK_TYPE, iptypes[t], .more = {1}}}; // padding
 		if (peers[I2C_GCALL_IDX].dnack) {									// try another type
+			peers[I2C_GCALL_IDX].dnack = 0;
 			i2c_gcall((gcall *)&data);
 			t++;
 			return SUCCESS;
@@ -427,8 +451,7 @@ static t_error i2c_discover(i2c_peer *peer) { // use with &peers[I2C_SELF_IDX]
 }
 
 t_error i2c_gcall(gcall *call) {
-	return i2c_send(&peers[I2C_GCALL_IDX], (u8 *)call,
-					sizeof(call) + (call->base.instruction == GCI_ACK_TYPE ? 1 : 0));
+	return i2c_send(&peers[I2C_GCALL_IDX], (u8 *)call, gcall_size[call->base.instruction]);
 }
 
 t_error i2c_send(i2c_peer *p, u8 *data, usize len) {
@@ -497,14 +520,16 @@ static bool read_should_nack(i2c_peer *p) {
 	if (p->query == 1)
 		return true;
 	if (state.peer_idx == I2C_GCALL_IDX) {
-		u8	  peek[sizeof(gcall_ack_type)];
+		u8	  peek[sizeof(gcall_ack_)];
 		usize p_bytes = 0;
 		grb_peek(&peers[I2C_GCALL_IDX].io->input, peek, sizeof(peek), &p_bytes);
 		if (p_bytes <
 			sizeof(peek) - 1) // FIXME NEEDS TO BEHAVE DIFFERENTLY ATMEGA (size-1) VS ATTINY (size)
 			return false;
-		bool ret = (gcall_instruction)peek[0] == GCI_ACK_TYPE &&
-				   (ipt)peek[1] != peers[I2C_SELF_IDX].info.type;
+		bool ret = ((gcall_instruction)peek[0] == GCI_ACK_TYPE &&
+					(ipt)peek[1] != peers[I2C_SELF_IDX].info.type) ||
+				   ((gcall_instruction)peek[0] == GCI_ACK_ADDR &&
+					(ipt)peek[1] != peers[I2C_SELF_IDX].info.addr);
 		// debug_print("shouldnack%d==%d, %d!=%d -> %d", peek[0], GCI_ACK_TYPE, peek[1],
 		// peers[I2C_SELF_IDX].info.type, ret);
 		// if (ret)
@@ -597,31 +622,42 @@ static void i2c_keep_or_rel_bus() {
 static void i2c_keep_or_rel_bus() {}
 #endif
 
+void i2c_debug() {
+#ifdef TWI_UNIFIED
+	debug_print("R%xS%xM%dA%d-I%d I%d O%d", TW_STATUS, TWCR, state.mode,
+				peers[I2C_SELF_IDX].info.addr, grb_count(&peers[I2C_GCALL_IDX].io->input),
+				grb_count(&peers[state.peer_idx].io->input),
+				grb_count(&peers[state.peer_idx].io->output));
+#elifdef TWI_SPLIT
+	debug_print("R%xSA%xSB%xM%dA%d-I%d I%d O%d", TWI0.SSTATUS, TWI0.SCTRLA, TWI0.SCTRLB, state.mode,
+				peers[I2C_SELF_IDX].info.addr, grb_count(&peers[I2C_GCALL_IDX].io->input),
+				grb_count(&peers[state.peer_idx].io->input),
+				grb_count(&peers[state.peer_idx].io->output));
+#endif
+}
+
 void i2c_poll(void) {
-	static bool disco_timeout = false;
+	static timer_t disco_timer = {}, info_timer = {};
+	static usize   disco_timeout = 1;
 	ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {
 		if (state.mode == TW_UH || state.mode == TW_YE) {
 			i2c_keep_or_rel_bus();
 			handle_gcall();
 			if (peers[I2C_SELF_IDX].info.type == IPT_SPLONK) {
-				if (!disco_timeout && i2c_discover(&peers[I2C_SELF_IDX]))
-					disco_timeout = true;
+				if (timer_wait(&disco_timer, disco_timeout)) {
+					disco_timer = timer_reset();
+					if (i2c_discover(&peers[I2C_SELF_IDX]))
+						disco_timeout = 500;
+					else
+						disco_timeout = 1;
+				}
 				i2c_alzheimer();
 			}
 		}
-		disco_timeout = false;
-#ifdef TWI_UNIFIED
-		debug_print("R%xS%xM%dA%d-I%d I%d O%d", TW_STATUS, TWCR, state.mode,
-					peers[I2C_SELF_IDX].info.addr, grb_count(&peers[I2C_GCALL_IDX].io->input),
-					grb_count(&peers[state.peer_idx].io->input),
-					grb_count(&peers[state.peer_idx].io->output));
-#elifdef TWI_SPLIT
-		debug_print("R%xSA%xSB%xM%dA%d-I%d I%d O%d", TWI0.SSTATUS, TWI0.SCTRLA, TWI0.SCTRLB,
-					state.mode, peers[I2C_SELF_IDX].info.addr,
-					grb_count(&peers[I2C_GCALL_IDX].io->input),
-					grb_count(&peers[state.peer_idx].io->input),
-					grb_count(&peers[state.peer_idx].io->output));
-#endif
+		if (timer_wait(&info_timer, 2000)) {
+			info_timer = timer_reset();
+			i2c_debug();
+		}
 	}
 }
 
@@ -630,9 +666,9 @@ static void i2c_state_machine(u8 status) {
 	const char *data = nullptr;
 	switch (status) {
 	case (TW_START): {
-		// data = "start condition tx";
-		//   if (state.mode != TW_MR)
-		//   debug_print("%s %d %d", data, state.mode, i2c_is_listening());
+		data = "start condition tx";
+		if (state.mode != TW_MR)
+			debug_print("%s %d %d", data, state.mode, i2c_is_listening());
 		// cool bro now select a Slave
 		i2c_select();
 		break;
@@ -659,10 +695,10 @@ static void i2c_state_machine(u8 status) {
 		break;
 	}
 	case (TW_MT_SLA_NACK): {
-		// data = "SLA+W tx, NACK rx";
-		// debug_print("%s", data);
+		data = "SLA+W tx, NACK rx";
+		debug_print("%s", data);
 		peers[state.peer_idx].snack++;
-		peers[state.peer_idx].timeout = 1000;
+		peers[state.peer_idx].timeout = 100;
 		// ok now either load a data byte
 		// (apparently you can still load data after a NACK?)
 		// (you can talk to a wall, cool)
@@ -723,7 +759,7 @@ static void i2c_state_machine(u8 status) {
 		// data = "SLA+R tx, NACK rx";
 		// debug_print("%s", data);
 		peers[state.peer_idx].snack++;
-		peers[state.peer_idx].timeout = 1000;
+		peers[state.peer_idx].timeout = 100;
 		// Either send Repeated start or Stop or both
 		i2c_keep_or_rel_bus();
 		break;

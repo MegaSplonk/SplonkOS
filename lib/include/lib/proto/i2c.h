@@ -46,24 +46,27 @@ u16			 checksum;                                                                
 typedef enum gcall_instruction : u8 {
 	GCI_RESET,
 	GCI_USE_ADDR,
-	GCI_ACK_TYPE = 77,
+	GCI_ACK_TYPE, //  = 21
+	GCI_ACK_ADDR,
 	__GCI_LAST,
 } gcall_instruction;
 
 I2C_DATA(gcall_, gcall_instruction instruction; u8 data; u8 more[];)
-I2C_DATA(gcall_ack_type, gcall_instruction instruction; u8 data; u8 more[1];)
+I2C_DATA(gcall_ack_, gcall_instruction instruction; u8 data; u8 more[1];)
 
 typedef union gcall {
-	gcall_		   base;
-	gcall_		   reset;
-	gcall_		   use_addr;
-	gcall_ack_type ack_type;
+	gcall_	   base;
+	gcall_	   reset;
+	gcall_	   use_addr;
+	gcall_ack_ ack_type;
+	gcall_ack_ ack_addr;
 } gcall;
 
 constexpr usize gcall_size[__GCI_LAST] = {
 	[GCI_RESET] = sizeof(gcall_),
 	[GCI_USE_ADDR] = sizeof(gcall_),
-	[GCI_ACK_TYPE] = sizeof(gcall_ack_type),
+	[GCI_ACK_TYPE] = sizeof(gcall_ack_),
+	[GCI_ACK_ADDR] = sizeof(gcall_ack_),
 };
 
 typedef enum i2c_peer_direction : u8 {
@@ -165,5 +168,6 @@ t_error i2c_gcall(gcall *call);
 t_error i2c_send(i2c_peer *p, u8 *data, usize len);
 t_error i2c_query(i2c_peer *p, u8 *data, usize len);
 void	i2c_poll(void);
+void	i2c_debug(void);
 
 #endif
