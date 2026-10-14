@@ -10,25 +10,17 @@
 #define MAX_PAGE		8
 #define MAX_COL			128
 
-#ifdef MCU_atmega328p
-#define DC	(pin) D4
-#define RES (pin) D7
-#elifdef MCU_attiny1614
-#define DC	(pin) A6
-#define RES (pin) A7
-#endif
-
 static u8 screenBuffer[MAX_PAGE][MAX_COL];
 
 void screen_init(void) {
 	// Power up Sequence (4.1)
-	pin_output(DC);
-	pin_output(RES);
+	pin_output((pin)PIN_DC);
+	pin_output((pin)PIN_RES);
 
 	// pulse of reset
-	pin_set(RES, false);
+	pin_set((pin)PIN_RES, false);
 	_delay_ms(10);
-	pin_set(RES, true);
+	pin_set((pin)PIN_RES, true);
 
 	_delay_ms(10);
 
@@ -45,12 +37,12 @@ void screen_init(void) {
 }
 
 void send_command(u8 x) {
-	pin_set(DC, false);
+	pin_set((pin)PIN_DC, false);
 	spi_write(x);
 }
 
 void send_data(u8 x) {
-	pin_set(DC, true);
+	pin_set((pin)PIN_DC, true);
 	spi_write(x);
 }
 

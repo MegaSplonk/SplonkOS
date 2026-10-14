@@ -9,6 +9,8 @@
 #include <avr/io.h>
 #include <util/twi.h>
 
+#include "lib/grb.h"
+
 #define I2C_CLOCK 100000UL
 
 #define I2C_ADDR(ADDR, RW) ((ADDR) << 1 | (RW & 1))

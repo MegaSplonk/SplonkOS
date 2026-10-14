@@ -16,8 +16,8 @@ typedef int32_t	 i32;
 typedef int64_t	 i64;
 typedef intptr_t isize;
 
-#define tabsize(TAB) (sizeof(TAB) / sizeof(TAB[0]))
-#define _P(PORT, NB) {.port = PORT_##PORT, .pin = PIN_##NB, ._pad = 0}
+#define tabsize(_TAB) (sizeof(_TAB) / sizeof(_TAB[0]))
+#define _P(_PORT, _NB) {.port = PORT_##_PORT, .pin = PIN_##_NB, ._pad = 0}
 
 #define LOWORD(x) ((uint8_t)((uint16_t)x & (uint16_t)0x00FF))
 #define HIWORD(x) ((uint8_t)(((uint16_t)x & (uint16_t)0xFF00) >> 8))
