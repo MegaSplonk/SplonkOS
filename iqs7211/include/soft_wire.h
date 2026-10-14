@@ -31,10 +31,10 @@ void	sw_begin_transmission(t_sw *self, u8 address);
 e_sw_ts sw_end_transmission(t_sw *self, bool sendStop);
 // Requests larger than SW_BUF_SIZE return zero and set SW_BUFFER_FULL.
 // On timeout, only complete bytes are returned and status is SW_OTHER.
-u8		sw_req_from(t_sw *self, u8 address, u8 size, bool sendStop);
-usize	sw_write(t_sw *self, u8 data);
-usize	sw_write_bytes(t_sw *self, const u8 *data, usize quantity);
-i16		sw_available(t_sw *self);
-i16		sw_peek(t_sw *self);
-i16		sw_read(t_sw *self);
-i16		sw_read_bytes(t_sw *self, u8 *buf, u8 size);
+u8	  sw_req_from(t_sw *self, u8 address, u8 size, bool sendStop);
+usize sw_write(t_sw *self, u8 data);
+usize sw_write_bytes(t_sw *self, const u8 *data, usize quantity);
+i16	  sw_available(t_sw *self);
+i16	  sw_peek(t_sw *self);
+i16	  sw_read(t_sw *self);
+i16	  sw_read_bytes(t_sw *self, u8 *buf, u8 size);
