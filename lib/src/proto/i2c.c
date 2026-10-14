@@ -62,7 +62,7 @@ void i2c_init(void) {
 #elifdef TWI_SPLIT
 	// TODO - setup stuff here
 #endif
-	timer_ontick_register(T_ONTICK_SLOT_I2C, i2c_poll);
+	// timer_ontick_register(T_ONTICK_SLOT_I2C, i2c_poll);
 }
 
 // remember to set a slave address before listening
@@ -598,8 +598,6 @@ static void i2c_keep_or_rel_bus() {}
 #endif
 
 void i2c_poll(void) {
-	TIMER_TICK_MS(1);
-
 	static bool disco_timeout = false;
 	ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {
 		if (state.mode == TW_UH || state.mode == TW_YE) {
@@ -611,23 +609,19 @@ void i2c_poll(void) {
 				i2c_alzheimer();
 			}
 		}
-		static u16 test = 0;
-		if (test++ > 4000) {
-			test = 0;
-			disco_timeout = false;
+		disco_timeout = false;
 #ifdef TWI_UNIFIED
-			// debug_print("R%xS%xM%dA%d-I%d I%d O%d", TW_STATUS, TWCR, state.mode,
-			// 			peers[I2C_SELF_IDX].info.addr, grb_count(&peers[I2C_GCALL_IDX].io->input),
-			// 			grb_count(&peers[state.peer_idx].io->input),
-			// 			grb_count(&peers[state.peer_idx].io->output));
+		debug_print("R%xS%xM%dA%d-I%d I%d O%d", TW_STATUS, TWCR, state.mode,
+					peers[I2C_SELF_IDX].info.addr, grb_count(&peers[I2C_GCALL_IDX].io->input),
+					grb_count(&peers[state.peer_idx].io->input),
+					grb_count(&peers[state.peer_idx].io->output));
 #elifdef TWI_SPLIT
-			debug_print("R%xSA%xSB%xM%dA%d-I%d I%d O%d", TWI0.SSTATUS, TWI0.SCTRLA, TWI0.SCTRLB,
-						state.mode, peers[I2C_SELF_IDX].info.addr,
-						grb_count(&peers[I2C_GCALL_IDX].io->input),
-						grb_count(&peers[state.peer_idx].io->input),
-						grb_count(&peers[state.peer_idx].io->output));
+		debug_print("R%xSA%xSB%xM%dA%d-I%d I%d O%d", TWI0.SSTATUS, TWI0.SCTRLA, TWI0.SCTRLB,
+					state.mode, peers[I2C_SELF_IDX].info.addr,
+					grb_count(&peers[I2C_GCALL_IDX].io->input),
+					grb_count(&peers[state.peer_idx].io->input),
+					grb_count(&peers[state.peer_idx].io->output));
 #endif
-		}
 	}
 }
 

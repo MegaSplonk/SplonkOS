@@ -88,49 +88,49 @@ static void splonknob_handler(i2c_peer *p) {
 	usize			 read_bytes = 0;
 	splonknob		 data;
 	static splonknob last;
-	debug_print("hi");
+	// debug_print("hi");
 	ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {
 		if (grb_count(&p->io->input) < sizeof(data))
 			return;
 		grb_read(&p->io->input, (void *)&data, sizeof(data), &read_bytes);
-		bool same = true;
-		for (usize i = 0; i < sizeof(data); i++)
-			if (((u8 *)&data)[i] != ((u8 *)&last)[i])
-				same = false;
-		if (same)
-			return;
-		if (data.knob_l) {
-			uart_sendstring("LK");
-			i16 knob_l = data.knob_l;
-			uart_send_i16(knob_l);
-		}
-		report_cc.vol_dec = data.knob_l > 0 ? 1u : 0;
-		report_cc.vol_inc = data.knob_l < 0 ? 1u : 0;
-		// ^^^ send multiple reports if value is != +/-1?
-		if (data.butn_l) {
-			uart_sendstring("LB");
-			uart_send_u8(data.butn_l);
-		}
-		report_cc.mute = data.butn_l ? 1u : 0;
-		if (data.knob_r) {
-			uart_sendstring("RK");
-			i16 knob_r = data.knob_r;
-			uart_send_i16(knob_r);
-		}
-		report_cc.previous = data.knob_r > 0 ? 1u : 0;
-		report_cc.next = data.knob_r < 0 ? 1u : 0;
-		if (data.butn_r) {
-			uart_sendstring("RB");
-			uart_send_u8(data.butn_r);
-		}
-		report_cc.play_pause = data.butn_r ? 1u : 0;
-		uart_sendstring("\r\n");
-		for (usize i = 0; i < sizeof(data); i++)
-			uart_send_u8_hex(((u8 *)&data)[i]);
-		uart_sendstring("\r\n");
-		last = data;
-		hid_send_report(HID_REPORT_ID_CC, &report_cc, sizeof(report_cc));
 	}
+	bool same = true;
+	for (usize i = 0; i < sizeof(data); i++)
+		if (((u8 *)&data)[i] != ((u8 *)&last)[i])
+			same = false;
+	if (same)
+		return;
+	if (data.knob_l) {
+		uart_sendstring("LK");
+		i16 knob_l = data.knob_l;
+		uart_send_i16(knob_l);
+	}
+	report_cc.vol_dec = data.knob_l > 0 ? 1u : 0;
+	report_cc.vol_inc = data.knob_l < 0 ? 1u : 0;
+	// ^^^ send multiple reports if value is != +/-1?
+	if (data.butn_l) {
+		uart_sendstring("LB");
+		uart_send_u8(data.butn_l);
+	}
+	report_cc.mute = data.butn_l ? 1u : 0;
+	if (data.knob_r) {
+		uart_sendstring("RK");
+		i16 knob_r = data.knob_r;
+		uart_send_i16(knob_r);
+	}
+	report_cc.previous = data.knob_r > 0 ? 1u : 0;
+	report_cc.next = data.knob_r < 0 ? 1u : 0;
+	if (data.butn_r) {
+		uart_sendstring("RB");
+		uart_send_u8(data.butn_r);
+	}
+	report_cc.play_pause = data.butn_r ? 1u : 0;
+	uart_sendstring("\r\n");
+	for (usize i = 0; i < sizeof(data); i++)
+		uart_send_u8_hex(((u8 *)&data)[i]);
+	uart_sendstring("\r\n");
+	last = data;
+	hid_send_report(HID_REPORT_ID_CC, &report_cc, sizeof(report_cc));
 }
 
 static void peer_input_handler() {
@@ -171,25 +171,24 @@ void splonk_loop() {
 	i2c_init();
 	i2c_set_addr(SELF_ADDR, 1);
 	i2c_listen();
-	timer_ontick_register(T_ONTICK_SLOT_I2C_PEER, peer_input_handler);
+	// timer_ontick_register(T_ONTICK_SLOT_I2C_PEER, peer_input_handler);
 	timer_t t = timer_reset();
 	timer_t act_timer = timer_reset();
-	timer_t ttt = timer_reset();
+	timer_t i2c_poll_timer = timer_reset();
+	timer_t peer_input_timer = timer_reset();
 	splonk	self_data = {.keys = {}, .led_mode = 0, .peers = {}};
 	splonk	self_last = self_data;
 #ifdef PINOUT_splonk
 	pin_output((pin)ACT_LED);
 	pin_set((pin)ACT_LED, true);
 #endif
-	bool act = true;
 
 	while (true) {
 		usb_connected = USBConnected();
 #ifdef PINOUT_splonk
-		if (!usb_connected && timer_wait(&act_timer, 500)) { // or !discovered other splonk?
+		if (!usb_connected && timer_wait(&act_timer, 500)) {
 			act_timer = timer_reset();
-			pin_set((pin)ACT_LED, act);
-			act = !act;
+			pin_toggle((pin)ACT_LED);
 		} else if (usb_connected)
 			pin_set((pin)ACT_LED, true);
 #endif
@@ -209,9 +208,13 @@ void splonk_loop() {
 			query_peers();
 			// ^^^ TODO - only query peers if overall master
 		}
-		if (timer_wait(&ttt, 500)) {
-			ttt = timer_reset();
-			debug_print("USBconn%d", usb_connected);
+		if (timer_wait(&i2c_poll_timer, 200)) {
+			i2c_poll_timer = timer_reset();
+			i2c_poll();
+		}
+		if (timer_wait(&peer_input_timer, 5)) {
+			peer_input_timer = timer_reset();
+			peer_input_handler();
 		}
 		// if (timer_wait(&ttt, 30000)) {
 		// 	ttt = timer_reset();
@@ -225,6 +228,7 @@ int main(void) {
 	sei();
 	uart_init();
 	timer_init();
+	// remove this an no usb flash
 	pu_cdc();
 	pu_hid();
 	pu_hid_add_desc(&nkro_descriptor);

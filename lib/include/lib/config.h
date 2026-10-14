@@ -72,8 +72,7 @@
 #define SPLONKLIB_ENABLE_SPI
 #define SPLONKLIB_LED_SPI
 #define SPLONKLIB_ENABLE_USB
-#define SPLONKLIB_DISABLE_USB_LED
-// ^^^ Not really useful since B0 and D5 are both NC on pcb
+#define SPLONKLIB_UART_FORCE_HARDWARE
 
 #elif defined(BOARD_splonkpad)
 #elif defined(BOARD_splonkreen)
