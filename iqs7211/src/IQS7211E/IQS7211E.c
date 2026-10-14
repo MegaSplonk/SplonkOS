@@ -17,9 +17,9 @@
 
 /* Include Files */
 #include "IQS7211E/IQS7211E.h"
+#include "IQS7211E/config.h"
 #include "lib/proto/uart.h"
 #include "shim/Arduino.h"
-#include "IQS7211E/config.h"
 // #include "IQS7211E_init.h"
 
 #include "soft_wire.h"
@@ -101,8 +101,7 @@ void iqs7211e_ready_interrupt(void);
  *         - If communication is successfully established then it is unlikely
  *           that initialization will fail.
  */
-void iqs7211e_begin(IQS7211E *self, t_sw wire, uint8_t deviceAddressIn,
-					pin readyPinIn) {
+void iqs7211e_begin(IQS7211E *self, t_sw wire, uint8_t deviceAddressIn, pin readyPinIn) {
 	self->wire = wire;
 
 	self->_deviceAddress = deviceAddressIn;
@@ -938,7 +937,8 @@ void iqs7211e_readRandomBytes(IQS7211E *self, uint8_t memoryAddress, uint8_t num
 	// Request "numBytes" bytes from the device which has the address: "_deviceAddress"
 	do {
 		sw_req_from(&self->wire, (int)self->_deviceAddress, (int)numBytes, (int)stopOrRestart);
-	} while (sw_available(&self->wire) == 0); // Wait for response, this sometimes takes a few attempts
+	} while (sw_available(&self->wire) ==
+			 0); // Wait for response, this sometimes takes a few attempts
 
 	// Load the received bytes into the array until there are no more
 	while (sw_available(&self->wire)) {

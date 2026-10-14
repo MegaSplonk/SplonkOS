@@ -174,7 +174,6 @@ typedef struct {
 	iqs7211e_init_e	 init_state;
 } iqs7211e_s;
 
-
 typedef struct iqs7211e_data {
 	/* Public Device States */
 	iqs7211e_s iqs7211e_state;
@@ -182,7 +181,7 @@ typedef struct iqs7211e_data {
 	/* Public Variables */
 	IQS7211E_MEMORY_MAP IQSMemoryMap;
 	bool				new_data_available;
-	t_sw wire;
+	t_sw				wire;
 	/* Private Variables */
 	uint8_t _deviceAddress;
 } IQS7211E;
