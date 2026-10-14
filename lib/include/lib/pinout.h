@@ -16,6 +16,8 @@
 #include "lib/pinout/splonkpad.h"
 #elif defined(PINOUT_splonkbar)
 #include "lib/pinout/splonkbar.h"
+#elif defined(PINOUT_splonkreen)
+#include "lib/pinout/splonkreen.h"
 #else
 #error "PINOUT not defined or not known by splonklib"
 #endif

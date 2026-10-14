@@ -1,8 +1,6 @@
 LIB_SRC_FILES =                                                               \
 ec11                                                                          \
-font_8x6                                                                      \
 grb                                                                           \
-image                                                                         \
 key_matrix                                                                    \
 lib                                                                           \
 pin                                                                           \
@@ -15,7 +13,9 @@ proto/uart/uart_send                                                          \
 proto/uart/uart_usb                                                           \
 proto/usb                                                                     \
 rgb_matrix                                                                    \
-sh1106_utils                                                                  \
+screen/font_8x6                                                               \
+screen/image                                                                  \
+screen/sh1106_utils                                                           \
 time                                                                          \
 usb/cdc                                                                       \
 usb/core                                                                      \

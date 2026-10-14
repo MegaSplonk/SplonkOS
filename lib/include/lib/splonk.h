@@ -44,6 +44,8 @@ I2C_DATA(
 	};)
 I2C_DATA(splonkbar, u16 value;)
 
+I2C_DATA(splonkreen, u8 mods; u8 layers;)
+
 I2C_DATA(dummy, u8 junk;)
 
 void splonk_loop();

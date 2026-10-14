@@ -42,6 +42,12 @@ static const u8 maieul_data[513] PROGMEM = {
 
 };
 
+static const u8 meta_data[8] PROGMEM = {
+	0xE7, 0xA5, 0xFF, 0x24, 0x24, 0xFF, 0xA5, 0xE7,
+};
+
+const t_image meta_image = {.data = meta_data, .height = 8, .width = 8};
+
 const t_image maieul = {.data = maieul_data, .height = 64, .width = 64};
 
 #endif
