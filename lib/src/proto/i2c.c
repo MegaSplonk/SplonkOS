@@ -107,9 +107,9 @@ const pin bus_enable[] = I2C_BE_PINS;
 const u8  be_logic[] = I2C_BE_LOGIC;
 
 static void i2c_bus_enable(void) {
-	ipd dir = state.peer_idx == I2C_GCALL_IDX ? state.bus_enable : IPD_ALL;
-	for (u8 be = 0; be < tabsize(bus_enable); be++)
-		pin_output(bus_enable[be]), pin_set(bus_enable[be], (bool)(be_logic[dir] & (1 << be)));
+	//ipd dir = state.peer_idx == I2C_GCALL_IDX ? state.bus_enable : IPD_ALL;
+	//for (u8 be = 0; be < tabsize(bus_enable); be++)
+	//	pin_output(bus_enable[be]), pin_set(bus_enable[be], (bool)(be_logic[dir] & (1 << be)));
 }
 
 // TODO - test
