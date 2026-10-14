@@ -88,7 +88,7 @@ static void splonknob_handler(i2c_peer *p) {
 	usize			 read_bytes = 0;
 	splonknob		 data;
 	static splonknob last;
-	//debug_print("hi");
+	// debug_print("hi");
 	ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {
 		if (grb_count(&p->io->input) < sizeof(data))
 			return;
@@ -162,6 +162,60 @@ static void query_peers() {
 	}
 }
 
+typedef enum act_state : u8 {
+	ACT_STATE_DEFAULT,
+	ACT_STATE_USB_CONN,
+	ACT_STATE_HAS_PEER,
+	ACT_STATE_NO_PEER,
+} act_state;
+
+static void update_act_led() {
+#ifdef PINOUT_splonk
+	static timer_t	 act_timer = {}, act_timer_led = {};
+	static milis_t	 act_timer_ms = 500;
+	static act_state current_act_state = ACT_STATE_DEFAULT;
+	if (timer_wait(&act_timer, 500)) {
+    act_timer = timer_reset();
+		usb_connected = USBConnected();
+
+		if (usb_connected)
+			current_act_state = ACT_STATE_USB_CONN;
+		i2c_peer *p;
+		usize	  s;
+		i2c_get_peers(&p, &s);
+		usize pcount = 0;
+		for (usize i = I2C_SELF_IDX + 1; i < s; i++) {
+			if (!p[i].io)
+				continue;
+			pcount++;
+		}
+		if (pcount == 0)
+			current_act_state = ACT_STATE_NO_PEER;
+		else
+			current_act_state = ACT_STATE_HAS_PEER;
+	}
+
+	if (current_act_state == ACT_STATE_USB_CONN) {
+		pin_set((pin)ACT_LED, true);
+	}
+
+	if (current_act_state == ACT_STATE_NO_PEER || current_act_state == ACT_STATE_HAS_PEER) {
+		if (timer_wait(&act_timer_led, act_timer_ms)) {
+			pin_toggle((pin)ACT_LED);
+			act_timer_led = timer_reset();
+			if (current_act_state == ACT_STATE_NO_PEER) {
+				act_timer_ms = 500;
+			} else {
+				if (act_timer_ms == 900)
+					act_timer_ms = 100;
+				else
+					act_timer_ms = 900;
+			}
+		}
+	}
+#endif
+}
+
 void splonk_loop() {
 	debug_print("%s\n", "I'm alive");
 	i2c_register_peer(nullptr, &gcall1, (ipi){});
@@ -173,85 +227,20 @@ void splonk_loop() {
 	i2c_listen();
 	// timer_ontick_register(T_ONTICK_SLOT_I2C_PEER, peer_input_handler);
 	timer_t t = timer_reset();
-	timer_t act_timer = timer_reset();
+	timer_t ttt = timer_reset();
 	timer_t i2c_poll_timer = timer_reset();
 	timer_t peer_input_timer = timer_reset();
-	timer_t state_print = timer_reset();
 	splonk	self_data = {.keys = {}, .led_mode = 0, .peers = {}};
 	splonk	self_last = self_data;
 
-	timer_t act_timer_led = timer_reset();
-	milis_t act_timer_ms = 500;
 #ifdef PINOUT_splonk
 	pin_output((pin)ACT_LED);
 	pin_set((pin)ACT_LED, true);
 #endif
-
-#define ACT_STATE_DEFAULT  0
-#define ACT_STATE_USB_CONN 1
-#define ACT_STATE_HAS_PEER 2
-#define ACT_STATE_NO_PEER  3
-
-	u8 current_act_state = ACT_STATE_DEFAULT;
-	pin_output((pin)BUS_ENABLE1);
-	pin_output((pin)BUS_ENABLE4);
-	pin_set((pin)BUS_ENABLE4, true);
-	pin_set((pin)BUS_ENABLE1, true);
-
 	while (true) {
-#ifdef PINOUT_splonk
-		if (timer_wait(&act_timer, 500)) {
-			usb_connected = USBConnected();
-
-			if (usb_connected)
-				current_act_state = ACT_STATE_USB_CONN;
-			i2c_peer *p;
-			usize	  s;
-			i2c_get_peers(&p, &s);
-			usize pcount = 0;
-			for (usize i = I2C_SELF_IDX + 1; i < s; i++) {
-				if (!p[i].io)
-					continue;
-				pcount++;
-			}
-			if (pcount == 0)
-				current_act_state = ACT_STATE_NO_PEER;
-			else
-				current_act_state = ACT_STATE_HAS_PEER;
-		}
-
-		if (current_act_state == ACT_STATE_USB_CONN) {
-			pin_set((pin)ACT_LED, true);
-		}
-
-		if (current_act_state == ACT_STATE_NO_PEER || current_act_state == ACT_STATE_HAS_PEER) {
-			if (timer_wait(&act_timer_led, act_timer_ms)) {
-				pin_toggle((pin)ACT_LED);
-				act_timer_led = timer_reset();
-				if (current_act_state == ACT_STATE_NO_PEER) {
-					act_timer_ms = 500;
-				} else {
-					if (act_timer_ms == 900)
-						act_timer_ms = 100;
-					else
-						act_timer_ms = 900;
-				}
-			}
-		}
-
-		if (timer_wait(&state_print, 2000)) {
-			pin_set((pin)BUS_ENABLE1, true);
-			pin_set((pin)BUS_ENABLE4, true);
-			state_print = timer_reset();
-			if (current_act_state == ACT_STATE_NO_PEER)
-				uart_sendstring("NO\r\n");
-			else if (current_act_state == ACT_STATE_HAS_PEER)
-				uart_sendstring("HI\r\n");
-		}
-
-#endif
 		if (timer_wait(&t, 10)) {
 			t = timer_reset();
+		  update_act_led();
 			for (usize i = 0; i < tabsize(self_data.peers); i++)
 				self_data.peers[i] = self->downstream[i] ? self->downstream[i]->info : (ipi){};
 			km_scan(self_data.keys, sizeof(self_data.keys));
@@ -266,7 +255,7 @@ void splonk_loop() {
 			query_peers();
 			// ^^^ TODO - only query peers if overall master
 		}
-		if (timer_wait(&i2c_poll_timer, 200)) {
+		if (timer_wait(&i2c_poll_timer, 5)) {
 			i2c_poll_timer = timer_reset();
 			i2c_poll();
 		}
@@ -274,16 +263,14 @@ void splonk_loop() {
 			peer_input_timer = timer_reset();
 			peer_input_handler();
 		}
-		// if (timer_wait(&ttt, 30000)) {
-		// 	ttt = timer_reset();
-		// 	i2c_gcall(&(gcall){.reset = {.instruction = GCI_RESET, 0}});
-		// 	debug_print("RESET PEERS");
-		// }
+		if (timer_wait(&ttt, 10000)) {
+      soft_reset();
+		}
 	}
 }
 
 int main(void) {
-	sei();
+	// sei();
 	uart_init();
 	timer_init();
 	// remove this an no usb flash

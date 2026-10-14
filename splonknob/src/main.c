@@ -32,6 +32,7 @@ void splonk_loop() {
 	splonknob	sk = {};
 	timer_t		tt = timer_reset();
 	timer_t		ttt = timer_reset();
+	timer_t		tttt = timer_reset();
 	struct ec11 ec_l, ec_r;
 	ec11_init(&ec_l, (pin)L_A, (pin)L_B, (pin)L_BTN);
 	ec11_init(&ec_r, (pin)R_A, (pin)R_B, (pin)R_BTN);
@@ -78,8 +79,12 @@ void splonk_loop() {
 				last = sk;
 			}
 		}
-		if (timer_wait(&ttt, 30000)) { // for debugging purposes
+		if (timer_wait(&ttt, 60000)) { // for debugging purposes
 			soft_reset();
+		}
+		if (timer_wait(&tttt, 2000)) { // for debugging purposes
+      tttt = timer_reset();
+			i2c_debug();
 		}
 	}
 }
