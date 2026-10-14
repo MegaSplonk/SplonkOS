@@ -18,21 +18,8 @@
 #ifndef IQS7211E_h
 #define IQS7211E_h
 
-/* Include Files */
-// #include "Arduino.h"
-// #include "Wire.h"
-
-#ifdef __cplusplus
-extern "C" {
-#endif
 #include "lib/pin.h"
-#ifdef __cplusplus
-}
-#endif
-
-#ifdef __cplusplus
-#include "SoftwareWire.h"
-#endif
+#include "soft_wire.h"
 
 #include "IQS7211E/addr.h"
 
@@ -169,7 +156,6 @@ typedef enum {
 
 /* IQS7211E Memory map data variables, only save the data that might be used
 during program runtime */
-#pragma pack(1)
 typedef struct {
 	/* READ ONLY */				 //  I2C Addresses:
 	uint8_t VERSION_DETAILS[20]; // 	0x00 -> 0x09
@@ -183,87 +169,24 @@ typedef struct {
 	/* READ WRITE */		   //  I2C Addresses:
 	uint8_t SYSTEM_CONTROL[2]; // 	0x33
 } IQS7211E_MEMORY_MAP;
-#pragma pack(4)
-
-#pragma pack(1)
 typedef struct {
 	iqs7211e_state_e state;
 	iqs7211e_init_e	 init_state;
 } iqs7211e_s;
-#pragma pack(4)
 
-#ifdef __cplusplus
-/* Class Prototype */
-class IQS7211E {
-  public:
-	/* Public Constructors */
-	IQS7211E();
 
+typedef struct iqs7211e_data {
 	/* Public Device States */
 	iqs7211e_s iqs7211e_state;
 
 	/* Public Variables */
 	IQS7211E_MEMORY_MAP IQSMemoryMap;
 	bool				new_data_available;
-
-	/* Public Methods */
-	void	 begin(SoftwareWire wire_, uint8_t deviceAddressIn, pin readyPinIn);
-	bool	 init(void);
-	void	 run(void);
-	void	 queueValueUpdates(void);
-	bool	 readATIactive(void);
-	uint16_t getProductNum(bool stopOrRestart);
-	uint8_t	 getmajorVersion(bool stopOrRestart);
-	uint8_t	 getminorVersion(bool stopOrRestart);
-	void	 acknowledgeReset(bool stopOrRestart);
-	void	 ReATI(bool stopOrRestart);
-	void	 SW_Reset(bool stopOrRestart);
-	void	 writeMM(bool stopOrRestart);
-	void	 clearRDY(void);
-	bool	 getRDYStatus(void);
-
-	void setStreamMode(bool stopOrRestart);
-	void setEventMode(bool stopOrRestart);
-
-	void				 updateInfoFlags(bool stopOrRestart);
-	iqs7211e_power_modes getPowerMode(void);
-	bool				 checkReset(void);
-	void				 updateAbsCoordinates(bool stopOrRestart, uint8_t fingerNum);
-	uint16_t			 getAbsYCoordinate(uint8_t fingerNum);
-	uint16_t			 getAbsXCoordinate(uint8_t fingerNum);
-	bool				 touchpad_event_occurred(void);
-	iqs7211e_gestures_e	 get_touchpad_event(void);
-	uint8_t				 getNumFingers(void);
-
-	void force_I2C_communication(void);
-
-  private:
-	SoftwareWire wire;
+	t_sw wire;
 	/* Private Variables */
 	uint8_t _deviceAddress;
+} IQS7211E;
 
-	/* Private Methods */
-	void	readRandomBytes(uint8_t memoryAddress, uint8_t numBytes, uint8_t bytesArray[],
-							bool stopOrRestart);
-	void	writeRandomBytes(uint8_t memoryAddress, uint8_t numBytes, uint8_t bytesArray[],
-							 bool stopOrRestart);
-	void	writeRandomBytes16(uint16_t memoryAddress, uint8_t numBytes, uint8_t bytesArray[],
-							   bool stopOrRestart);
-	bool	getBit(uint8_t data, uint8_t bit_number);
-	uint8_t setBit(uint8_t data, uint8_t bit_number);
-	uint8_t clearBit(uint8_t data, uint8_t bit_number);
-};
-#endif
-
-#ifndef __cplusplus
-
-typedef struct IQS7211E IQS7211E;
-
-#endif
-
-#ifdef __cplusplus
-extern "C" {
-#endif
 /* Public Device States */
 iqs7211e_s *iqs7211e_get_state(IQS7211E *self);
 
@@ -272,7 +195,7 @@ IQS7211E_MEMORY_MAP *iqs7211e_IQSMemoryMap(IQS7211E *self);
 bool				*iqs7211e_new_data_available(IQS7211E *self);
 
 /* iqs7211e_Public Methods */
-void	 iqs7211e_begin(IQS7211E *self, uint8_t deviceAddressIn, pin readyPinIn);
+void	 iqs7211e_begin(IQS7211E *self, t_sw wire, uint8_t deviceAddressIn, pin readyPinIn);
 bool	 iqs7211e_init(IQS7211E *self);
 void	 iqs7211e_run(IQS7211E *self);
 void	 iqs7211e_queueValueUpdates(IQS7211E *self);
@@ -301,10 +224,6 @@ iqs7211e_gestures_e iqs7211e_get_touchpad_event(IQS7211E *self);
 uint8_t				iqs7211e_getNumFingers(IQS7211E *self);
 
 void iqs7211e_force_I2C_communication(IQS7211E *self);
-
-#ifdef __cplusplus
-}
-#endif
 
 extern IQS7211E iqs7211e;
 
