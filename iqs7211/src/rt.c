@@ -7,6 +7,8 @@
 #include "lib/usb/api.h"
 #include "lib/usb/cdc.h"
 
+#include <util/delay.h>
+
 void setup(void);
 void loop(void);
 
@@ -18,11 +20,11 @@ void loop(void);
 #endif
 
 int main(void) {
+	sei();
 	pu_cdc();
-	usb_device_attach();
 	timer_init();
 	uart_init();
-	sei();
+	usb_device_attach();
 
 	setup();
 

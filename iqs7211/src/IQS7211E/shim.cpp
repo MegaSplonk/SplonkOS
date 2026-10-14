@@ -6,7 +6,7 @@ extern "C" {
 }
 
 IQS7211E	 iqs7211e;
-SoftwareWire Wire = SoftwareWire(D2, D3, false, true);
+SoftwareWire Wire = SoftwareWire(D2, D3);
 
 iqs7211e_s *iqs7211e_get_state(IQS7211E *self) { return &self->iqs7211e_state; }
 

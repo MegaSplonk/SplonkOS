@@ -28,7 +28,7 @@ extern "C" {
 #include "SoftwareWire.h"
 
 /* Private Global Variables */
-bool iqs7211e_deviceRDY = false;
+volatile bool iqs7211e_deviceRDY = false;
 pin	 iqs7211e_ready_pin;
 
 /* Private Functions */
@@ -62,14 +62,13 @@ IQS7211E::IQS7211E() {}
  */
 void IQS7211E::begin(SoftwareWire wire_, uint8_t deviceAddressIn, pin readyPinIn) {
 	wire = wire_;
-	/* Initialize I2C communication here, since this library can't function
-	  without it. */
-	wire.begin();
-	wire.setClock(100'000);
 
 	_deviceAddress = deviceAddressIn;
 	iqs7211e_ready_pin = (readyPinIn);
+	pin_input(iqs7211e_ready_pin);
 	attachInterrupt(digitalPinToInterrupt(0), iqs7211e_ready_interrupt, CHANGE);
+	// RDY may already be low before the interrupt is attached.
+	iqs7211e_ready_interrupt();
 
 	/* Initialize "running" and "init" state machine variables. */
 	iqs7211e_state.state = IQS7211E_STATE_START;
@@ -1084,6 +1083,10 @@ void IQS7211E::force_I2C_communication(void) {
 		wire.write(0x00);
 
 		/* End the transmission, user decides to STOP or RESTART. */
-		wire.endTransmission(STOP);
+		u8 status = wire.endTransmission(STOP);
+		char message[64];
+		snprintf(message, sizeof(message), "Force communication: I2C status=%u RDY=%u\r\n",
+				 (unsigned)status, (unsigned)pin_get(iqs7211e_ready_pin));
+		uart_sendstring(message);
 	}
 }

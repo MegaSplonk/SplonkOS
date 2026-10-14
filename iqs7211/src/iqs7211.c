@@ -68,6 +68,21 @@ void setup() {
 }
 
 void loop() {
+	// Startup logs can be sent before USB CDC is opened. Report on connection too.
+	static bool serial_open = false;
+	bool connected = (usb_serial_line_state() & 1) != 0;
+	if (connected && !serial_open) {
+		char status[96];
+		iqs7211e_s *state = iqs7211e_get_state(&iqs7211e);
+		snprintf(status, sizeof(status),
+				 "IQS7211E connected: state=%u init=%u RDY=%u SDA=%u SCL=%u\r\n",
+				 (unsigned)state->state, (unsigned)state->init_state,
+				 (unsigned)pin_get((pin)D1), (unsigned)pin_get((pin)D2),
+				 (unsigned)pin_get((pin)D3));
+		uart_sendstring(status);
+	}
+	serial_open = connected;
+
 	/* Read new data from IQS7211E if available  (RDY Line Low) */
 	iqs7211e_run(&iqs7211e);
 
