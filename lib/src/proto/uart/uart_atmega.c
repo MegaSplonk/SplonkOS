@@ -41,7 +41,7 @@
 #elif defined(MCU_atmega32u4)
 
 #if !defined(BAUD_RATE)
-#define BAUD_RATE 57600
+#define BAUD_RATE 115200
 #endif
 
 #define UBRR_VALUE ((F_CPU / (8UL * BAUD_RATE)) - 1)
