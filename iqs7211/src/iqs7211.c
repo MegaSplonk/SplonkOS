@@ -54,15 +54,20 @@ uint16_t			 running_x_output = 65535;
 uint16_t			 running_y_output = 65535;
 iqs7211e_gestures_e	 running_gestures = IQS7211E_GESTURE_NONE;
 
+IQS7211E iqs7211e = {};
+
 void setup(void);
 void loop(void);
 
 void setup() {
+	t_sw wire;
+
+	sw_init(&wire, (pin)D2, (pin)D3);
 	/* Start Serial Communication */
 	uart_sendstring("Start Serial communication\r\n");
 
 	/* Initialize the IQS7211E with input parameters device address and RDY pin */
-	iqs7211e_begin(&iqs7211e, DEMO_IQS7211E_ADDR, (pin)D1);
+	iqs7211e_begin(&iqs7211e, wire, DEMO_IQS7211E_ADDR, (pin)D1);
 	uart_sendstring("IQS7211E Ready\r\n");
 	delay(1);
 }
@@ -70,15 +75,14 @@ void setup() {
 void loop() {
 	// Startup logs can be sent before USB CDC is opened. Report on connection too.
 	static bool serial_open = false;
-	bool connected = (usb_serial_line_state() & 1) != 0;
+	bool		connected = (usb_serial_line_state() & 1) != 0;
 	if (connected && !serial_open) {
-		char status[96];
-		iqs7211e_s *state = iqs7211e_get_state(&iqs7211e);
+		char		status[96];
+		iqs7211e_s *state = &iqs7211e.iqs7211e_state;
 		snprintf(status, sizeof(status),
 				 "IQS7211E connected: state=%u init=%u RDY=%u SDA=%u SCL=%u\r\n",
-				 (unsigned)state->state, (unsigned)state->init_state,
-				 (unsigned)pin_get((pin)D1), (unsigned)pin_get((pin)D2),
-				 (unsigned)pin_get((pin)D3));
+				 (unsigned)state->state, (unsigned)state->init_state, (unsigned)pin_get((pin)D1),
+				 (unsigned)pin_get((pin)D2), (unsigned)pin_get((pin)D3));
 		uart_sendstring(status);
 	}
 	serial_open = connected;
@@ -90,7 +94,7 @@ void loop() {
 	force_comms_and_reset();
 
 	/* If data was updated, display data read from IQS7211E */
-	if (*iqs7211e_new_data_available(&iqs7211e)) {
+	if (iqs7211e.new_data_available) {
 		/* Print the following if the new data did not come from a force comms command */
 		if (!show_data) {
 			if (printData()) {
@@ -102,7 +106,7 @@ void loop() {
 		/* Display the heading when a finger is lifted from the trackpad */
 		printHeading();
 		/* Set this flag to false to indicate that the new data was already displayed/used */
-		*iqs7211e_new_data_available(&iqs7211e) = false;
+		iqs7211e.new_data_available = false;
 		/* Check if a force comms command was sent and if we should display the data read */
 		show_iqs7211e_data();
 	}
@@ -217,8 +221,7 @@ void printHeading(void) {
 	/* Check if it is necessary to display the heading */
 	if ((iqs7211e_getAbsXCoordinate(&iqs7211e, FINGER_1) == 65535) &&
 		(iqs7211e_getAbsYCoordinate(&iqs7211e, FINGER_1) == 65535) &&
-		(iqs7211e_IQSMemoryMap(&iqs7211e)->GESTURES[0] == 0) &&
-		(iqs7211e_IQSMemoryMap(&iqs7211e)->GESTURES[1] == 0)) {
+		(iqs7211e.IQSMemoryMap.GESTURES[0] == 0) && (iqs7211e.IQSMemoryMap.GESTURES[1] == 0)) {
 		// uart_sendstring("Finger 1 X:\tFinger 1 Y:\r\n");
 	}
 }
@@ -266,7 +269,7 @@ void force_comms_and_reset(void) {
 	if (message == 'r') {
 		uart_sendstring("Software Reset Requested!");
 		iqs7211e_force_I2C_communication(&iqs7211e); // Request a RDY window
-		iqs7211e_get_state(&iqs7211e)->state = IQS7211E_STATE_SW_RESET;
+		iqs7211e.iqs7211e_state.state = IQS7211E_STATE_SW_RESET;
 		running_power_mode = IQS7211E_IDLE;
 		running_x_output = 65535;
 		running_y_output = 65535;
