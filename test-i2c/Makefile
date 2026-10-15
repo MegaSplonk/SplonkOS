@@ -2,9 +2,8 @@ PROJECT_MAKEFILE := $(abspath $(lastword $(MAKEFILE_LIST)))
 PROJECT_NAME     = test-i2c
 
 
-#PINOUT           = promicro
-PINOUT            = nano
-#PINOUT           = attiny
+PINOUT           = promicro
+# PINOUT            = nano
 ifeq ($(PINOUT),nano)
 MCU              = atmega328p
 PORT             = /dev/ttyUSB0
@@ -18,13 +17,6 @@ BAUD_RATE        = 57600
 PROGRAMMER       = avr109
 MCU              = atmega32u4
 F_CPU            = 16000000
-BOARD            = i2c_test
-else ifeq ($(PINOUT),attiny)
-PORT             = /dev/ttyUSB0
-BAUD_RATE        = 57600
-PROGRAMMER       = serialupdi
-MCU              = attiny1614
-F_CPU            = 20000000UL
 BOARD            = i2c_test
 endif
 

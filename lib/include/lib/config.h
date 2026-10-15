@@ -39,6 +39,17 @@
 #define SPLONKLIB_LED_SPI
 // #define SPLONKLIB_LED_BITBANG
 
+#elif defined(BOARD_i2c_test)
+
+#define SPLONKLIB_ENABLE_I2C
+#define SPLONKLIB_ENABLE_UART
+#define SPLONKLIB_ENABLE_LED
+#define SPLONKLIB_ENABLE_SPI
+#define SPLONKLIB_LED_SPI
+#ifdef PINOUT_promicro
+#define SPLONKLIB_ENABLE_USB
+#endif
+
 #elif defined(BOARD_splonkpad_test)
 
 #define SPLONKLIB_ENABLE_UART

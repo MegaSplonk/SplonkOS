@@ -15,6 +15,7 @@
 
 #define SELF_ADDR 0b00011111
 #define PEER_ADDR 0b01011111
+#define KNOB_ADDR 0b01011111
 
 I2C_SLOT(gcall1, gcall, gcall);
 
@@ -220,8 +221,13 @@ void splonk_loop() {
 	debug_print("%s\n", "I'm alive");
 	i2c_register_peer(nullptr, &gcall1, (ipi){});
 	i2c_register_peer(&self, &splonk1, (ipi){SELF_ADDR, IPD_ALL, IPT_SPLONK});
+#ifndef I2C_STATIC_ADDR
 	i2c_register_slot(&splonk2, IPT_SPLONK);
 	i2c_register_slot(&knob1, IPT_SPLONKNOB); // add more slots as needed
+#else
+	i2c_register_peer(nullptr, &splonk2, (ipi){SELF_ADDR, IPD_ALL, IPT_SPLONK});
+	i2c_register_peer(nullptr, &knob1, (ipi){KNOB_ADDR, IPD_ALL, IPT_SPLONKNOB});
+#endif
 	i2c_init();
 	i2c_set_addr(SELF_ADDR, 1);
 	i2c_listen();

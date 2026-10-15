@@ -107,9 +107,9 @@ const pin bus_enable[] = I2C_BE_PINS;
 const u8  be_logic[] = I2C_BE_LOGIC;
 
 static void i2c_bus_enable(void) {
-	ipd dir = IPD_ALL; // state.peer_idx == I2C_GCALL_IDX ? state.bus_enable : IPD_ALL;
+	// ipd dir = state.peer_idx == I2C_GCALL_IDX ? state.bus_enable : IPD_ALL;
 	for (u8 be = 0; be < tabsize(bus_enable); be++)
-		pin_output(bus_enable[be]), pin_set(bus_enable[be], (bool)(be_logic[dir] & (1 << be)));
+		pin_output(bus_enable[be]), pin_set(bus_enable[be], true); // (bool)(be_logic[dir] & (1 << be))
 }
 
 // TODO - test
@@ -364,17 +364,18 @@ t_error i2c_unregister(i2c_peer *p) {
 	return ERROR;
 }
 
-static void i2c_alzheimer(void) {
-	for (usize peer = I2C_SELF_IDX + 1; peer < I2C_MAX_PEERS; peer++) {
+// static void i2c_alzheimer(void) {
+// 	for (usize peer = I2C_SELF_IDX + 1; peer < I2C_MAX_PEERS; peer++) {
+//
+// 		if (!peers[peer].io || !peers[peer].snack)
+// 			continue;
+//
+// 		if (peers[peer].snack > 5)
+// 			i2c_unregister(&peers[peer]);
+// 	}
+// }
 
-		if (!peers[peer].io || !peers[peer].snack)
-			continue;
-
-		if (peers[peer].snack > 5)
-			i2c_unregister(&peers[peer]);
-	}
-}
-
+#ifndef I2C_STATIC_ADDR
 static void i2c_discover(i2c_peer *peer) { // use with &peers[I2C_SELF_IDX]
 											  // send a gcall to use a random addr
 	// then query said addr? how?
@@ -459,6 +460,7 @@ static void i2c_discover(i2c_peer *peer) { // use with &peers[I2C_SELF_IDX]
 	state.bus_enable = IPD_ALL;
 	return; // Done interrogating, no peer found
 }
+#endif
 
 t_error i2c_gcall(gcall *call) {
 	return i2c_send(&peers[I2C_GCALL_IDX], (u8 *)call, gcall_size[call->base.instruction]);
@@ -653,9 +655,11 @@ void i2c_poll(void) {
 		if (state.mode == TW_UH || state.mode == TW_YE) {
 			i2c_keep_or_rel_bus();
 			handle_gcall();
+#ifndef I2C_STATIC_ADDR
 			if (peers[I2C_SELF_IDX].info.type == IPT_SPLONK) {
 				i2c_discover(&peers[I2C_SELF_IDX]);
 			}
+#endif
 		}
 		if (timer_wait(&info_timer, 2000)) {
 			info_timer = timer_reset();
