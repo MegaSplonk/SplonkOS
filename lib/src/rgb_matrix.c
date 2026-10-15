@@ -22,12 +22,13 @@ void rm_set_keys(u8 *k) { keys = k; }
 
 void rm_get_mode(led_mode *m) { *m = mode; }
 
-#define RGB(r, g, b) ((rgb){(u8)(r), (u8)(g), (u8)(b)})
-#define OFF			 RGB(0, 0, 0)
-#define RED			 RGB(255, 0, 0)
-#define GREEN		 RGB(0, 255, 0)
-#define BLUE		 RGB(0, 0, 255)
-#define WHITE		 RGB(255, 255, 255)
+#define _RGB(r, g, b) {r, g, b}
+#define RGB(r, g, b)  (rgb) _RGB(r, g, b)
+const rgb OFF = _RGB(0, 0, 0);
+const rgb RED = _RGB(255, 0, 0);
+const rgb GREEN = _RGB(0, 255, 0);
+const rgb BLUE = _RGB(0, 0, 255);
+const rgb WHITE = _RGB(255, 255, 255);
 
 #define RM_SNAKE_LENGTH 8u
 #define RM_HUE_MAX		1536u
@@ -70,12 +71,12 @@ static rgb rm_hsv_to_rgb(u32 hue, u8 saturation, u8 value) {
 	u32 sector = hue / 256u;
 	u32 f = hue % 256u;
 
-	u32 v = value;
-	u32 s = saturation;
+	u8 v = value;
+	u8 s = saturation;
 
-	u32 p = v * (255u - s) / 255u;
-	u32 q = v * (255u - s * f / 256u) / 255u;
-	u32 t = v * (255u - s * (255u - f) / 256u) / 255u;
+	u8 p = (u8)(v * (255u - s) / 255u);
+	u8 q = (u8)(v * (255u - s * f / 256u) / 255u);
+	u8 t = (u8)(v * (255u - s * (255u - f) / 256u) / 255u);
 
 	switch (sector) {
 	case 0:
@@ -249,7 +250,7 @@ static void rgb_matrix_fire(void) {
 	for (usize i = 0; i < rm_size; i++) {
 		u32 heat = 96u + rm_rand() % 160u;
 
-		leds[i] = RGB(255, heat, heat > 128u ? (heat - 128u) / 2u : 0u);
+		leds[i] = RGB(255, (u8)heat, heat > 128u ? (u8)((heat - 128u) / 2u) : 0u);
 	}
 }
 
