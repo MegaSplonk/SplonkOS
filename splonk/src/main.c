@@ -255,7 +255,7 @@ void splonk_loop() {
 			query_peers();
 			// ^^^ TODO - only query peers if overall master
 		}
-		if (timer_wait(&i2c_poll_timer, 5)) {
+		if (timer_wait(&i2c_poll_timer, 1)) {
 			i2c_poll_timer = timer_reset();
 			i2c_poll();
 		}
@@ -263,7 +263,7 @@ void splonk_loop() {
 			peer_input_timer = timer_reset();
 			peer_input_handler();
 		}
-		if (timer_wait(&ttt, 10000)) {
+		if (timer_wait(&ttt, 60000)) {
       soft_reset();
 		}
 	}
