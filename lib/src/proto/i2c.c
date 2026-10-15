@@ -388,7 +388,9 @@ static void i2c_discover(i2c_peer *peer) { // use with &peers[I2C_SELF_IDX]
 
 	if (timer_wait(&sense_timer, 3000)) {
 		sense_timer = timer_reset();
+#ifdef SPLONK
 		debug_print("sensed dir: %d", i2c_bus_sense());
+#endif
 	}
 
 	p %= tabsize(peer->downstream);
