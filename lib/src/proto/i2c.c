@@ -1,8 +1,8 @@
 #include <avr/interrupt.h>
 #include <avr/io.h>
 #include <util/atomic.h>
-#include <util/twi.h>
 #include <util/delay.h>
+#include <util/twi.h>
 
 #include "lib/config.h"
 #include "lib/grb.h"
@@ -107,26 +107,27 @@ void i2c_ignore(void) {
 const pin bus_enable[] = I2C_BE_PINS;
 
 static void i2c_bus_enable(void) {
-	ipd dir = IPD_ALL;//state.peer_idx == I2C_GCALL_IDX ? state.bus_enable : IPD_ALL; // 
-  // debug_print("chibrolux%d", dir);
+	ipd dir = state.peer_idx == I2C_GCALL_IDX ? state.bus_enable : IPD_ALL; //
+	// debug_print("chibrolux%d", dir);
 	for (u8 be = 0; be < tabsize(bus_enable); be++)
-		pin_output(bus_enable[be]), pin_set(bus_enable[be], (bool)(be_logic[dir] & (1 << be))); //true 
+		pin_output(bus_enable[be]),
+			pin_set(bus_enable[be], (bool)(be_logic[dir] & (1 << be))); // true
 
-  // _delay_us(1);
+	// _delay_us(1);
 }
 
 // TODO - test
 static ipd i2c_bus_sense(void) {
-  ipd dir = IPD_NONE;
-  for (u8 d = 0; d < tabsize(ipdirections) - 1; d++) {
-    for (u8 be = 0; be < tabsize(bus_enable); be++) {
-		  pin_input(bus_enable[be]);
-      if ((be_logic[d] & (1 << be)) && pin_get(bus_enable[be]))
-        dir = ipdirections[d];
-    }
-  }
-  i2c_bus_enable();
-  return dir;
+	ipd dir = IPD_NONE;
+	for (u8 d = 0; d < tabsize(ipdirections) - 1; d++) {
+		for (u8 be = 0; be < tabsize(bus_enable); be++) {
+			pin_input(bus_enable[be]);
+			if ((be_logic[d] & (1 << be)) && pin_get(bus_enable[be]))
+				dir = ipdirections[d];
+		}
+	}
+	i2c_bus_enable();
+	return dir;
 }
 #elifdef TWI_UNIFIED
 static void i2c_bus_enable(void) {}
@@ -379,16 +380,16 @@ t_error i2c_unregister(i2c_peer *p) {
 
 #ifndef I2C_STATIC_ADDR
 static void i2c_discover(i2c_peer *peer) { // use with &peers[I2C_SELF_IDX]
-											  // send a gcall to use a random addr
+										   // send a gcall to use a random addr
 	// then query said addr? how?
-	static usize p = 0, t = 0;
-	static u8	 addr = 0;
-  static timer_t sense_timer = {};
+	static usize   p = 0, t = 0;
+	static u8	   addr = 0;
+	static timer_t sense_timer = {};
 
-  if (timer_wait(&sense_timer, 3000)) {
-    sense_timer = timer_reset();
-    debug_print("sensed dir: %d", i2c_bus_sense());
-  }
+	if (timer_wait(&sense_timer, 3000)) {
+		sense_timer = timer_reset();
+		debug_print("sensed dir: %d", i2c_bus_sense());
+	}
 
 	p %= tabsize(peer->downstream);
 	for (; p < tabsize(peer->downstream); p++, t = 0, addr = 0) {
@@ -436,34 +437,34 @@ static void i2c_discover(i2c_peer *peer) { // use with &peers[I2C_SELF_IDX]
 		if (!addr || (peers[I2C_GCALL_IDX].dnack && peer->downstream[p])) {
 			if (!addr && !i2c_has_slot(iptypes[t - 1])) {
 				debug_print("Cannot register peer, no slot of type %d available", iptypes[t - 1]);
-        peer->downtime[p] = timer_reset();
-        timer_wait(&peer->downtime[p], 500);
+				peer->downtime[p] = timer_reset();
+				timer_wait(&peer->downtime[p], 500);
 				continue;
 			}
 			debug_print("Found peer type %d%s, assigning addr\r\n", iptypes[t - 1],
 						peer->downstream[p] ? " AGAIN" : "");
 			if (!addr && i2c_new_addr(&addr)) {
 				debug_print("No new i2c addr available");
-        peer->downtime[p] = timer_reset();
-        timer_wait(&peer->downtime[p], 1000);
+				peer->downtime[p] = timer_reset();
+				timer_wait(&peer->downtime[p], 1000);
 				return;
 			}
 			i2c_gcall(&(gcall){.use_addr = {GCI_USE_ADDR, addr}});
 			return;
 		}
-    if (!peer->downstream[p]) {
-      i2c_peer *discovered = NULL;
-      if (i2c_register(&discovered, (ipi){addr, state.bus_enable, iptypes[t - 1]})) {
-        debug_print("Failed to register peer, no slot available(?)");
-        i2c_free_addr(addr);
-        continue;
-      }
-      peer->downstream[p] = discovered;
-      debug_print("Registered new peer addr %d dir %d", addr, ipdirections[p + 1]);
-    } else {
-      debug_print("Re-registered peer addr %d dir %d", addr, ipdirections[p + 1]);
-    }
-    peer->downtime[p] = timer_reset();
+		if (!peer->downstream[p]) {
+			i2c_peer *discovered = NULL;
+			if (i2c_register(&discovered, (ipi){addr, state.bus_enable, iptypes[t - 1]})) {
+				debug_print("Failed to register peer, no slot available(?)");
+				i2c_free_addr(addr);
+				continue;
+			}
+			peer->downstream[p] = discovered;
+			debug_print("Registered new peer addr %d dir %d", addr, ipdirections[p + 1]);
+		} else {
+			debug_print("Re-registered peer addr %d dir %d", addr, ipdirections[p + 1]);
+		}
+		peer->downtime[p] = timer_reset();
 		timer_wait(&peer->downtime[p], 1000);
 		// FIXME does weird stuff like finding a nonexistent peer of type 0
 	}
@@ -717,6 +718,8 @@ static void i2c_state_machine(u8 status) {
 		peers[state.peer_idx].snack++;
 		if (state.peer_idx != I2C_GCALL_IDX) // discovery has its own timeout
 			peers[state.peer_idx].timeout = 100;
+		else
+			grb_clear(&peers[I2C_GCALL_IDX].io->output);
 		// ok now either load a data byte
 		// (apparently you can still load data after a NACK?)
 		// (you can talk to a wall, cool)
