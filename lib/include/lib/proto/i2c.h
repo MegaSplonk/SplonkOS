@@ -5,6 +5,7 @@
 #ifdef SPLONKLIB_ENABLE_I2C
 
 #include "lib/grb.h"
+#include "lib/time.h"
 #include <avr/io.h>
 #include <util/twi.h>
 
@@ -108,6 +109,7 @@ typedef struct i2c_peer {
 	u8		  snack;
 	u8		  dnack;
 	i2c_peer *downstream[4];
+	timer_t	  downtime[4];
 
 	// add a nack count and consider a peer dc'd when count goes too high?
 	// use a roll call every so often instead?
