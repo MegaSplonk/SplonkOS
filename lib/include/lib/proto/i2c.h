@@ -143,6 +143,7 @@ typedef struct i2c_state {
 // ^^^
 
 #define I2C_BE_PINS {_P(F, 6), BUS_ENABLE1, _P(F, 6), BUS_ENABLE4}
+// #define I2C_BE_PINS {BUS_ENABLE2, BUS_ENABLE1, BUS_ENABLE3, BUS_ENABLE4}
 
 // Bus enable logic, i.e. what bus enable pins get enabled
 // wrt which IPD_* the i2c state is in,

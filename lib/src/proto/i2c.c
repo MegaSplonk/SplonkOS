@@ -383,16 +383,23 @@ static t_error i2c_discover(i2c_peer *peer) { // use with &peers[I2C_SELF_IDX]
 
 	p %= tabsize(peer->downstream);
 	for (; p < tabsize(peer->downstream); p++, t = 0, addr = 0) {
-		if (peer->downstream[p]) { // peer already discovered
-			if (!addr) {
+		if (state.bus_enable != ipdirections[p + 1]) { // start assessing peer type
+			state.bus_enable = ipdirections[p + 1];
+			if (peer->downstream[p]) {
 				addr = peer->downstream[p]->info.addr;
-				gcall data = {.ack_addr = {GCI_ACK_ADDR, addr, .more = {1}}};
-				i2c_gcall((gcall *)&data);
-				return SUCCESS;
+				t = peer->downstream[p]->info.type;
 			}
-			if (!grb_empty(&peers[I2C_GCALL_IDX].io->output)) // keep waiting
-				return SUCCESS;
-			if (peers[I2C_GCALL_IDX].snack || peers[I2C_GCALL_IDX].dnack) {
+			gcall data = peer->downstream[p]
+							 ? (gcall){.ack_addr = {GCI_ACK_ADDR, addr, .more = {1}}}
+							 : (gcall){.ack_type = {GCI_ACK_TYPE, iptypes[t++], .more = {1}}};
+			i2c_gcall((gcall *)&data);
+			return SUCCESS;
+		}
+		if (!grb_empty(&peers[I2C_GCALL_IDX].io->output)) // keep waiting
+			return SUCCESS;
+		if (peers[I2C_GCALL_IDX].snack) { // next peer
+			peers[I2C_GCALL_IDX].snack = 0;
+			if (peer->downstream[p]) {
 				debug_print("PURGED %d", addr);
 				i2c_unregister(peer->downstream[p]);
 				peer->downstream[p] = NULL;
@@ -401,36 +408,25 @@ static t_error i2c_discover(i2c_peer *peer) { // use with &peers[I2C_SELF_IDX]
 			}
 			continue;
 		}
-		if (state.bus_enable != ipdirections[p + 1]) { // start assessing peer type
-			state.bus_enable = ipdirections[p + 1];
-			gcall data = {.ack_type = {GCI_ACK_TYPE, iptypes[t++], .more = {1}}};
-			i2c_gcall((gcall *)&data);
-			return SUCCESS;
-		}
-		if (!grb_empty(&peers[I2C_GCALL_IDX].io->output)) // keep waiting
-			return SUCCESS;
-		if (peers[I2C_GCALL_IDX].snack) { // next peer
-			peers[I2C_GCALL_IDX].snack = 0;
-			continue;
-		}
 		if (t >= tabsize(iptypes)) {
 			debug_print("Unknown peer type???");
 			continue;
 		}
-		gcall data = {.ack_type = {GCI_ACK_TYPE, iptypes[t], .more = {1}}}; // padding
-		if (peers[I2C_GCALL_IDX].dnack) {									// try another type
+		if (peers[I2C_GCALL_IDX].dnack && !peer->downstream[p]) { // try another type
 			peers[I2C_GCALL_IDX].dnack = 0;
+			gcall data = {.ack_type = {GCI_ACK_TYPE, iptypes[t], .more = {1}}}; // padding
 			i2c_gcall((gcall *)&data);
 			t++;
 			return SUCCESS;
 		}
-		if (!addr) {
-			if (!i2c_has_slot(iptypes[t - 1])) {
+		if (!addr || (peers[I2C_GCALL_IDX].dnack && peer->downstream[p])) {
+			if (!addr && !i2c_has_slot(iptypes[t - 1])) {
 				debug_print("Cannot register peer, no slot of type %d available", iptypes[t - 1]);
 				continue;
 			}
-			debug_print("Found peer type %d, assigning addr\r\n", iptypes[t - 1]);
-			if (i2c_new_addr(&addr)) {
+			debug_print("Found peer type %d%s, assigning addr\r\n", iptypes[t - 1],
+						peer->downstream[p] ? " AGAIN" : "");
+			if (!addr && i2c_new_addr(&addr)) {
 				debug_print("No new i2c addr available");
 				return ERROR;
 			}
@@ -447,6 +443,7 @@ static t_error i2c_discover(i2c_peer *peer) { // use with &peers[I2C_SELF_IDX]
 		debug_print("Registered new peer addr %d dir %d", addr, ipdirections[p + 1]);
 		// FIXME does weird stuff like finding a nonexistent peer of type 0
 	}
+	state.bus_enable = IPD_ALL;
 	return ERROR; // Done interrogating, no peer found
 }
 
@@ -610,6 +607,7 @@ static void i2c_keep_or_rel_bus() {
 	} else if (state.mode == TW_MR || state.mode == TW_MT) {
 		state.mode = TW_YE;
 		i2c_stop_listen();
+		i2c_bus_enable();
 		return;
 	} else if (state.mode == TW_SR || state.mode == TW_ST) {
 		state.mode = TW_YE;
