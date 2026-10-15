@@ -144,16 +144,16 @@ typedef struct i2c_state {
 #define BUS_ENABLE4 D7
 #endif
 
-#define I2C_BE_PINS {_P(F, 6), BUS_ENABLE1, _P(F, 6), BUS_ENABLE4}
-// #define I2C_BE_PINS {BUS_ENABLE2, BUS_ENABLE1, BUS_ENABLE3, BUS_ENABLE4}
+#define I2C_BE_PINS {BUS_ENABLE1, BUS_ENABLE4, BUS_ENABLE1, BUS_ENABLE1}
+// #define I2C_BE_PINS {BUS_ENABLE3, BUS_ENABLE4, BUS_ENABLE2, BUS_ENABLE1}
 
 // Bus enable logic, i.e. what bus enable pins get enabled
 // wrt which IPD_* the i2c state is in,
 // with I2C_BE_PINS[i] enabled if I2C_BE_LOGIC[IPD_*] & (1 << i)
-#define I2C_BE_LOGIC                                                                               \
-	{                                                                                              \
-		0b00000000, 0b00000001, 0b00000010, 0b00000100, 0b00001000, 0b00001111,                    \
-	} // NONE         NORTH       EAST        SOUTH       WEST         ALL
+constexpr u8 be_logic[] = {
+	[IPD_NONE] = 0b00000000,  [IPD_NORTH] = 0b00000001, [IPD_EAST] = 0b00000010,
+	[IPD_SOUTH] = 0b00000100, [IPD_WEST] = 0b00001000,	[IPD_ALL] = 0b00001111,
+};
 
 void i2c_set_addr(u8 addr, bool answer_gc);
 void i2c_init(void);

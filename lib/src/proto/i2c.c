@@ -2,6 +2,7 @@
 #include <avr/io.h>
 #include <util/atomic.h>
 #include <util/twi.h>
+#include <util/delay.h>
 
 #include "lib/config.h"
 #include "lib/grb.h"
@@ -104,28 +105,29 @@ void i2c_ignore(void) {
 
 #ifdef SPLONK
 const pin bus_enable[] = I2C_BE_PINS;
-const u8  be_logic[] = I2C_BE_LOGIC;
 
 static void i2c_bus_enable(void) {
-	// ipd dir = state.peer_idx == I2C_GCALL_IDX ? state.bus_enable : IPD_ALL;
+	ipd dir = IPD_ALL;//state.peer_idx == I2C_GCALL_IDX ? state.bus_enable : IPD_ALL; // 
+  // debug_print("chibrolux%d", dir);
 	for (u8 be = 0; be < tabsize(bus_enable); be++)
-		pin_output(bus_enable[be]), pin_set(bus_enable[be], true); // (bool)(be_logic[dir] & (1 << be))
+		pin_output(bus_enable[be]), pin_set(bus_enable[be], (bool)(be_logic[dir] & (1 << be))); //true 
+
+  // _delay_us(1);
 }
 
 // TODO - test
-// static ipd i2c_bus_sense(void) {
-//   ipd dir = IPD_NONE;
-//   for (u8 d = 0; d < tabsize(directions); d++) {
-//     for (u8 be = 0; be < tabsize(bus_enable); be++) {
-// 		  pin_input(bus_enable[be]);
-//       if ((be_logic[d] & (1 << be)) && pin_get(bus_enable[be]))
-//         dir = directions[d];
-//     }
-//   }
-//   for (u8 be = 0; be < tabsize(bus_enable); be++)
-// 		pin_output(bus_enable[be]);
-//   return dir;
-// }
+static ipd i2c_bus_sense(void) {
+  ipd dir = IPD_NONE;
+  for (u8 d = 0; d < tabsize(ipdirections) - 1; d++) {
+    for (u8 be = 0; be < tabsize(bus_enable); be++) {
+		  pin_input(bus_enable[be]);
+      if ((be_logic[d] & (1 << be)) && pin_get(bus_enable[be]))
+        dir = ipdirections[d];
+    }
+  }
+  i2c_bus_enable();
+  return dir;
+}
 #elifdef TWI_UNIFIED
 static void i2c_bus_enable(void) {}
 #endif
@@ -381,6 +383,12 @@ static void i2c_discover(i2c_peer *peer) { // use with &peers[I2C_SELF_IDX]
 	// then query said addr? how?
 	static usize p = 0, t = 0;
 	static u8	 addr = 0;
+  static timer_t sense_timer = {};
+
+  if (timer_wait(&sense_timer, 3000)) {
+    sense_timer = timer_reset();
+    debug_print("sensed dir: %d", i2c_bus_sense());
+  }
 
 	p %= tabsize(peer->downstream);
 	for (; p < tabsize(peer->downstream); p++, t = 0, addr = 0) {
@@ -428,6 +436,8 @@ static void i2c_discover(i2c_peer *peer) { // use with &peers[I2C_SELF_IDX]
 		if (!addr || (peers[I2C_GCALL_IDX].dnack && peer->downstream[p])) {
 			if (!addr && !i2c_has_slot(iptypes[t - 1])) {
 				debug_print("Cannot register peer, no slot of type %d available", iptypes[t - 1]);
+        peer->downtime[p] = timer_reset();
+        timer_wait(&peer->downtime[p], 500);
 				continue;
 			}
 			debug_print("Found peer type %d%s, assigning addr\r\n", iptypes[t - 1],
