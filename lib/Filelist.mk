@@ -14,6 +14,7 @@ proto/uart/uart_attiny                                                        \
 proto/uart/uart_send                                                          \
 proto/uart/uart_usb                                                           \
 proto/usb                                                                     \
+rgb_matrix                                                                    \
 sh1106_utils                                                                  \
 time                                                                          \
 usb/cdc                                                                       \
