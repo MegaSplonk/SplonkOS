@@ -23,10 +23,9 @@ i2c_peer *self;
 i2c_peer *otherhalf;
 i2c_peer *peerknob;
 
-struct HID_NKRO_report	 report_nkro = {};
-struct HID_MOUSE_report	 report_mouse = {};
-struct HID_CC_report	 report_cc = {};
-struct HID_SLIDER_report report_slider = {};
+bool pending_nkro = false;
+bool pending_mouse = false;
+bool pending_cc = false;
 
 bool usb_connected = false;
 
