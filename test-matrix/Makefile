@@ -6,7 +6,7 @@ BAUD_RATE        = 57600
 PROGRAMMER       = serialupdi
 MCU              = attiny1614
 F_CPU            = 20000000
-PINOUT           = attiny
+PINOUT           = splonko
 BOARD            = matrix_test
 
 TARGET           = $(PROJECT_NAME)
