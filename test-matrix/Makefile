@@ -7,7 +7,7 @@ PROGRAMMER       = serialupdi
 MCU              = attiny1614
 F_CPU            = 20000000
 PINOUT           = splonko
-BOARD            = matrix_test
+BOARD            = splonko
 
 TARGET           = $(PROJECT_NAME)
 
