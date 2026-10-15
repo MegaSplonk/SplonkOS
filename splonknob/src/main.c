@@ -82,7 +82,7 @@ void splonk_loop() {
 		if (timer_wait(&reset_timer, 60000)) { // for debugging purposes
 			soft_reset();
 		}
-    if (timer_wait(&i2c_poll_timer, 1)) {
+		if (timer_wait(&i2c_poll_timer, 1)) {
 			i2c_poll_timer = timer_reset();
 			i2c_poll();
 		}

@@ -160,7 +160,7 @@ static void update_act_led() {
 	static milis_t	 act_timer_ms = 500;
 	static act_state current_act_state = ACT_STATE_DEFAULT;
 	if (timer_wait(&act_timer, 500)) {
-    act_timer = timer_reset();
+		act_timer = timer_reset();
 		usb_connected = USBConnected();
 
 		if (usb_connected)
@@ -225,7 +225,7 @@ void splonk_loop() {
 	while (true) {
 		if (timer_wait(&t, 10)) {
 			t = timer_reset();
-		  update_act_led();
+			update_act_led();
 			for (usize i = 0; i < tabsize(self_data.peers); i++)
 				self_data.peers[i] = self->downstream[i] ? self->downstream[i]->info : (ipi){};
 			bool same = true;
@@ -248,7 +248,7 @@ void splonk_loop() {
 			peer_input_handler();
 		}
 		if (timer_wait(&ttt, 60000)) {
-      soft_reset();
+			soft_reset();
 		}
 	}
 }
