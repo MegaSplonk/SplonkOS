@@ -254,9 +254,18 @@ void splonk_loop() {
 }
 
 int main(void) {
-	// sei();
+	sei();
 	uart_init();
 	timer_init();
+#ifdef PINOUT_promicro
+	pu_cdc();
+	// pu_hid();
+	// pu_hid_add_desc(&nkro_descriptor);
+	// pu_hid_add_desc(&mouse_descriptor);
+	// pu_hid_add_desc(&cc_descriptor);
+	// pu_hid_add_desc(&slider_descriptor);
+	usb_device_attach();
+#endif
 
 	splonk_loop();
 

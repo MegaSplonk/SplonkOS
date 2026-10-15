@@ -137,12 +137,12 @@ typedef struct i2c_state {
 	ipd		 bus_enable;
 } i2c_state;
 
-// vvv move this into pinout whenever possible
-// #define BUS_ENABLE1 D4
-// #define BUS_ENABLE2 D5
-// #define BUS_ENABLE3 D6
-// #define BUS_ENABLE4 D7
-// ^^^
+#if !defined(BUS_ENABLE1) && !defined(BUS_ENABLE2) && !defined(BUS_ENABLE3) && !defined(BUS_ENABLE4)
+#define BUS_ENABLE1 D4
+#define BUS_ENABLE2 D5
+#define BUS_ENABLE3 D6
+#define BUS_ENABLE4 D7
+#endif
 
 #define I2C_BE_PINS {_P(F, 6), BUS_ENABLE1, _P(F, 6), BUS_ENABLE4}
 // #define I2C_BE_PINS {BUS_ENABLE2, BUS_ENABLE1, BUS_ENABLE3, BUS_ENABLE4}
