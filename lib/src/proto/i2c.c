@@ -725,7 +725,7 @@ static void i2c_state_machine(u8 status) {
 		else {
 			peers[state.peer_idx].timeout = 1;
 			grb_clear(&peers[I2C_GCALL_IDX].io->output);
-    }
+		}
 		// ok now either load a data byte
 		// (apparently you can still load data after a NACK?)
 		// (you can talk to a wall, cool)
@@ -775,10 +775,10 @@ static void i2c_state_machine(u8 status) {
 		peers[state.peer_idx].snack = 0;
 		peers[state.peer_idx].timeout = 0;
 		state.mode = TW_MR;
-		// (!grb_full(&peers[state.peer_idx].io->input) || peers[state.peer_idx].query == 0
-		// 	 ? i2c_int_listen
-		// 	 : i2c_int)();
-    i2c_int_listen();
+		// For single-byte reads, NACK must be prepared before the first data byte.
+		(grb_full(&peers[state.peer_idx].io->input) || peers[state.peer_idx].query <= 1
+			 ? i2c_int
+			 : i2c_int_listen)();
 		break;
 	}
 	case (TW_MR_SLA_NACK): {
