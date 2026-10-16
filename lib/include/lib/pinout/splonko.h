@@ -13,4 +13,3 @@
 #define COL3 _P(A, 7)
 
 #define KM_COLS {COL1, COL2, COL3}
-

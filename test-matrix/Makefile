@@ -2,12 +2,15 @@ PROJECT_MAKEFILE := $(abspath $(lastword $(MAKEFILE_LIST)))
 PROJECT_NAME     = test-matrix
 
 PORT             = /dev/ttyUSB0
-BAUD_RATE        = 57600
+BAUD_RATE        = 115200
 PROGRAMMER       = serialupdi
 MCU              = attiny1614
 F_CPU            = 20000000
 PINOUT           = splonko
 BOARD            = splonko
+
+SERIAL_PORT      = /dev/ttyACM0
+
 
 TARGET           = $(PROJECT_NAME)
 
