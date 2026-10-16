@@ -84,7 +84,7 @@ void splonk_loop() {
 				sk = (splonknob){.b1 = btn_l, .b2 = btn_r};
 				knob_l = 0;
 				knob_r = 0;
-			  debug_print("SENT");
+				debug_print("SENT");
 			}
 		}
 		if (timer_wait(&tt, 5)) {
