@@ -87,13 +87,12 @@ static void splonk_handler(i2c_peer *p) {
 			p->downstream[i] = downstream;
 		}
 
-		// handle layer/keymap stuff here
+		// handle layer/keymap stuff here, need to fetch the proper keycode according
+		// to the global_keymap and current layer
 
 		// handle led mode?
 
 		// hid_send_report(HID_REPORT_ID_NKRO, &report_nkro, sizeof(report_nkro));
-		// ^^^ TODO set a boolean and actually send only 1 report
-		// that aggregates both halves and any splonko/splonkus input
 	}
 }
 
@@ -119,7 +118,7 @@ static void splonknob_handler(i2c_peer *p) {
 	last = data.raw;
 
 	// instead of hardcoding the keys, they should be fetched from the layout
-	// but we dont have that yet
+	// need to fetch the .splonknob field from the global_keymap corresponding to the current layer.
 	KK_CHECK(mask, data, l1, KK(CC, KK_CC_VOL_DOWN));
 	KK_CHECK(mask, data, r1, KK(CC, KK_CC_VOL_UP));
 	KK_CHECK(mask, data, b1, KK(CC, KK_CC_MUTE));
