@@ -5,7 +5,9 @@
 
 #if defined(SPLONKLIB_ENABLE_I2C)
 
-I2C_DATA(splonk, u8 keys[3]; u8 led_mode; ipi peers[4];) // use gcall for LED MODES?
+I2C_DATA(splonk, u8 keys[3]; u8 led_mode; ipi peers[4];)
+
+I2C_DATA(splonko, u8 keys[1];)
 
 I2C_DATA(
 	splonknob, union {
@@ -22,6 +24,8 @@ I2C_DATA(
 	};)
 
 I2C_DATA(dummy, u8 junk;)
+
+I2C_DATA(rgb_control, u8 led_mode;)
 
 void splonk_loop();
 

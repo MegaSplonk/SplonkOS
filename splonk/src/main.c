@@ -18,6 +18,7 @@
 #define SELF_ADDR 0b00011111
 #define PEER_ADDR 0b01011111
 #define KNOB_ADDR 0b01011111
+#define ONKO_ADDR 0b01100000
 
 I2C_SLOT(gcall1, gcall, gcall);
 
@@ -30,6 +31,7 @@ bool usb_connected = false;
 I2C_SLOT(splonk1, splonk, splonk);
 typedef splonk splonk_;
 I2C_SLOT(splonk2, splonk_, splonk_);
+I2C_SLOT(splonko1, splonko, rgb_control);
 I2C_SLOT(knob1, splonknob, dummy);
 
 typedef void (*ipt_handler)(i2c_peer *);
@@ -47,25 +49,41 @@ static void splonk_handler(i2c_peer *p) {
 	if (is_self)
 		buf = &p->io->output;
 
-	usize		  read_bytes = 0;
-	splonk		  data;
-	static splonk last;
+	usize read_bytes = 0;
+	typedef union splonklike {
+		splonk	splonk;
+		splonko splonko;
+	} splonklike;
+	enum splonktype { ST_SPLONK, ST_SPLONKO, /* ST_SPLONKUS, */ __ST_SIZE };
+	constexpr usize splonktypes[] = {
+		[IPT_SPLONK] = ST_SPLONK,
+		[IPT_SPLONKO] = ST_SPLONKO,
+		// TODO - [IPT_SPLONKUS] = ST_SPLONKUS,
+	};
+	constexpr usize splonksizes[] = {
+		[IPT_SPLONK] = sizeof(splonk),
+		[IPT_SPLONKO] = sizeof(splonko),
+		// TODO - [IPT_SPLONKUS] = sizeof(splonkus),
+	};
+	splonklike		  data;
+	static splonklike last[__ST_SIZE] = {};
 	ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {
 		if (grb_count(buf) < sizeof(data))
 			return;
-		grb_read(buf, (void *)&data, sizeof(data), &read_bytes);
+		grb_read(buf, (void *)&data, splonksizes[p->info.type], &read_bytes);
 		bool same = true;
-		for (usize i = 0; i < sizeof(data); i++)
-			if (((u8 *)&data)[i] != ((u8 *)&last)[i])
+		for (usize i = 0; i < splonksizes[p->info.type]; i++)
+			if (((u8 *)&data)[i] != ((u8 *)&last[splonktypes[p->info.type]])[i])
 				same = false;
 		if (same)
 			return;
-		last = data;
+		last[splonktypes[p->info.type]] = data;
 
 		// register other splonk's downstream peers
-		for (usize i = 0; !is_self && i < tabsize(p->downstream); i++) {
+		for (usize i = 0; p->info.type == IPT_SPLONK && !is_self && i < tabsize(p->downstream);
+			 i++) {
 			i2c_peer *downstream = NULL;
-			i2c_register(&downstream, data.peers[i]);
+			i2c_register(&downstream, data.splonk.peers[i]);
 			p->downstream[i] = downstream;
 		}
 
@@ -114,8 +132,8 @@ static void splonknob_handler(i2c_peer *p) {
 static void peer_input_handler() {
 	// constexpr ipt iptypes[] = {IPT_SPLONK,	  IPT_SPLONKO,	  IPT_SPLONKUS, IPT_SPLONKPAD,
 	// 				   IPT_SPLONKNOB, IPT_SPLONKREEN, IPT_SPLONKBAR};
-	ipt_handler handlers[] = {&splonk_handler,	  &dummy_handler, &dummy_handler, &dummy_handler,
-							  &splonknob_handler, &dummy_handler, &dummy_handler};
+	ipt_handler handlers[] = {&splonk_handler,	  &splonk_handler, &dummy_handler, &dummy_handler,
+							  &splonknob_handler, &dummy_handler,  &dummy_handler};
 	i2c_peer   *peers;
 	usize		ip_max;
 	i2c_get_peers(&peers, &ip_max);
@@ -201,9 +219,11 @@ void splonk_loop() {
 #ifndef I2C_STATIC_ADDR
 	i2c_register_slot(&splonk2, IPT_SPLONK);
 	i2c_register_slot(&knob1, IPT_SPLONKNOB); // add more slots as needed
+	i2c_register_slot(&splonko1, IPT_SPLONKO);
 #else
 	i2c_register_peer(nullptr, &splonk2, (ipi){SELF_ADDR, IPD_ALL, IPT_SPLONK});
 	i2c_register_peer(nullptr, &knob1, (ipi){KNOB_ADDR, IPD_ALL, IPT_SPLONKNOB});
+	i2c_register_peer(nullptr, &splonko1, (ipi){ONKO_ADDR, IPD_ALL, IPT_SPLONKO});
 #endif
 	i2c_init();
 	i2c_set_addr(SELF_ADDR, 1);
