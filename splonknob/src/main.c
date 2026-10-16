@@ -36,43 +36,60 @@ void splonk_loop() {
 	struct ec11 ec_l, ec_r;
 	ec11_init(&ec_l, (pin)L_A, (pin)L_B, (pin)L_BTN);
 	ec11_init(&ec_r, (pin)R_A, (pin)R_B, (pin)R_BTN);
+
+	i8		  knob_l = 0, knob_r = 0;
+	bool	  btn_l = false, btn_r = false;
 	splonknob last = {};
 	// add second ec11 when wired in
 	while (true) {
-		switch (ec11_poll(&ec_l, &sk.butn_l)) {
+		switch (ec11_poll(&ec_l, &btn_l)) {
 		case (ROT_A):
-			sk.knob_l += 1;
+			knob_l += 1;
+			if (knob_l > 120)
+				knob_l = 120;
 			break;
 		case (ROT_B):
-			sk.knob_l -= 1;
+			knob_l -= 1;
+			if (knob_l < -120)
+				knob_l = -120;
 			break;
 		case (ROT_NONE):
 			break;
 		}
-		switch (ec11_poll(&ec_r, &sk.butn_r)) {
+		switch (ec11_poll(&ec_r, &btn_r)) {
 		case (ROT_A):
-			sk.knob_r += 1;
+			knob_r += 1;
+			if (knob_r > 120)
+				knob_r = 120;
 			break;
 		case (ROT_B):
-			sk.knob_r -= 1;
+			knob_r -= 1;
+			if (knob_r < -120)
+				knob_r = -120;
 			break;
 		case (ROT_NONE):
 			break;
 		}
+		sk.l1 = knob_l > 0;
+		sk.r1 = knob_l < 0;
+		sk.b1 = btn_l;
+		sk.l2 = knob_r > 0;
+		sk.r2 = knob_r < 0;
+		sk.b2 = btn_r;
+
 		if (timer_wait(&t, 5)) {
 			t = timer_reset();
 			if (grb_avail(&self->io->output) >= sizeof(sk)) {
 				i2c_send(self, (void *)&sk, sizeof(sk));
-				sk = (splonknob){.butn_l = sk.butn_l, .butn_r = sk.butn_r};
+				sk = (splonknob){.b1 = btn_l, .b2 = btn_r};
+				knob_l = 0;
+				knob_r = 0;
+			  debug_print("SENT");
 			}
 		}
 		if (timer_wait(&tt, 5)) {
 			tt = timer_reset();
-			bool same = true;
-			for (usize i = 0; i < sizeof(sk); i++)
-				if (((u8 *)&sk)[i] != ((u8 *)&last)[i])
-					same = false;
-			if (!same) {
+			if (sk.raw ^ last.raw) {
 				for (usize i = 0; i < sizeof(sk); i++)
 					uart_send_u8_hex(((u8 *)&sk)[i]);
 				uart_sendstring("\r\n");

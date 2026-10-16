@@ -421,7 +421,7 @@ static void i2c_discover(i2c_peer *peer) { // use with &peers[I2C_SELF_IDX]
 				return;
 			}
 			peer->downtime[p] = timer_reset();
-			timer_wait(&peer->downtime[p], 500);
+			timer_wait(&peer->downtime[p], 1000);
 			debug_print("SNACKED %d", ipdirections[p + 1]);
 			continue;
 		}
@@ -564,10 +564,12 @@ static bool read_should_nack(i2c_peer *p) {
 	return false;
 }
 
+static void i2c_keep_or_rel_bus();
+
 static t_error i2c_read(i2c_peer *p) {
 	grbio *g = p->io;
 	if (grb_full(&g->input)) {
-		// debug_print("INBUFFULL");
+		debug_print("INBUFFULL");
 		return ERROR;
 	}
 	usize	useless;
@@ -577,7 +579,7 @@ static t_error i2c_read(i2c_peer *p) {
 	data = TWDR;
 	ret = grb_write(&g->input, &data, 1, &useless);
 	if (state.mode == TW_MR && !--p->query) // TW_MR_DATA_NACK
-		i2c_stop_listen();
+		i2c_keep_or_rel_bus();
 	else {
 		bool should_nack = read_should_nack(p);
 		// debug_print("shouldnack %d", should_nack);
@@ -720,8 +722,10 @@ static void i2c_state_machine(u8 status) {
 		peers[state.peer_idx].snack++;
 		if (state.peer_idx != I2C_GCALL_IDX) // discovery has its own timeout
 			peers[state.peer_idx].timeout = 100;
-		else
+		else {
+			peers[state.peer_idx].timeout = 1;
 			grb_clear(&peers[I2C_GCALL_IDX].io->output);
+    }
 		// ok now either load a data byte
 		// (apparently you can still load data after a NACK?)
 		// (you can talk to a wall, cool)
@@ -771,11 +775,10 @@ static void i2c_state_machine(u8 status) {
 		peers[state.peer_idx].snack = 0;
 		peers[state.peer_idx].timeout = 0;
 		state.mode = TW_MR;
-		// Either read one byte and send ACK by setting TWEA to 1
-		// Or read and send NACK by setting TWEA to 0
-		(!grb_full(&peers[state.peer_idx].io->input) || peers[state.peer_idx].query == 0
-			 ? i2c_int_listen
-			 : i2c_int)();
+		// (!grb_full(&peers[state.peer_idx].io->input) || peers[state.peer_idx].query == 0
+		// 	 ? i2c_int_listen
+		// 	 : i2c_int)();
+    i2c_int_listen();
 		break;
 	}
 	case (TW_MR_SLA_NACK): {

@@ -1,6 +1,7 @@
-#include "layout/layout.h"
 #include "lib/proto/uart.h"
 #include "lib/usb/hid.h"
+
+#include "layout.h"
 #include "report.h"
 
 static hid_report *find_report(enum e_hid_report_id id) {
@@ -11,9 +12,9 @@ static hid_report *find_report(enum e_hid_report_id id) {
 	return nullptr;
 }
 
-void kk_apply_key(key key) {
+void kk_apply_key(key k) {
 	hid_report *report = nullptr;
-	switch (key.kind) {
+	switch (k.kind) {
 	case KK_SCANCODE: {
 		report = find_report(HID_REPORT_ID_NKRO);
 		if (report == nullptr) {
@@ -22,10 +23,10 @@ void kk_apply_key(key key) {
 		}
 		struct HID_NKRO_report *nkro = report->report;
 		// we dont currently support scancode over 0x65
-		if (key.payload >= 0x65)
+		if (k.payload >= 0x65)
 			return;
-		u8 idx = key.payload / 8;
-		u8 bidx = key.payload % 8;
+		u8 idx = k.payload / 8;
+		u8 bidx = k.payload % 8;
 		nkro->keys[idx] |= (1 << bidx);
 		break;
 	};
@@ -36,9 +37,9 @@ void kk_apply_key(key key) {
 			return;
 		}
 		struct HID_CC_report *cc = report->report;
-		if (key.payload >= _KK_CC_LAST)
+		if (k.payload >= _KK_CC_LAST)
 			return;
-		switch ((enum e_kk_cc)key.payload) {
+		switch ((enum e_kk_cc)k.payload) {
 
 		case KK_CC_VOL_UP: {
 			cc->vol_inc = true;
@@ -76,9 +77,9 @@ void kk_apply_key(key key) {
 			return;
 		}
 		struct HID_MOUSE_report *mouse = report->report;
-		if (key.payload >= _KK_MOUSE_LAST)
+		if (k.payload >= _KK_MOUSE_LAST)
 			return;
-		switch ((enum e_kk_mouse)key.payload) {
+		switch ((enum e_kk_mouse)k.payload) {
 		case KK_MOUSE_UP: {
 			mouse->y += KK_MOUSE_SENSITIVITY;
 			break;
@@ -113,9 +114,9 @@ void kk_apply_key(key key) {
 		break;
 	};
 	case KK_BUILTIN: {
-		if (key.payload >= _KK_BUILTIN_LAST)
+		if (k.payload >= _KK_BUILTIN_LAST)
 			return;
-		switch ((enum e_kk_builtin)key.payload) {
+		switch ((enum e_kk_builtin)k.payload) {
 
 		case KK_BUILTIN_SERIAL: {
 #ifdef SPLONKLIB_ENABLE_UART
@@ -143,9 +144,9 @@ void kk_apply_key(key key) {
 		report->pending = true;
 }
 
-void kk_unapply_key(key key) {
+void kk_unapply_key(key k) {
 	hid_report *report = nullptr;
-	switch (key.kind) {
+	switch (k.kind) {
 	case KK_SCANCODE: {
 		report = find_report(HID_REPORT_ID_NKRO);
 		if (report == nullptr) {
@@ -154,10 +155,10 @@ void kk_unapply_key(key key) {
 		}
 		struct HID_NKRO_report *nkro = report->report;
 		// we dont currently support scancode over 0x65
-		if (key.payload >= 0x65)
+		if (k.payload >= 0x65)
 			return;
-		u8 idx = key.payload / 8;
-		u8 bidx = key.payload % 8;
+		u8 idx = k.payload / 8;
+		u8 bidx = k.payload % 8;
 		nkro->keys[idx] &= (u8) ~(1 << bidx);
 		break;
 	};
@@ -168,9 +169,9 @@ void kk_unapply_key(key key) {
 			return;
 		}
 		struct HID_CC_report *cc = report->report;
-		if (key.payload >= _KK_CC_LAST)
+		if (k.payload >= _KK_CC_LAST)
 			return;
-		switch ((enum e_kk_cc)key.payload) {
+		switch ((enum e_kk_cc)k.payload) {
 
 		case KK_CC_VOL_UP: {
 			cc->vol_inc = false;
@@ -208,20 +209,20 @@ void kk_unapply_key(key key) {
 			return;
 		}
 		struct HID_MOUSE_report *mouse = report->report;
-		if (key.payload >= _KK_MOUSE_LAST)
+		if (k.payload >= _KK_MOUSE_LAST)
 			return;
-		switch ((enum e_kk_mouse)key.payload) {
+		switch ((enum e_kk_mouse)k.payload) {
 
 		case KK_MOUSE_LBTN: {
-			mouse->button &= ~(1 << 0);
+			mouse->button &= (u8) ~(1 << 0);
 			break;
 		}
 		case KK_MOUSE_RBTN: {
-			mouse->button &= ~(1 << 1);
+			mouse->button &= (u8) ~(1 << 1);
 			break;
 		}
 		case KK_MOUSE_MBTN: {
-			mouse->button &= ~(1 << 2);
+			mouse->button &= (u8) ~(1 << 2);
 			break;
 		}
 		case KK_MOUSE_UP:
@@ -234,9 +235,9 @@ void kk_unapply_key(key key) {
 		break;
 	};
 	case KK_BUILTIN: {
-		if (key.payload >= _KK_BUILTIN_LAST)
+		if (k.payload >= _KK_BUILTIN_LAST)
 			return;
-		switch ((enum e_kk_builtin)key.payload) {
+		switch ((enum e_kk_builtin)k.payload) {
 
 		case KK_BUILTIN_SERIAL: {
 #ifdef SPLONKLIB_ENABLE_UART
