@@ -1,3 +1,4 @@
+#include "layout.h"
 #include "lib/key_matrix.h"
 #include "lib/pinout.h"
 #include "lib/proto/i2c.h"
@@ -8,6 +9,7 @@
 #include "lib/usb/cdc.h"
 #include "lib/usb/hid.h"
 #include "lib/usb/pu.h"
+#include "report.h"
 
 #include <avr/io.h>
 #include <util/atomic.h>
@@ -22,10 +24,6 @@ I2C_SLOT(gcall1, gcall, gcall);
 i2c_peer *self;
 i2c_peer *otherhalf;
 i2c_peer *peerknob;
-
-bool pending_nkro = false;
-bool pending_mouse = false;
-bool pending_cc = false;
 
 bool usb_connected = false;
 
@@ -75,62 +73,42 @@ static void splonk_handler(i2c_peer *p) {
 
 		// handle led mode?
 
-		hid_send_report(HID_REPORT_ID_NKRO, &report_nkro, sizeof(report_nkro));
+		// hid_send_report(HID_REPORT_ID_NKRO, &report_nkro, sizeof(report_nkro));
 		// ^^^ TODO set a boolean and actually send only 1 report
 		// that aggregates both halves and any splonko/splonkus input
 	}
 }
 
+#define KK_CHECK(_mask, _data, _bit, _key)                                                         \
+	if ((_mask)._bit)                                                                              \
+	(((_data)._bit) ? kk_apply_key : kk_unapply_key)((key)_key)
+
 static void splonknob_handler(i2c_peer *p) {
 	if (!p || !p->io)
 		return;
 
-	usize			 read_bytes = 0;
-	splonknob		 data;
-	static splonknob last;
+	usize	  read_bytes = 0;
+	splonknob data;
 	// debug_print("hi");
 	ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {
 		if (grb_count(&p->io->input) < sizeof(data))
 			return;
 		grb_read(&p->io->input, (void *)&data, sizeof(data), &read_bytes);
 	}
-	bool same = true;
-	for (usize i = 0; i < sizeof(data); i++)
-		if (((u8 *)&data)[i] != ((u8 *)&last)[i])
-			same = false;
-	if (same)
-		return;
-	if (data.knob_l) {
-		uart_sendstring("LK");
-		i16 knob_l = data.knob_l;
-		uart_send_i16(knob_l);
-	}
-	report_cc.vol_dec = data.knob_l > 0 ? 1u : 0;
-	report_cc.vol_inc = data.knob_l < 0 ? 1u : 0;
-	// ^^^ send multiple reports if value is != +/-1?
-	if (data.butn_l) {
-		uart_sendstring("LB");
-		uart_send_u8(data.butn_l);
-	}
-	report_cc.mute = data.butn_l ? 1u : 0;
-	if (data.knob_r) {
-		uart_sendstring("RK");
-		i16 knob_r = data.knob_r;
-		uart_send_i16(knob_r);
-	}
-	report_cc.previous = data.knob_r > 0 ? 1u : 0;
-	report_cc.next = data.knob_r < 0 ? 1u : 0;
-	if (data.butn_r) {
-		uart_sendstring("RB");
-		uart_send_u8(data.butn_r);
-	}
-	report_cc.play_pause = data.butn_r ? 1u : 0;
-	uart_sendstring("\r\n");
-	for (usize i = 0; i < sizeof(data); i++)
-		uart_send_u8_hex(((u8 *)&data)[i]);
-	uart_sendstring("\r\n");
-	last = data;
-	hid_send_report(HID_REPORT_ID_CC, &report_cc, sizeof(report_cc));
+
+	static u8 last = 0;
+	splonknob mask = {{last ^ data.raw}};
+	last = data.raw;
+
+	// instead of hardcoding the keys, they should be fetched from the layout
+	// but we dont have that yet
+	KK_CHECK(mask, data, l1, KK(CC, KK_CC_VOL_DOWN));
+	KK_CHECK(mask, data, r1, KK(CC, KK_CC_VOL_UP));
+	KK_CHECK(mask, data, b1, KK(CC, KK_CC_MUTE));
+
+	KK_CHECK(mask, data, l2, KK(CC, KK_CC_PREVIOUS));
+	KK_CHECK(mask, data, r2, KK(CC, KK_CC_NEXT));
+	KK_CHECK(mask, data, b2, KK(CC, KK_CC_PAUSE_PLAY));
 }
 
 static void peer_input_handler() {
@@ -267,6 +245,7 @@ void splonk_loop() {
 		if (timer_wait(&peer_input_timer, 50)) {
 			peer_input_timer = timer_reset();
 			peer_input_handler();
+			handle_usb();
 		}
 		if (timer_wait(&ttt, 60000)) {
 			soft_reset();

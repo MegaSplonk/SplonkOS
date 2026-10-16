@@ -4,12 +4,14 @@ PROJECT_NAME     = splonknob
 
 PINOUT           = splonknob
 PORT             = /dev/ttyUSB0
-BAUD_RATE        = 57600
+BAUD_RATE        = 115200
 PROGRAMMER       = serialupdi
 MCU              = attiny1614
 F_CPU            = 20000000UL
 BOARD            = splonknob
 CPPFLAGS_ADD     = -DSPLONKNOB
+
+SERIAL_PORT      = /dev/ttyACM0
 
 
 TARGET           = $(PROJECT_NAME)
