@@ -97,6 +97,7 @@
 #elif defined(BOARD_splonkbar)
 #elif defined(BOARD_splonko)
 
+#define SPLONKLIB_ENABLE_I2C
 #define SPLONKLIB_ENABLE_UART
 #define SPLONKLIB_ENABLE_LED
 #define SPLONKLIB_LED_BITBANG
