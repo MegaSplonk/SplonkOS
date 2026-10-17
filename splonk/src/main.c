@@ -66,39 +66,6 @@ I2C_SLOT(pad1, dummy, dummy);
 #define SPLONK_INPUT_DEBUG 0
 #endif
 
-// Temporary consumer until the complete HID adapter is connected in stage 5.
-static void resolved_action(u16 code, bool pressed, void *context) {
-	(void)context;
-	if (!report_master)
-		return;
-	u8 usage;
-	switch (code) {
-	case KC_AUDIO_VOL_DOWN:
-		usage = KK_CC_VOL_DOWN;
-		break;
-	case KC_AUDIO_VOL_UP:
-		usage = KK_CC_VOL_UP;
-		break;
-	case KC_AUDIO_MUTE:
-		usage = KK_CC_MUTE;
-		break;
-	case KC_MEDIA_PREV_TRACK:
-		usage = KK_CC_PREVIOUS;
-		break;
-	case KC_MEDIA_NEXT_TRACK:
-		usage = KK_CC_NEXT;
-		break;
-	case KC_MEDIA_PLAY_PAUSE:
-		usage = KK_CC_PAUSE_PLAY;
-		break;
-	default:
-		return;
-	}
-	key k = KK(CC, usage);
-	(pressed ? kk_apply_key : kk_unapply_key)(k);
-	handle_usb();
-}
-
 static void physical_event(const input_event *event, void *context) {
 	(void)context;
 #if SPLONK_INPUT_DEBUG
@@ -110,7 +77,7 @@ static void physical_event(const input_event *event, void *context) {
 		TOPO_PRINT("INPUT source=%u module=%u kind=%u", (unsigned)event->source,
 				   (unsigned)event->module, (unsigned)event->kind);
 #endif
-	layers_input(&layers, event, resolved_action, nullptr);
+	layers_input(&layers, event, report_action, nullptr);
 }
 
 static input_module module_for_role(topology_role role, ipt type) {
@@ -175,13 +142,6 @@ static void feed_input(u8 slot, const u8 *keys, u8 length, bool knob) {
 	(void)input_source_feed(&inputs[slot], slot, keys, length, knob, physical_event, nullptr);
 }
 
-static void reset_input_reports(void) {
-	for (usize i = 0; i < reports_size; i++) {
-		memset(reports[i]->report, 0, reports[i]->len);
-		reports[i]->pending = report_master;
-	}
-}
-
 static void update_report_master(void) {
 	usb_connected = USBConnected();
 	bool next = usb_connected && usb_device_configured();
@@ -189,7 +149,7 @@ static void update_report_master(void) {
 		return;
 	report_master = next;
 	// Do not replay stale HID state after detaching or changing ownership.
-	reset_input_reports();
+	report_reset(report_master);
 #if SPLONK_TOPOLOGY_DEBUG
 	TOPO_PRINT("TOPO master=%s usb=%u configured=%u", report_master ? "yes" : "no",
 			   (unsigned)usb_connected, (unsigned)usb_device_configured());
@@ -213,8 +173,9 @@ static void update_topology(void) {
 			log_peer = I2C_SELF_IDX;
 		i2c_peer *p = &peers[log_peer];
 		if (p == self) {
-			TOPO_PRINT("TOPO self=%u master=%s role=%s", (unsigned)p->info.addr,
-					   report_master ? "yes" : "no", topology_role_name(roles[log_peer]));
+			TOPO_PRINT("TOPO self=%u master=%s role=%s hid_overflow=%u", (unsigned)p->info.addr,
+					   report_master ? "yes" : "no", topology_role_name(roles[log_peer]),
+					   (unsigned)report_overflows);
 		} else if (p->io) {
 			TOPO_PRINT("TOPO peer=%u type=%u role=%s", (unsigned)p->info.addr,
 					   (unsigned)p->info.type, topology_role_name(roles[log_peer]));
@@ -407,6 +368,7 @@ int main(void) {
 	usb_device_attach();
 	pin_output((pin)ACT_LED);
 	km_init();
+	report_init(&layers);
 
 	splonk_loop();
 

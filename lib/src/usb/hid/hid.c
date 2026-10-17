@@ -179,12 +179,22 @@ void pu_hid_add_desc(struct hid_desc_node *node) {
 
 isize hid_send_report(enum e_hid_report_id id, const void *data, usize len) {
 	struct pu_hid *self = pu_hid();
-	isize		   ret = USB_Send(self->module.pluggedEndpoint, &id, 1);
-	if (ret < 0)
-		return ret;
-	isize ret2 = USB_Send(self->module.pluggedEndpoint | TRANSFER_RELEASE, data, len);
-	if (ret2 < 0)
-		return ret2;
-	return ret + ret2;
+	// Reserve space for the entire frame before writing its ID. Keeping the
+	// check and both writes atomic prevents SOF/configuration changes between
+	// them. Neither USB_Send can wait: the complete frame fits the current bank.
+	// Require an empty bank so no partial frame can be appended to.
+	// Exclude full-size frames because USB_Send would also wait for a ZLP bank.
+	if (!data || len >= USB_EP_SIZE - 1)
+		return -1;
+	ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {
+		if (!usb_device_configured() || USB_SendSpace(self->module.pluggedEndpoint) != USB_EP_SIZE)
+			return -1;
+		isize first = USB_Send(self->module.pluggedEndpoint, &id, 1);
+		if (first != 1)
+			return -1;
+		isize rest = USB_Send(self->module.pluggedEndpoint | TRANSFER_RELEASE, data, len);
+		return rest == (isize)len ? rest + 1 : -1;
+	}
+	return -1;
 }
 #endif

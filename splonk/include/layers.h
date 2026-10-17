@@ -17,3 +17,7 @@ typedef struct layer_state {
 void layers_input(layer_state *state, const input_event *event, action_emit emit, void *context);
 void layers_reset(layer_state *state, action_emit emit, void *context);
 u16	 layers_lookup(const layer_state *state, u8 position, u8 *resolved_layer);
+
+// Inspect retained actions without another RAM copy or HID-specific counters.
+u16	 layers_held_code(const layer_state *state, u8 position);
+bool layers_holds_code(const layer_state *state, u16 code);
