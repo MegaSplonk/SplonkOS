@@ -142,5 +142,12 @@ int main(void) {
 	peers[6].info.type = IPT_SPLONKUS;
 	resolve();
 	assert(roles[5] == ROLE_SPLONKNOB && roles[6] == ROLE_SPLONKUS);
+	peers[5].info.type = IPT_SPLONKBAR;
+	peers[6].info.type = IPT_SPLONKPAD;
+	resolve();
+	assert(roles[5] == ROLE_SPLONKBAR && roles[6] == ROLE_SPLONKPAD);
+	peers[6].info.type = IPT_SPLONKBAR;
+	resolve();
+	assert(roles[5] == ROLE_UNKNOWN && roles[6] == ROLE_UNKNOWN);
 	puts("topology tests passed");
 }
