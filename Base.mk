@@ -44,7 +44,7 @@ CFLAGS        = -std=c23 -g3 -Os -mmcu=$(MCU) $(CFLAGS_ADD) -flto -ffunction-sec
 CPPFLAGS      = $(if $(filter 1,$(USE_LIB)),\
                    -include$(BASE_DIRECTORY)/lib/include/lib/config.h \
                    -include$(BASE_DIRECTORY)/lib/include/lib/lib.h) \
-                -DF_CPU=$(F_CPU) -MMD -DMCU_$(MCU)=1 -DBOARD_$(BOARD)=1 -DPINOUT_$(PINOUT)=1 $(CPPFLAGS_ADD)
+                -DF_CPU=$(F_CPU) -MMD -MP -DMCU_$(MCU)=1 -DBOARD_$(BOARD)=1 -DPINOUT_$(PINOUT)=1 $(CPPFLAGS_ADD)
 IFLAGS        = -I$(INC_DIR) $(IFLAGS_ADD)
 LDFLAGS       = $(FUCKNIXOS_LDFLAGS) -Wl,--gc-sections -Wl,-flto $(LDFLAGS_ADD)
 AVRDUDE_FLAGS = -c$(PROGRAMMER) -P$(PORT) -b$(BAUD_RATE)
