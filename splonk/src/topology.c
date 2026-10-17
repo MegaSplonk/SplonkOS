@@ -55,6 +55,10 @@ void topology_resolve(i2c_peer *peers, usize count, topology_role *roles) {
 	for (usize i = I2C_SELF_IDX; i < count; i++)
 		conflict |= sides[i] == 3;
 	conflict |= halves > 2;
+	// Without a second half, use a left-hand layout for standalone operation.
+	// A horizontal half edge overrides this; malformed multi-half graphs do not.
+	if (halves == 1 && !conflict)
+		sides[I2C_SELF_IDX] = 1;
 	if (!conflict) {
 		for (usize i = I2C_SELF_IDX; i < count; i++) {
 			if (sides[i])

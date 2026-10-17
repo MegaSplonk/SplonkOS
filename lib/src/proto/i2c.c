@@ -199,6 +199,29 @@ static void handle_bus_error() {
 	grb_clear(&peers[state.peer_idx].io->output);
 }
 
+#ifdef SPLONK
+static ipd opposite_half = IPD_NONE;
+
+static void select_half_domain(ipd direction) {
+	if (opposite_half == direction)
+		return;
+	opposite_half = direction;
+	// Standalone starts in the left domain. On becoming right, discard local
+	// peripheral identities and buffered samples before rediscovering them on
+	// their isolated ports. Never just relabel an address still used on the wire.
+	if (direction != IPD_WEST)
+		return;
+	for (usize d = 0; d < 4; d++) {
+		i2c_peer *child = peers[I2C_SELF_IDX].downstream[d];
+		if (child && child->info.type != IPT_SPLONK)
+			(void)i2c_unregister(child);
+		peers[I2C_SELF_IDX].downtime[d] = (timer_t){};
+	}
+	if (peers[I2C_SELF_IDX].io)
+		grb_clear(&peers[I2C_SELF_IDX].io->output);
+}
+#endif
+
 static void handle_gcall() {
 	u8	  peek[sizeof(gcall_)];
 	usize p = 0;
@@ -216,6 +239,12 @@ static void handle_gcall() {
 		// soft_reset();
 		break;
 	case GCI_USE_ADDR:
+#ifdef SPLONK
+		if (call.use_addr.data == i2c_addr_pool[0])
+			select_half_domain(IPD_EAST);
+		else if (call.use_addr.data == i2c_addr_pool[1])
+			select_half_domain(IPD_WEST);
+#endif
 		i2c_set_addr(call.use_addr.data, 1);
 		peers[I2C_SELF_IDX].info.addr = call.use_addr.data;
 		I2C_DEBUG("NEW ADDR %d", call.use_addr.data);
@@ -247,20 +276,17 @@ static t_error i2c_new_addr(u8 *addr, ipt type, ipd direction) {
 	// not USB ownership: pool[0/1] identify left/right halves, remaining even/odd
 	// entries belong to peripherals discovered by left/right respectively.
 	static_assert(tabsize(i2c_addr_pool) >= 4, "split discovery needs at least four addresses");
-	static ipd opposite_half = IPD_NONE;
 	if (type == IPT_SPLONK) {
 		if (direction != IPD_EAST && direction != IPD_WEST)
 			return ERROR;
 		if (opposite_half != IPD_NONE && opposite_half != direction)
 			return ERROR;
-		opposite_half = direction;
+		select_half_domain(direction);
 		first = direction == IPD_EAST ? 1 : 0;
 		end = first + 1;
 	} else {
-		// Do not guess a peripheral address domain before finding the other half.
-		if (opposite_half == IPD_NONE)
-			return ERROR;
-		first = opposite_half == IPD_EAST ? 2 : 3;
+		// A standalone board defaults to left; physical evidence overrides it.
+		first = opposite_half == IPD_WEST ? 3 : 2;
 		step = 2;
 	}
 #else
