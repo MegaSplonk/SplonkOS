@@ -84,7 +84,9 @@
 #define SPLONKLIB_ENABLE_SPI
 #define SPLONKLIB_LED_SPI
 #define SPLONKLIB_ENABLE_USB
+#ifndef SPLONK_FULL_BUS_PINS
 #define SPLONKLIB_UART_FORCE_HARDWARE
+#endif
 
 #elif defined(BOARD_splonkpad)
 

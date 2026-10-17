@@ -41,7 +41,7 @@ u16			 checksum;                                                                
 } */
 
 #define I2C_SLOT(_NAME, _NAME_IN, _NAME_OUT)                                                       \
-	GRBIO_INIT(_NAME, _NAME##_ib, _NAME##_ob, 2 * sizeof(_NAME_IN),                         \
+	GRBIO_INIT(_NAME, _NAME##_ib, _NAME##_ob, 2 * sizeof(_NAME_IN),                                \
 			   2 * sizeof(_NAME_OUT)) // ##_checksum
 
 typedef enum gcall_instruction : u8 {
@@ -144,8 +144,13 @@ typedef struct i2c_state {
 #define BUS_ENABLE4 D7
 #endif
 
+// USB port points NORTH. Hardware UART occupies BUS_ENABLE2/3.
+#ifdef SPLONK_FULL_BUS_PINS
+#define I2C_BE_PINS {BUS_ENABLE3, BUS_ENABLE4, BUS_ENABLE2, BUS_ENABLE1}
+#else
+// Hardware-debug wiring: only east/west are available for discovery.
 #define I2C_BE_PINS {BUS_ENABLE1, BUS_ENABLE4, BUS_ENABLE1, BUS_ENABLE1}
-// #define I2C_BE_PINS {BUS_ENABLE3, BUS_ENABLE4, BUS_ENABLE2, BUS_ENABLE1}
+#endif
 
 // Bus enable logic, i.e. what bus enable pins get enabled
 // wrt which IPD_* the i2c state is in,
