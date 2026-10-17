@@ -55,7 +55,12 @@ int main(int argc, char **argv) {
 	// Real standalone identity is released when physical evidence selects right.
 	opposite_half = IPD_NONE;
 	peers[I2C_SELF_IDX].downstream[0] = device;
-	select_half_domain(IPD_WEST);
+	gcall assignment = {.use_addr = {GCI_USE_ADDR, 43}};
+	usize written;
+	assert(grb_write(&gc.input, &assignment, sizeof(gcall_), &written) == SUCCESS);
+	handle_gcall();
+	assert(restart_discovery && opposite_half == IPD_WEST);
+	assert(peers[I2C_SELF_IDX].info.addr == 43);
 	assert(device->io == nullptr);
 	assert(peers[I2C_SELF_IDX].downstream[0] == nullptr);
 	puts(right ? "I2C right-side lifecycle tests passed" : "I2C left-side lifecycle tests passed");
