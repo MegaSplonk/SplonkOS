@@ -12,7 +12,9 @@ GRBIO_INIT(knob, knob_in, knob_out, 16, 16);
 int main(int argc, char **argv) {
 	bool right = argc > 1 && strcmp(argv[1], "right") == 0;
 	u8	 address = 0;
-	assert(i2c_new_addr(&address, IPT_SPLONKO, IPD_SOUTH) == ERROR);
+	assert(i2c_new_addr(&address, IPT_SPLONKNOB, IPD_EAST) == SUCCESS);
+	assert(address == 44);
+	assert(i2c_free_addr(address) == SUCCESS);
 	assert(i2c_new_addr(&address, IPT_SPLONK, IPD_NORTH) == ERROR);
 	assert(i2c_new_addr(&address, IPT_SPLONK, right ? IPD_WEST : IPD_EAST) == SUCCESS);
 	assert(address == (right ? 42 : 43));
@@ -50,5 +52,11 @@ int main(int argc, char **argv) {
 	assert(grb_empty(&child->io->input) && grb_empty(&child->io->output));
 	assert(i2c_unregister(other) == SUCCESS);
 	assert(peers[I2C_SELF_IDX].downstream[1] == nullptr);
+	// Real standalone identity is released when physical evidence selects right.
+	opposite_half = IPD_NONE;
+	peers[I2C_SELF_IDX].downstream[0] = device;
+	select_half_domain(IPD_WEST);
+	assert(device->io == nullptr);
+	assert(peers[I2C_SELF_IDX].downstream[0] == nullptr);
 	puts(right ? "I2C right-side lifecycle tests passed" : "I2C left-side lifecycle tests passed");
 }

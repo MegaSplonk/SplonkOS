@@ -66,7 +66,7 @@ int main(void) {
 	}
 	reset();
 	resolve();
-	assert(roles[1] == ROLE_UNKNOWN); // Lone half: no handedness guess.
+	assert(roles[1] == ROLE_SPLONK_L); // Standalone default.
 	add(2, IPT_SPLONK, 1, IPD_NORTH);
 	resolve();
 	assert(roles[1] == ROLE_UNKNOWN && roles[2] == ROLE_UNKNOWN);
@@ -105,7 +105,7 @@ int main(void) {
 	topology_prune();
 	assert(thumb->io == nullptr);
 	resolve();
-	assert(roles[1] == ROLE_UNKNOWN);
+	assert(roles[1] == ROLE_SPLONK_L);
 
 	reset();
 	add(2, IPT_SPLONK, 1, IPD_EAST);
