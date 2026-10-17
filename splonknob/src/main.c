@@ -44,12 +44,12 @@ void splonk_loop() {
 	while (true) {
 		switch (ec11_poll(&ec_l, &btn_l)) {
 		case (ROT_A):
-			knob_l += 1;
-			if (knob_l > 120)
-				knob_l = 120;
+			if (knob_l < 120)
+				knob_l++;
 			break;
 		case (ROT_B):
-			knob_l -= 1;
+			if (knob_l > -120)
+				knob_l--;
 			if (knob_l < -120)
 				knob_l = -120;
 			break;
@@ -58,12 +58,12 @@ void splonk_loop() {
 		}
 		switch (ec11_poll(&ec_r, &btn_r)) {
 		case (ROT_A):
-			knob_r += 1;
-			if (knob_r > 120)
-				knob_r = 120;
+			if (knob_r < 120)
+				knob_r++;
 			break;
 		case (ROT_B):
-			knob_r -= 1;
+			if (knob_r > -120)
+				knob_r--;
 			if (knob_r < -120)
 				knob_r = -120;
 			break;
@@ -79,12 +79,17 @@ void splonk_loop() {
 
 		if (timer_wait(&t, 5)) {
 			t = timer_reset();
-			if (grb_avail(&self->io->output) >= sizeof(sk)) {
-				i2c_send(self, (void *)&sk, sizeof(sk));
-				sk = (splonknob){.b1 = btn_l, .b2 = btn_r};
-				knob_l = 0;
-				knob_r = 0;
-				debug_print("SENT");
+			if (i2c_send(self, (void *)&sk, sizeof(sk)) == SUCCESS) {
+				// One bit carries one step. Keep remaining motion (and retain all
+				// motion on backpressure) instead of collapsing an entire burst.
+				if (knob_l > 0)
+					knob_l--;
+				else if (knob_l < 0)
+					knob_l++;
+				if (knob_r > 0)
+					knob_r--;
+				else if (knob_r < 0)
+					knob_r++;
 			}
 		}
 		if (timer_wait(&tt, 5)) {
