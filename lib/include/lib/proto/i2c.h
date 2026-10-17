@@ -41,7 +41,7 @@ u16			 checksum;                                                                
 } */
 
 #define I2C_SLOT(_NAME, _NAME_IN, _NAME_OUT)                                                       \
-	GRBIO_INIT(_NAME, _NAME_IN##_ib, _NAME_OUT##_ob, 2 * sizeof(_NAME_IN),                         \
+	GRBIO_INIT(_NAME, _NAME##_ib, _NAME##_ob, 2 * sizeof(_NAME_IN),                         \
 			   2 * sizeof(_NAME_OUT)) // ##_checksum
 
 typedef enum gcall_instruction : u8 {
