@@ -200,7 +200,8 @@ static void handle_bus_error() {
 }
 
 #ifdef SPLONK
-static ipd opposite_half = IPD_NONE;
+static ipd	opposite_half = IPD_NONE;
+static bool restart_discovery;
 
 static void select_half_domain(ipd direction) {
 	if (opposite_half == direction)
@@ -240,10 +241,16 @@ static void handle_gcall() {
 		break;
 	case GCI_USE_ADDR:
 #ifdef SPLONK
+		ipd previous_domain = opposite_half;
 		if (call.use_addr.data == i2c_addr_pool[0])
 			select_half_domain(IPD_EAST);
 		else if (call.use_addr.data == i2c_addr_pool[1])
 			select_half_domain(IPD_WEST);
+		if (previous_domain != opposite_half) {
+			restart_discovery = true;
+			grb_clear(&peers[I2C_GCALL_IDX].io->output);
+			peers[I2C_GCALL_IDX].snack = peers[I2C_GCALL_IDX].dnack = 0;
+		}
 #endif
 		i2c_set_addr(call.use_addr.data, 1);
 		peers[I2C_SELF_IDX].info.addr = call.use_addr.data;
@@ -456,6 +463,22 @@ static void i2c_discover(i2c_peer *peer) { // use with &peers[I2C_SELF_IDX]
 	static usize   p = 0, t = 0;
 	static u8	   addr = 0;
 	static timer_t sense_timer = {};
+
+#ifdef SPLONK
+	// An incoming address assignment can invalidate the port currently being
+	// scanned. Drop that transaction's reservation/cursor rather than registering
+	// its stale address after select_half_domain() removed the old identity.
+	if (restart_discovery) {
+		bool registered = false;
+		for (usize i = I2C_SELF_IDX; i < I2C_MAX_PEERS; i++)
+			registered |= peers[i].io && peers[i].info.addr == addr;
+		if (addr && !registered)
+			(void)i2c_free_addr(addr);
+		p = t = addr = 0;
+		state.bus_enable = IPD_ALL;
+		restart_discovery = false;
+	}
+#endif
 
 	if (timer_wait(&sense_timer, 3000)) {
 		sense_timer = timer_reset();
