@@ -7,6 +7,13 @@
 #include <string.h>
 
 volatile uint8_t TWCR, TWDR, TWAR, TWSR, TWBR;
+static milis_t	 now = 100;
+timer_t			 timer_reset(void) { return (timer_t){}; }
+bool			 timer_wait(timer_t *timer, milis_t delay) {
+	if (!timer->resolve_at)
+		timer->resolve_at = now + delay;
+	return now >= timer->resolve_at;
+}
 GRBIO_INIT(gc, gc_in, gc_out, 8, 8);
 GRBIO_INIT(local, local_in, local_out, 2 * sizeof(splonk), 2 * sizeof(splonk));
 GRBIO_INIT(remote, remote_in, remote_out, 2 * sizeof(splonk), 2 * sizeof(splonk));
@@ -45,7 +52,8 @@ int main(int argc, char **argv) {
 	i2c_peer *self, *other;
 	assert(i2c_register_peer(nullptr, &gc, (ipi){}) == SUCCESS);
 	assert(i2c_register_peer(&self, &local, (ipi){own_addr, IPD_ALL, IPT_SPLONK}) == SUCCESS);
-	assert(i2c_register_peer(&other, &remote, (ipi){peer_addr, direction, IPT_SPLONK}) == SUCCESS);
+	assert(i2c_register_slot(&remote, IPT_SPLONK) == SUCCESS);
+	assert(i2c_register(&other, (ipi){peer_addr, direction, IPT_SPLONK}) == SUCCESS);
 	self->downstream[direction - 1] = other;
 	assert(i2c_register_slot(&thumb, IPT_SPLONKO) == SUCCESS);
 	splonk packet = {.peers = {[IPD_SOUTH - 1] = {right ? 44 : 45, IPD_SOUTH, IPT_SPLONKO}},
@@ -180,5 +188,77 @@ int main(int argc, char **argv) {
 	remote_window = I2C_WINDOW_NORMAL;
 	find_peer();
 	assert(state.peer_idx == (usize)(peripheral - peers));
-	puts("TWI arbitration, snapshots and discovery scheduling tests passed");
+	// Unplugging during a transfer can generate a bus error. STOP has no
+	// completion ISR: the error handler itself must restore idle software state
+	// so presence sensing can expire the missing half and its imported child.
+	state.mode = TW_MR;
+	state.peer_idx = (usize)(other - peers);
+	other->query = sizeof(splonk) - 1;
+	assert(grb_count(&other->io->input) == 1);
+	i2c_state_machine(TW_BUS_ERROR);
+	assert(state.mode == TW_YE);
+	assert((TWCR & (_BV(TWSTO) | _BV(TWEA))) == (_BV(TWSTO) | _BV(TWEA)));
+	assert(other->query == 0 && grb_empty(&other->io->input));
+	TWCR &= (u8)~_BV(TWSTO);
+	observe_shared_ports(0);
+	assert(has_half_link());
+	now += 501;
+	observe_shared_ports(0);
+	assert(!has_half_link() && !other->io);
+	topology_prune();
+	assert(!peripheral->io);
+	window_poll();
+	assert(window_phase == I2C_WINDOW_NORMAL);
+	observe_shared_ports(be_logic[direction]);
+	assert(has_half_link());
+	assert(self->downstream[direction - 1]->info.addr == peer_addr);
+	// Reproduce the hardware log: Rf8 S65 M4, pending START with no further
+	// interrupt. The idle-only disconnect path cannot run until this recovers.
+	other = self->downstream[direction - 1];
+	state.peer_idx = (usize)(other - peers);
+	state.mode = TW_MR;
+	TWCR = 0x65;
+	other->query = sizeof(splonk);
+	i2c_poll();
+	now += 49;
+	i2c_poll();
+	assert(state.mode == TW_MR && other->query == sizeof(splonk));
+	now += 1;
+	i2c_poll();
+	assert(state.mode == TW_YE && other->query == 0);
+	assert(TWCR == (_BV(TWEA) | _BV(TWEN) | _BV(TWIE)));
+	assert(state.peer_idx == I2C_SELF_IDX);
+	now += 501;
+	i2c_poll();
+	assert(!has_half_link() && !other->io);
+
+	// A hung STOP also blocks idle polling and must have a bounded escape.
+	state.mode = TW_YE;
+	TWCR |= _BV(TWSTO);
+	recover_stalled_twi();
+	now += 50;
+	recover_stalled_twi();
+	assert(!(TWCR & _BV(TWSTO)) && state.mode == TW_YE);
+
+	// A timed-out general call must count as a failed probe, not an ACK.
+	state.mode = TW_MT;
+	state.peer_idx = I2C_GCALL_IDX;
+	peers[I2C_GCALL_IDX].snack = peers[I2C_GCALL_IDX].dnack = 0;
+	recover_stalled_twi();
+	now += 50;
+	recover_stalled_twi();
+	assert(peers[I2C_GCALL_IDX].snack == 1 && grb_empty(&gc.output));
+
+	// Genuine byte progress refreshes the deadline even if the transfer as a
+	// whole exceeds 50 ms; do not reset the interface during active traffic.
+	state.mode = TW_SR;
+	state.peer_idx = I2C_SELF_IDX;
+	recover_stalled_twi();
+	for (u8 i = 0; i < 3; i++) {
+		now += 40;
+		i2c_state_machine(TW_SR_SLA_ACK);
+		recover_stalled_twi();
+		assert(state.mode == TW_SR);
+	}
+	puts("TWI arbitration, discovery scheduling and disconnect recovery tests passed");
 }
