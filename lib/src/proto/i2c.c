@@ -256,14 +256,60 @@ static void i2c_select() {
 }
 #endif
 
-static void handle_bus_error() {
-#ifdef TWI_UNIFIED
-	// To recover from a bus error, the TWSTO Flag must set
-	// and TWINT must be cleared by writing a logic one to it
-	TWCR = _BV(TWINT) | _BV(TWEN) | _BV(TWSTO) | _BV(TWIE);
+static void discard_failed_transfer(void) {
+	i2c_peer *peer = &peers[state.peer_idx];
+	peer->query = 0;
+	if (state.peer_idx == I2C_GCALL_IDX) {
+		// Emptying an interrupted probe must not look like a successful ACK to
+		// discovery, otherwise it can register a device that never responded.
+		peer->snack = 1;
+		peer->dnack = 0;
+	}
+	if (peer->io) {
+		grb_clear(&peer->io->input);
+		grb_clear(&peer->io->output);
+	}
+}
+
+#if defined(TWI_UNIFIED) && defined(SPLONK)
+static timer_t twi_progress_timer;
+
+// Called atomically from the poll loop, including while START/STOP is pending.
+// A disconnected controller can leave START waiting forever with no interrupt;
+// waiting for software idle before running this check would defeat recovery.
+static void recover_stalled_twi(void) {
+	bool idle = (state.mode == TW_NO || state.mode == TW_YE || state.mode == TW_UH) &&
+				!(TWCR & (_BV(TWSTA) | _BV(TWSTO)));
+	if (idle) {
+		twi_progress_timer = timer_reset();
+		return;
+	}
+	if (!timer_wait(&twi_progress_timer, 50))
+		return;
+	I2C_DEBUG("I2C stalled mode=%u ctrl=%02x peer=%u", (unsigned)state.mode, (unsigned)TWCR,
+			  (unsigned)peers[state.peer_idx].info.addr);
+	// Clearing TWEN terminates a pending operation and releases the TWI pins.
+	// Discard an incomplete frame, then restore own-address ACKs and let normal
+	// presence sensing remove a missing half (including its imported children).
+	TWCR = 0;
+	discard_failed_transfer();
+	state.peer_idx = I2C_SELF_IDX;
+	twi_progress_timer = timer_reset();
+	i2c_listen();
+}
 #endif
-	grb_clear(&peers[state.peer_idx].io->input);
-	grb_clear(&peers[state.peer_idx].io->output);
+
+static void handle_bus_error() {
+	// A truncated frame cannot be resumed after discarding its buffered prefix.
+	// Let the application queue a fresh complete query/snapshot after recovery.
+	discard_failed_transfer();
+#ifdef TWI_UNIFIED
+	// STOP completion does not generate another interrupt. Restore the idle
+	// software state now, or i2c_poll never resumes presence sensing after an
+	// unplug-induced bus error. Polling still waits for TWSTO to clear before
+	// touching enable gates; retain own-address ACKs for the other controller.
+	i2c_stop_listen();
+#endif
 }
 
 #ifdef SPLONK
@@ -1026,6 +1072,9 @@ void i2c_debug() {
 void i2c_poll(void) {
 	static timer_t info_timer = {};
 	ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {
+#if defined(TWI_UNIFIED) && defined(SPLONK)
+		recover_stalled_twi();
+#endif
 		if ((state.mode == TW_UH || state.mode == TW_YE)
 #ifdef TWI_UNIFIED
 			&& !(TWCR & _BV(TWSTO))
@@ -1057,6 +1106,12 @@ void i2c_poll(void) {
 
 #ifdef TWI_UNIFIED
 static void i2c_state_machine(u8 status) {
+#ifdef SPLONK
+	// Measure absence of progress, not total transfer duration. Active traffic
+	// must not be aborted even when a sequence of transfers lasts over 50 ms.
+	if (status != TW_NO_INFO)
+		twi_progress_timer = timer_reset();
+#endif
 	const char *data = nullptr;
 	switch (status) {
 	case (TW_START): {
