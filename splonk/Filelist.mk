@@ -1,4 +1,5 @@
 SRC_FILES =                                                                   \
+keymap                                                                        \
 layout                                                                        \
 main                                                                          \
 report                                                                        \
