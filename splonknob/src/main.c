@@ -31,7 +31,6 @@ void splonk_loop() {
 	timer_t		t = timer_reset();
 	splonknob	sk = {};
 	timer_t		tt = timer_reset();
-	timer_t		reset_timer = timer_reset();
 	timer_t		i2c_poll_timer = timer_reset();
 	struct ec11 ec_l, ec_r;
 	ec11_init(&ec_l, (pin)L_A, (pin)L_B, (pin)L_BTN);
@@ -100,9 +99,6 @@ void splonk_loop() {
 				uart_sendstring("\r\n");
 				last = sk;
 			}
-		}
-		if (timer_wait(&reset_timer, 60000)) { // for debugging purposes
-			soft_reset();
 		}
 		if (timer_wait(&i2c_poll_timer, 1)) {
 			i2c_poll_timer = timer_reset();
