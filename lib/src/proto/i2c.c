@@ -1,5 +1,6 @@
 #include <avr/interrupt.h>
 #include <avr/io.h>
+#include <avr/pgmspace.h>
 #include <util/atomic.h>
 #include <util/delay.h>
 #include <util/twi.h>
@@ -13,6 +14,19 @@
 #include "lib/time.h"
 
 #ifdef SPLONKLIB_ENABLE_I2C
+
+// Discovery diagnostics otherwise consume most of the AVR's remaining SRAM.
+#ifndef DEBUG
+#define I2C_DEBUG(fmt, ...)                                                                        \
+	do {                                                                                           \
+		snprintf_P(FMT_BUF, sizeof(FMT_BUF), PSTR(fmt "\r\n") __VA_OPT__(, ) __VA_ARGS__);         \
+		uart_sendstring(FMT_BUF);                                                                  \
+	} while (0)
+#else
+#define I2C_DEBUG(...)                                                                             \
+	do {                                                                                           \
+	} while (0)
+#endif
 
 #define I2C_CLOCK_SPEED ((F_CPU / I2C_CLOCK) - 16) / 2
 
@@ -47,7 +61,7 @@ void i2c_set_addr(u8 addr, bool answer_gc) {
 	TWAR = (addr << 1) | answer_gc;
 #elifdef TWI_SPLIT
 	TWI0.SADDR = (u8)(addr << 1) | answer_gc;
-	debug_print("addr %d gc %d", addr, answer_gc);
+	I2C_DEBUG("addr %d gc %d", addr, answer_gc);
 #endif
 }
 
@@ -196,7 +210,7 @@ static void handle_gcall() {
 	grb_read(&peers[I2C_GCALL_IDX].io->input, &call, gcall_size[peek[0]], &r);
 	switch (call.base.instruction) {
 	case GCI_RESET:
-		debug_print("RESET %d", call.reset.data);
+		I2C_DEBUG("RESET %d", call.reset.data);
 		if (call.reset.data != 0 && call.reset.data != peers[I2C_SELF_IDX].info.addr)
 			break;
 		// soft_reset();
@@ -204,35 +218,63 @@ static void handle_gcall() {
 	case GCI_USE_ADDR:
 		i2c_set_addr(call.use_addr.data, 1);
 		peers[I2C_SELF_IDX].info.addr = call.use_addr.data;
-		debug_print("NEW ADDR %d", call.use_addr.data);
+		I2C_DEBUG("NEW ADDR %d", call.use_addr.data);
 		break;
 	case GCI_ACK_TYPE:
-		debug_print("ACK TYPE %d %d %d", call.ack_type.instruction, call.ack_type.data,
-					call.ack_type.more[0]);
+		I2C_DEBUG("ACK TYPE %d %d %d", call.ack_type.instruction, call.ack_type.data,
+				  call.ack_type.more[0]);
 		// ack or nack handled during data transfer
 		break;
 	case GCI_ACK_ADDR:
-		debug_print("ACK ADDR %d %d %d", call.ack_addr.instruction, call.ack_addr.data,
-					call.ack_addr.more[0]);
+		I2C_DEBUG("ACK ADDR %d %d %d", call.ack_addr.instruction, call.ack_addr.data,
+				  call.ack_addr.more[0]);
 		// ack or nack handled during data transfer
 		break;
 	default:
-		debug_print("UNKNOWN GCALL %d", call.base.data);
+		I2C_DEBUG("UNKNOWN GCALL %d", call.base.data);
 		break;
 	}
 }
 
 bool addr_used[tabsize(i2c_addr_pool)] = {};
 
-static t_error i2c_new_addr(u8 *addr) {
-	for (usize a = 0; addr && a < tabsize(i2c_addr_pool); a++) {
-
-		if (addr_used[a])
+static t_error i2c_new_addr(u8 *addr, ipt type, ipd direction) {
+	if (!addr)
+		return ERROR;
+	usize first = 0, end = tabsize(i2c_addr_pool), step = 1;
+#ifdef SPLONK
+	// Two splonks discover independently. Partition addresses by physical side,
+	// not USB ownership: pool[0/1] identify left/right halves, remaining even/odd
+	// entries belong to peripherals discovered by left/right respectively.
+	static_assert(tabsize(i2c_addr_pool) >= 4, "split discovery needs at least four addresses");
+	static ipd opposite_half = IPD_NONE;
+	if (type == IPT_SPLONK) {
+		if (direction != IPD_EAST && direction != IPD_WEST)
+			return ERROR;
+		if (opposite_half != IPD_NONE && opposite_half != direction)
+			return ERROR;
+		opposite_half = direction;
+		first = direction == IPD_EAST ? 1 : 0;
+		end = first + 1;
+	} else {
+		// Do not guess a peripheral address domain before finding the other half.
+		if (opposite_half == IPD_NONE)
+			return ERROR;
+		first = opposite_half == IPD_EAST ? 2 : 3;
+		step = 2;
+	}
+#else
+	(void)type;
+	(void)direction;
+#endif
+	for (usize a = first; a < end; a += step) {
+		bool known = false;
+		for (usize i = I2C_SELF_IDX; i < I2C_MAX_PEERS; i++)
+			known |= peers[i].io && peers[i].info.addr == i2c_addr_pool[a];
+		if (addr_used[a] || known)
 			continue;
-
 		*addr = i2c_addr_pool[a];
 		addr_used[a] = true;
-
 		return SUCCESS;
 	}
 	return ERROR;
@@ -277,23 +319,25 @@ void i2c_get_peers(i2c_peer **p, usize *s) {
 }
 
 t_error i2c_register_peer(i2c_peer **p, grbio *io, ipi info) {
-	for (usize peer = 0; peer < I2C_MAX_PEERS; peer++) {
-
-		if (peer != 0 && peers[peer].info.addr == info.addr)
+	if (p)
+		*p = nullptr;
+	if (!io)
+		return ERROR;
+	// Check the entire table before choosing a hole (slots remain stable).
+	for (usize peer = 0; peer < I2C_MAX_PEERS; peer++)
+		if (peers[peer].io && (peers[peer].info.addr == info.addr || peers[peer].io == io))
 			return ERROR;
-
+	for (usize peer = 0; peer < I2C_MAX_PEERS; peer++) {
 		if (peers[peer].io)
 			continue;
-
-		if (io)
-			peers[peer].io = io;
-		peers[peer].info = info;
-		peers[peer].query = 0;
-		if (p) {
+		peers[peer] = (i2c_peer){.info = info, .io = io};
+		grb_clear(&io->input);
+		grb_clear(&io->output);
+		for (usize a = 0; a < tabsize(i2c_addr_pool); a++)
+			if (i2c_addr_pool[a] == info.addr)
+				addr_used[a] = true;
+		if (p)
 			*p = &peers[peer];
-			debug_print("a%dt%d", (*p)->info.addr, (*p)->info.type);
-		}
-
 		return SUCCESS;
 	}
 	return ERROR;
@@ -338,30 +382,31 @@ t_error i2c_register(i2c_peer **p, ipi info) {
 	return ERROR;
 }
 
-static void del_and_shift_peers(i2c_peer *p) {
-	usize pos = (usize)(((uintptr_t)p - (uintptr_t)peers) / sizeof(i2c_peer *));
-	for (; pos + 1 < sizeof(peers); pos++) {
-		peers[pos] = peers[pos + 1];
-	}
-	peers[pos] = (i2c_peer){};
-}
-
 t_error i2c_unregister(i2c_peer *p) {
+	usize idx = I2C_MAX_PEERS;
+	for (usize i = I2C_SELF_IDX + 1; i < I2C_MAX_PEERS; i++)
+		if (p == &peers[i] && p->io)
+			idx = i;
+	if (idx == I2C_MAX_PEERS)
+		return ERROR;
+	// Do not invalidate the buffer currently used by an interrupt-driven transfer.
+	if (state.peer_idx == idx && state.mode != TW_YE && state.mode != TW_UH)
+		return ERROR;
 	for (usize slot = 0; slot < I2C_MAX_SLOTS; slot++) {
-
 		if (slots[slot].io != p->io)
 			continue;
-		debug_print("I forgor %d\n", p->info.addr);
-
-		for (usize d = 0; d < tabsize(peers[I2C_SELF_IDX].downstream); d++) {
-			if (peers[I2C_SELF_IDX].downstream[d] != p)
-				continue;
-			peers[I2C_SELF_IDX].downstream[d] = NULL;
+		for (usize peer = 0; peer < I2C_MAX_PEERS; peer++) {
+			for (usize d = 0; d < tabsize(peers[peer].downstream); d++)
+				if (peers[peer].downstream[d] == p)
+					peers[peer].downstream[d] = nullptr;
 		}
-
 		slots[slot].taken = false;
 		i2c_free_addr(p->info.addr);
-		del_and_shift_peers(p);
+		grb_clear(&p->io->input);
+		grb_clear(&p->io->output);
+		*p = (i2c_peer){};
+		if (state.peer_idx == idx)
+			state.peer_idx = I2C_SELF_IDX;
 		return SUCCESS;
 	}
 	return ERROR;
@@ -389,7 +434,7 @@ static void i2c_discover(i2c_peer *peer) { // use with &peers[I2C_SELF_IDX]
 	if (timer_wait(&sense_timer, 3000)) {
 		sense_timer = timer_reset();
 #ifdef SPLONK
-		debug_print("sensed dir: %d", i2c_bus_sense());
+		I2C_DEBUG("sensed dir: %d", i2c_bus_sense());
 #endif
 	}
 
@@ -401,7 +446,7 @@ static void i2c_discover(i2c_peer *peer) { // use with &peers[I2C_SELF_IDX]
 			state.bus_enable = ipdirections[p + 1];
 			if (peer->downstream[p]) {
 				addr = peer->downstream[p]->info.addr;
-				t = peer->downstream[p]->info.type;
+				t = (usize)peer->downstream[p]->info.type + 1;
 			}
 			gcall data = peer->downstream[p]
 							 ? (gcall){.ack_addr = {GCI_ACK_ADDR, addr, .more = {1}}}
@@ -414,19 +459,20 @@ static void i2c_discover(i2c_peer *peer) { // use with &peers[I2C_SELF_IDX]
 		if (peers[I2C_GCALL_IDX].snack) { // next peer
 			peers[I2C_GCALL_IDX].snack = 0;
 			if (peer->downstream[p]) {
-				debug_print("PURGED %d", addr);
-				i2c_unregister(peer->downstream[p]);
+				I2C_DEBUG("PURGED %d", addr);
+				if (i2c_unregister(peer->downstream[p]) != SUCCESS)
+					return;
 				peer->downstream[p] = NULL;
 				p = 0, t = 0, addr = 0;
 				return;
 			}
 			peer->downtime[p] = timer_reset();
 			timer_wait(&peer->downtime[p], 1000);
-			debug_print("SNACKED %d", ipdirections[p + 1]);
+			I2C_DEBUG("SNACKED %d", ipdirections[p + 1]);
 			continue;
 		}
-		if (t >= tabsize(iptypes)) {
-			debug_print("Unknown peer type???");
+		if (t > tabsize(iptypes) || (t == tabsize(iptypes) && peers[I2C_GCALL_IDX].dnack)) {
+			I2C_DEBUG("Unknown peer type???");
 			continue;
 		}
 		if (peers[I2C_GCALL_IDX].dnack && !peer->downstream[p]) { // try another type
@@ -438,18 +484,19 @@ static void i2c_discover(i2c_peer *peer) { // use with &peers[I2C_SELF_IDX]
 		}
 		if (!addr || (peers[I2C_GCALL_IDX].dnack && peer->downstream[p])) {
 			if (!addr && !i2c_has_slot(iptypes[t - 1])) {
-				debug_print("Cannot register peer, no slot of type %d available", iptypes[t - 1]);
+				I2C_DEBUG("Cannot register peer, no slot of type %d available", iptypes[t - 1]);
 				peer->downtime[p] = timer_reset();
 				timer_wait(&peer->downtime[p], 500);
 				continue;
 			}
-			debug_print("Found peer type %d%s, assigning addr\r\n", iptypes[t - 1],
-						peer->downstream[p] ? " AGAIN" : "");
-			if (!addr && i2c_new_addr(&addr)) {
-				debug_print("No new i2c addr available");
+			I2C_DEBUG("Found peer type %d%s, assigning addr\r\n", iptypes[t - 1],
+					  peer->downstream[p] ? " AGAIN" : "");
+			if (!addr && i2c_new_addr(&addr, iptypes[t - 1], state.bus_enable)) {
+				I2C_DEBUG("No address domain/slot yet for dir %u", (unsigned)state.bus_enable);
 				peer->downtime[p] = timer_reset();
 				timer_wait(&peer->downtime[p], 1000);
-				return;
+				// A thumb found before the opposite half must not stall its discovery.
+				continue;
 			}
 			i2c_gcall(&(gcall){.use_addr = {GCI_USE_ADDR, addr}});
 			return;
@@ -457,14 +504,14 @@ static void i2c_discover(i2c_peer *peer) { // use with &peers[I2C_SELF_IDX]
 		if (!peer->downstream[p]) {
 			i2c_peer *discovered = NULL;
 			if (i2c_register(&discovered, (ipi){addr, state.bus_enable, iptypes[t - 1]})) {
-				debug_print("Failed to register peer, no slot available(?)");
+				I2C_DEBUG("Failed to register peer, no slot available(?)");
 				i2c_free_addr(addr);
 				continue;
 			}
 			peer->downstream[p] = discovered;
-			debug_print("Registered new peer addr %d dir %d", addr, ipdirections[p + 1]);
+			I2C_DEBUG("Registered new peer addr %d dir %d", addr, ipdirections[p + 1]);
 		} else {
-			debug_print("Re-registered peer addr %d dir %d", addr, ipdirections[p + 1]);
+			I2C_DEBUG("Re-registered peer addr %d dir %d", addr, ipdirections[p + 1]);
 		}
 		peer->downtime[p] = timer_reset();
 		timer_wait(&peer->downtime[p], 1000);
@@ -569,7 +616,7 @@ static void i2c_keep_or_rel_bus();
 static t_error i2c_read(i2c_peer *p) {
 	grbio *g = p->io;
 	if (grb_full(&g->input)) {
-		debug_print("INBUFFULL");
+		I2C_DEBUG("INBUFFULL");
 		return ERROR;
 	}
 	usize	useless;
@@ -613,6 +660,10 @@ static t_error i2c_read(i2c_peer *p) {
 #ifdef TWI_UNIFIED
 static void find_peer() {
 	for (usize peer = 0; peer < I2C_MAX_PEERS; peer++) {
+		// Self's output is a slave response, not a pending master transmission.
+		// Keeping snapshots queued there must not starve queries to other peers.
+		if (peer == I2C_SELF_IDX)
+			continue;
 		grbio *g = peers[peer].io;
 
 		if (!g || (peers[peer].timeout && peers[peer].timeout--) ||
@@ -652,15 +703,15 @@ static void i2c_keep_or_rel_bus() {}
 
 void i2c_debug() {
 #ifdef TWI_UNIFIED
-	debug_print("R%xS%xM%dA%d-I%d I%d O%d", TW_STATUS, TWCR, state.mode,
-				peers[I2C_SELF_IDX].info.addr, grb_count(&peers[I2C_GCALL_IDX].io->input),
-				grb_count(&peers[state.peer_idx].io->input),
-				grb_count(&peers[state.peer_idx].io->output));
+	I2C_DEBUG("R%xS%xM%dA%d-I%d I%d O%d", TW_STATUS, TWCR, state.mode,
+			  peers[I2C_SELF_IDX].info.addr, grb_count(&peers[I2C_GCALL_IDX].io->input),
+			  grb_count(&peers[state.peer_idx].io->input),
+			  grb_count(&peers[state.peer_idx].io->output));
 #elifdef TWI_SPLIT
-	debug_print("R%xSA%xSB%xM%dA%d-I%d I%d O%d", TWI0.SSTATUS, TWI0.SCTRLA, TWI0.SCTRLB, state.mode,
-				peers[I2C_SELF_IDX].info.addr, grb_count(&peers[I2C_GCALL_IDX].io->input),
-				grb_count(&peers[state.peer_idx].io->input),
-				grb_count(&peers[state.peer_idx].io->output));
+	I2C_DEBUG("R%xSA%xSB%xM%dA%d-I%d I%d O%d", TWI0.SSTATUS, TWI0.SCTRLA, TWI0.SCTRLB, state.mode,
+			  peers[I2C_SELF_IDX].info.addr, grb_count(&peers[I2C_GCALL_IDX].io->input),
+			  grb_count(&peers[state.peer_idx].io->input),
+			  grb_count(&peers[state.peer_idx].io->output));
 #endif
 }
 
@@ -668,13 +719,13 @@ void i2c_poll(void) {
 	static timer_t info_timer = {};
 	ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {
 		if (state.mode == TW_UH || state.mode == TW_YE) {
-			i2c_keep_or_rel_bus();
 			handle_gcall();
 #ifndef I2C_STATIC_ADDR
 			if (peers[I2C_SELF_IDX].info.type == IPT_SPLONK) {
 				i2c_discover(&peers[I2C_SELF_IDX]);
 			}
 #endif
+			i2c_keep_or_rel_bus();
 		}
 		if (timer_wait(&info_timer, 2000)) {
 			info_timer = timer_reset();
