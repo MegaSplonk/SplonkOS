@@ -146,10 +146,12 @@ typedef struct i2c_state {
 
 // USB port points NORTH. Hardware UART occupies BUS_ENABLE2/3.
 #ifdef SPLONK_FULL_BUS_PINS
-#define I2C_BE_PINS {BUS_ENABLE3, BUS_ENABLE4, BUS_ENABLE2, BUS_ENABLE1}
+#define I2C_BE_PINS		   {BUS_ENABLE3, BUS_ENABLE4, BUS_ENABLE2, BUS_ENABLE1}
+#define I2C_BE_ACTIVE_MASK 0x0F
 #else
 // Hardware-debug wiring: only east/west are available for discovery.
-#define I2C_BE_PINS {BUS_ENABLE1, BUS_ENABLE4, BUS_ENABLE1, BUS_ENABLE1}
+#define I2C_BE_PINS		   {BUS_ENABLE1, BUS_ENABLE4, BUS_ENABLE1, BUS_ENABLE1}
+#define I2C_BE_ACTIVE_MASK 0x0A
 #endif
 
 // Bus enable logic, i.e. what bus enable pins get enabled

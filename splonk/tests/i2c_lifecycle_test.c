@@ -59,8 +59,9 @@ int main(int argc, char **argv) {
 	usize written;
 	assert(grb_write(&gc.input, &assignment, sizeof(gcall_), &written) == SUCCESS);
 	handle_gcall();
-	assert(restart_discovery && opposite_half == IPD_WEST);
-	assert(peers[I2C_SELF_IDX].info.addr == 43);
+	// A shared-bus general call must never readdress a Splonk.
+	assert(opposite_half == IPD_NONE && peers[I2C_SELF_IDX].info.addr == 31);
+	select_half_domain(IPD_WEST);
 	assert(device->io == nullptr);
 	assert(peers[I2C_SELF_IDX].downstream[0] == nullptr);
 	puts(right ? "I2C right-side lifecycle tests passed" : "I2C left-side lifecycle tests passed");
