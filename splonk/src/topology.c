@@ -90,6 +90,10 @@ void topology_resolve(i2c_peer *peers, usize count, topology_role *roles) {
 			roles[i] = ROLE_SPLONKUS;
 		else if (peers[i].info.type == IPT_SPLONKNOB)
 			roles[i] = ROLE_SPLONKNOB;
+		else if (peers[i].info.type == IPT_SPLONKBAR)
+			roles[i] = ROLE_SPLONKBAR;
+		else if (peers[i].info.type == IPT_SPLONKPAD)
+			roles[i] = ROLE_SPLONKPAD;
 	}
 
 	// No two devices may drive one logical module's key positions.
@@ -177,6 +181,10 @@ const char *topology_role_name(topology_role role) {
 		return "splonkus";
 	case ROLE_SPLONKNOB:
 		return "splonknob";
+	case ROLE_SPLONKBAR:
+		return "splonkbar";
+	case ROLE_SPLONKPAD:
+		return "splonkpad";
 	default:
 		return "unresolved";
 	}

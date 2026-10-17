@@ -1,4 +1,6 @@
 SRC_FILES =                                                                   \
+input                                                                         \
+input_packets                                                                 \
 keymap                                                                        \
 layout                                                                        \
 main                                                                          \

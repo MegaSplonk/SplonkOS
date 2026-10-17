@@ -10,6 +10,8 @@ typedef enum topology_role : u8 {
 	ROLE_SPLONKO_R,
 	ROLE_SPLONKUS,
 	ROLE_SPLONKNOB,
+	ROLE_SPLONKBAR,
+	ROLE_SPLONKPAD,
 	ROLE_COUNT,
 } topology_role;
 
