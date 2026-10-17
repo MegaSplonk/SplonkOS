@@ -198,8 +198,10 @@ static void i2c_bus_enable(void) {}
 #ifdef TWI_UNIFIED
 static void i2c_start(void) {
 	i2c_bus_enable();
-	//     CLR INT    | SET MASTER |  ENABLE   | INTERRUPT;
-	TWCR = _BV(TWINT) | _BV(TWSTA) | _BV(TWEN) | _BV(TWIE);
+	// Both halves are controllers AND targets. Keep own-address recognition
+	// enabled while requesting the bus so an arbitration loser can answer the
+	// winner's read instead of making both halves repeatedly see address NACKs.
+	TWCR = _BV(TWINT) | _BV(TWSTA) | _BV(TWEA) | _BV(TWEN) | _BV(TWIE);
 	// debug_print("start %d", peers[state.peer_idx].timeout);
 }
 
@@ -231,8 +233,9 @@ static void i2c_int_listen(void) {
 static void i2c_select() {
 	// set addr to write
 	TWDR = (u8)I2C_ADDR(peers[state.peer_idx].info.addr, state.mode == TW_MR ? TW_READ : TW_WRITE);
-	//     CLR INT    | ENABLE    | INTERRUPT;
-	TWCR = _BV(TWINT) | _BV(TWEN) | _BV(TWIE);
+	// Arbitration can be lost while transmitting SLA+R/W. TWEA must remain
+	// set to enter the addressed-slave arbitration-lost states (0x68/0xB0).
+	i2c_int_listen();
 	// debug_print("select %d", peers[state.peer_idx].snack);
 }
 #endif
@@ -705,7 +708,10 @@ t_error i2c_query(i2c_peer *p, u8 *data, usize len) {
 
 	ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {
 		if (grb_empty(&g->input) || grb_count(&g->input) < len) {
-			p->query = len;
+			// The ISR decrements query as bytes arrive. Re-polling must not
+			// overwrite the remaining count and extend an in-progress frame.
+			if (!p->query && len <= grb_avail(&g->input))
+				p->query = len;
 			return e;
 		}
 
@@ -865,7 +871,13 @@ static void i2c_keep_or_rel_bus() {}
 #endif
 
 void i2c_debug() {
-#ifdef TWI_UNIFIED
+#if defined(TWI_UNIFIED) && defined(SPLONK)
+	I2C_DEBUG("R%xS%xM%dA%d-I%d I%d O%d drive=%02x sense=%02x", TW_STATUS, TWCR, state.mode,
+			  peers[I2C_SELF_IDX].info.addr, grb_count(&peers[I2C_GCALL_IDX].io->input),
+			  grb_count(&peers[state.peer_idx].io->input),
+			  grb_count(&peers[state.peer_idx].io->output), (unsigned)driven_ports,
+			  (unsigned)shared_ports);
+#elif defined(TWI_UNIFIED)
 	I2C_DEBUG("R%xS%xM%dA%d-I%d I%d O%d", TW_STATUS, TWCR, state.mode,
 			  peers[I2C_SELF_IDX].info.addr, grb_count(&peers[I2C_GCALL_IDX].io->input),
 			  grb_count(&peers[state.peer_idx].io->input),

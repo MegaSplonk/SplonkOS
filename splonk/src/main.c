@@ -37,6 +37,7 @@ static bool			 report_master;
 static topology_role roles[I2C_MAX_PEERS];
 static input_source	 inputs[I2C_MAX_PEERS];
 static layer_state	 layers;
+static u16			 half_rx_packets;
 
 // Temporary stage-2 diagnostics. Disable with -DSPLONK_TOPOLOGY_DEBUG=0.
 #ifndef SPLONK_TOPOLOGY_DEBUG
@@ -176,6 +177,14 @@ static void update_topology(void) {
 			TOPO_PRINT("TOPO self=%u master=%s role=%s hid_overflow=%u", (unsigned)p->info.addr,
 					   report_master ? "yes" : "no", topology_role_name(roles[log_peer]),
 					   (unsigned)report_overflows);
+		} else if (p->io && p->info.type == IPT_SPLONK) {
+			usize pending;
+			ATOMIC_BLOCK(ATOMIC_RESTORESTATE) { pending = p->query; }
+			TOPO_PRINT("TOPO peer=%u role=%s rx=%u wait=%u nack=%u keys=%02x%02x%02x",
+					   (unsigned)p->info.addr, topology_role_name(roles[log_peer]),
+					   (unsigned)half_rx_packets, (unsigned)pending, (unsigned)p->snack,
+					   (unsigned)inputs[log_peer].cached[0], (unsigned)inputs[log_peer].cached[1],
+					   (unsigned)inputs[log_peer].cached[2]);
 		} else if (p->io) {
 			TOPO_PRINT("TOPO peer=%u type=%u role=%s", (unsigned)p->info.addr,
 					   (unsigned)p->info.type, topology_role_name(roles[log_peer]));
@@ -207,6 +216,7 @@ static void peer_input_handler(void) {
 				break;
 			switch (peer->info.type) {
 			case IPT_SPLONK:
+				half_rx_packets++;
 				ATOMIC_BLOCK(ATOMIC_RESTORESTATE) { topology_reconcile(peer, packet.half.peers); }
 				update_topology();
 				feed_input(i, packet.half.keys, sizeof(packet.half.keys), false);
