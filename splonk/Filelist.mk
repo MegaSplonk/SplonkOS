@@ -3,5 +3,6 @@ keymap                                                                        \
 layout                                                                        \
 main                                                                          \
 report                                                                        \
+topology                                                                      \
 
 -include ../lib/Filelist.mk

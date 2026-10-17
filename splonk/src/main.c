@@ -10,6 +10,9 @@
 #include "lib/usb/hid.h"
 #include "lib/usb/pu.h"
 #include "report.h"
+#include "topology.h"
+#include <avr/pgmspace.h>
+#include <string.h>
 
 #include <avr/io.h>
 #include <util/atomic.h>
@@ -18,7 +21,6 @@
 #define SELF_ADDR 0b00011111
 #define PEER_ADDR 0b01011111
 #define KNOB_ADDR 0b01011111
-#define ONKO_ADDR 0b01100000
 
 I2C_SLOT(gcall1, gcall, gcall);
 
@@ -26,74 +28,112 @@ i2c_peer *self;
 i2c_peer *otherhalf;
 i2c_peer *peerknob;
 
-bool usb_connected = false;
+bool				 usb_connected = false;
+static bool			 report_master;
+static topology_role roles[I2C_MAX_PEERS];
+static u8			 knob_last;
+
+// Temporary stage-2 diagnostics. Disable with -DSPLONK_TOPOLOGY_DEBUG=0.
+#ifndef SPLONK_TOPOLOGY_DEBUG
+#define SPLONK_TOPOLOGY_DEBUG 1
+#endif
+
+// Keep temporary diagnostic format strings in flash on the 2.5 KiB SRAM MCU.
+#define TOPO_PRINT(fmt, ...)                                                                       \
+	do {                                                                                           \
+		snprintf_P(FMT_BUF, sizeof(FMT_BUF), PSTR(fmt "\r\n"), __VA_ARGS__);                       \
+		uart_sendstring(FMT_BUF);                                                                  \
+	} while (0)
 
 I2C_SLOT(splonk1, splonk, splonk);
 typedef splonk splonk_;
 I2C_SLOT(splonk2, splonk_, splonk_);
-I2C_SLOT(splonko1, splonko, rgb_control);
 I2C_SLOT(knob1, splonknob, dummy);
+// Topology-only slots; input payloads/decoders are completed in stage 3.
+I2C_SLOT(thumb1, dummy, dummy);
+I2C_SLOT(thumb2, dummy, dummy);
+I2C_SLOT(numpad1, splonk, dummy);
 
 typedef void (*ipt_handler)(i2c_peer *);
 
 static void dummy_handler(i2c_peer *p) { (void)p; }
 
 static void splonk_handler(i2c_peer *p) {
-	// TODO - check if has usb and is overall master
-	// otherwise both halfs will try to send hid reports
-	// TODO - also handle splonk and splonkus in this same func?
-	if (!p || !p->io)
+	if (!p || !p->io || p == self)
 		return;
-	grb *buf = &p->io->input;
-	bool is_self = p == self;
-	if (is_self)
-		buf = &p->io->output;
-
-	usize read_bytes = 0;
-	typedef union splonklike {
-		splonk	splonk;
-		splonko splonko;
-	} splonklike;
-	enum splonktype { ST_SPLONK, ST_SPLONKO, /* ST_SPLONKUS, */ __ST_SIZE };
-	constexpr usize splonktypes[] = {
-		[IPT_SPLONK] = ST_SPLONK,
-		[IPT_SPLONKO] = ST_SPLONKO,
-		// TODO - [IPT_SPLONKUS] = ST_SPLONKUS,
-	};
-	constexpr usize splonksizes[] = {
-		[IPT_SPLONK] = sizeof(splonk),
-		[IPT_SPLONKO] = sizeof(splonko),
-		// TODO - [IPT_SPLONKUS] = sizeof(splonkus),
-	};
-	splonklike		  data;
-	static splonklike last[__ST_SIZE] = {};
+	usize  read_bytes = 0;
+	splonk data;
 	ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {
-		if (grb_count(buf) < sizeof(data))
+		if (grb_count(&p->io->input) < sizeof(data))
 			return;
-		grb_read(buf, (void *)&data, splonksizes[p->info.type], &read_bytes);
-		bool same = true;
-		for (usize i = 0; i < splonksizes[p->info.type]; i++)
-			if (((u8 *)&data)[i] != ((u8 *)&last[splonktypes[p->info.type]])[i])
-				same = false;
-		if (same)
-			return;
-		last[splonktypes[p->info.type]] = data;
-
-		// register other splonk's downstream peers
-		for (usize i = 0; p->info.type == IPT_SPLONK && !is_self && i < tabsize(p->downstream);
-			 i++) {
-			i2c_peer *downstream = NULL;
-			i2c_register(&downstream, data.splonk.peers[i]);
-			p->downstream[i] = downstream;
-		}
-
-		// handle layer/keymap stuff here, need to fetch the proper keycode according
-		// to the global_keymap and current layer
-
-		// handle led mode?
-
-		// hid_send_report(HID_REPORT_ID_NKRO, &report_nkro, sizeof(report_nkro));
+		grb_read(&p->io->input, &data, sizeof(data), &read_bytes);
 	}
+	if (read_bytes != sizeof(data))
+		return;
+	ATOMIC_BLOCK(ATOMIC_RESTORESTATE) { topology_reconcile(p, data.peers); }
+	// Stage 3 will decode data.keys using this peer's resolved role.
+}
+
+static void reset_input_reports(void) {
+	knob_last = 0;
+	for (usize i = 0; i < reports_size; i++) {
+		memset(reports[i]->report, 0, reports[i]->len);
+		reports[i]->pending = report_master;
+	}
+}
+
+static void update_report_master(void) {
+	usb_connected = USBConnected();
+	bool next = usb_connected && usb_device_configured();
+	if (next == report_master)
+		return;
+	report_master = next;
+	// Do not replay stale HID state after detaching or changing ownership.
+	reset_input_reports();
+#if SPLONK_TOPOLOGY_DEBUG
+	TOPO_PRINT("TOPO master=%s usb=%u configured=%u", report_master ? "yes" : "no",
+			   (unsigned)usb_connected, (unsigned)usb_device_configured());
+#endif
+}
+
+static void update_topology(void) {
+	i2c_peer *peers;
+	usize	  count;
+	i2c_get_peers(&peers, &count);
+	ATOMIC_BLOCK(ATOMIC_RESTORESTATE) { topology_prune(); }
+	topology_resolve(peers, count, roles);
+	static u8			 last_addr[I2C_MAX_PEERS];
+	static topology_role last_role[I2C_MAX_PEERS];
+	bool				 changed = false;
+	for (usize i = I2C_SELF_IDX; i < count; i++) {
+		u8 addr = peers[i].io ? peers[i].info.addr : 0;
+		changed |= last_addr[i] != addr || last_role[i] != roles[i];
+		last_addr[i] = addr;
+		last_role[i] = roles[i];
+	}
+	// Until stage 3 adds per-device held actions, release the existing HID state
+	// on any reassignment/removal. This also resets the hardcoded knob decoder.
+	if (changed)
+		reset_input_reports();
+#if SPLONK_TOPOLOGY_DEBUG
+	// Emit one line at a time so a topology dump does not overflow the UART ring.
+	static timer_t log_timer = {};
+	static usize   log_peer = I2C_SELF_IDX;
+	if (timer_wait(&log_timer, 250)) {
+		log_timer = timer_reset();
+		if (log_peer >= count)
+			log_peer = I2C_SELF_IDX;
+		i2c_peer *p = &peers[log_peer];
+		if (p == self) {
+			TOPO_PRINT("TOPO self=%u master=%s role=%s", (unsigned)p->info.addr,
+					   report_master ? "yes" : "no", topology_role_name(roles[log_peer]));
+		} else if (p->io) {
+			TOPO_PRINT("TOPO peer=%u type=%u role=%s", (unsigned)p->info.addr,
+					   (unsigned)p->info.type, topology_role_name(roles[log_peer]));
+		}
+		log_peer++;
+	}
+#endif
 }
 
 #define KK_CHECK(_mask, _data, _bit, _key)                                                         \
@@ -113,9 +153,8 @@ static void splonknob_handler(i2c_peer *p) {
 		grb_read(&p->io->input, (void *)&data, sizeof(data), &read_bytes);
 	}
 
-	static u8 last = 0;
-	splonknob mask = {{last ^ data.raw}};
-	last = data.raw;
+	splonknob mask = {{knob_last ^ data.raw}};
+	knob_last = data.raw;
 
 	// instead of hardcoding the keys, they should be fetched from the layout
 	// need to fetch the .splonknob field from the global_keymap corresponding to the current layer.
@@ -131,15 +170,16 @@ static void splonknob_handler(i2c_peer *p) {
 static void peer_input_handler() {
 	// constexpr ipt iptypes[] = {IPT_SPLONK,	  IPT_SPLONKO,	  IPT_SPLONKUS, IPT_SPLONKPAD,
 	// 				   IPT_SPLONKNOB, IPT_SPLONKREEN, IPT_SPLONKBAR};
-	ipt_handler handlers[] = {&splonk_handler,	  &splonk_handler, &dummy_handler, &dummy_handler,
-							  &splonknob_handler, &dummy_handler,  &dummy_handler};
+	ipt_handler handlers[] = {&splonk_handler,	  &dummy_handler, &dummy_handler, &dummy_handler,
+							  &splonknob_handler, &dummy_handler, &dummy_handler};
 	i2c_peer   *peers;
 	usize		ip_max;
 	i2c_get_peers(&peers, &ip_max);
 	for (usize i = I2C_SELF_IDX; i < ip_max; i++) {
-		if (!peers[i].io)
+		if (!peers[i].io || peers[i].info.type >= tabsize(handlers))
 			continue;
-		handlers[peers[i].info.type](&peers[i]);
+		if (peers[i].info.type == IPT_SPLONK || (report_master && roles[i] == ROLE_SPLONKNOB))
+			handlers[peers[i].info.type](&peers[i]);
 	}
 }
 
@@ -151,9 +191,11 @@ static void query_peers() {
 	usize			ip_max;
 	i2c_get_peers(&peers, &ip_max);
 	for (usize i = I2C_SELF_IDX + 1; i < ip_max; i++) {
-		if (!peers[i].io)
+		if (!peers[i].io || peers[i].info.type >= tabsize(query_data_sizes))
 			continue;
-		i2c_query(&peers[i], NULL, query_data_sizes[peers[i].info.type]);
+		// Both halves exchange topology. Only the USB owner consumes peripheral input.
+		if (peers[i].info.type == IPT_SPLONK || (report_master && roles[i] == ROLE_SPLONKNOB))
+			i2c_query(&peers[i], NULL, query_data_sizes[peers[i].info.type]);
 	}
 }
 
@@ -171,7 +213,6 @@ static void update_act_led() {
 	static act_state current_act_state = ACT_STATE_DEFAULT;
 	if (timer_wait(&act_timer, 500)) {
 		act_timer = timer_reset();
-		usb_connected = USBConnected();
 
 		if (usb_connected)
 			current_act_state = ACT_STATE_USB_CONN;
@@ -184,7 +225,9 @@ static void update_act_led() {
 				continue;
 			pcount++;
 		}
-		if (pcount == 0)
+		if (usb_connected)
+			current_act_state = ACT_STATE_USB_CONN;
+		else if (pcount == 0)
 			current_act_state = ACT_STATE_NO_PEER;
 		else
 			current_act_state = ACT_STATE_HAS_PEER;
@@ -217,23 +260,22 @@ void splonk_loop() {
 	i2c_register_peer(&self, &splonk1, (ipi){SELF_ADDR, IPD_ALL, IPT_SPLONK});
 #ifndef I2C_STATIC_ADDR
 	i2c_register_slot(&splonk2, IPT_SPLONK);
-	i2c_register_slot(&knob1, IPT_SPLONKNOB); // add more slots as needed
-	i2c_register_slot(&splonko1, IPT_SPLONKO);
+	i2c_register_slot(&knob1, IPT_SPLONKNOB);
+	i2c_register_slot(&thumb1, IPT_SPLONKO);
+	i2c_register_slot(&thumb2, IPT_SPLONKO);
+	i2c_register_slot(&numpad1, IPT_SPLONKUS);
 #else
-	i2c_register_peer(nullptr, &splonk2, (ipi){SELF_ADDR, IPD_ALL, IPT_SPLONK});
+	i2c_register_peer(nullptr, &splonk2, (ipi){PEER_ADDR, IPD_ALL, IPT_SPLONK});
 	i2c_register_peer(nullptr, &knob1, (ipi){KNOB_ADDR, IPD_ALL, IPT_SPLONKNOB});
-	i2c_register_peer(nullptr, &splonko1, (ipi){ONKO_ADDR, IPD_ALL, IPT_SPLONKO});
 #endif
 	i2c_init();
 	i2c_set_addr(SELF_ADDR, 1);
 	i2c_listen();
 	// timer_ontick_register(T_ONTICK_SLOT_I2C_PEER, peer_input_handler);
 	timer_t t = timer_reset();
-	timer_t ttt = timer_reset();
 	timer_t i2c_poll_timer = timer_reset();
 	timer_t peer_input_timer = timer_reset();
 	splonk	self_data = {.keys = {}, .led_mode = 0, .peers = {}};
-	splonk	self_last = self_data;
 
 #ifdef PINOUT_splonk
 	pin_output((pin)ACT_LED);
@@ -242,20 +284,15 @@ void splonk_loop() {
 	while (true) {
 		if (timer_wait(&t, 10)) {
 			t = timer_reset();
+			update_report_master();
 			update_act_led();
 			for (usize i = 0; i < tabsize(self_data.peers); i++)
 				self_data.peers[i] = self->downstream[i] ? self->downstream[i]->info : (ipi){};
 			km_scan(self_data.keys, sizeof(self_data.keys));
-			bool same = true;
-			for (usize i = 0; i < sizeof(self_data); i++)
-				if (((u8 *)&self_data)[i] != ((u8 *)&self_last)[i])
-					same = false;
-			if (!same) {
-				i2c_send(self, (u8 *)&self_data, sizeof(self_data));
-				self_last = self_data;
-			}
+			// Publish full snapshots even without key changes, so a new USB owner can
+			// learn topology. Never consume our own transmit buffer locally.
+			(void)i2c_send(self, (u8 *)&self_data, sizeof(self_data));
 			query_peers();
-			// ^^^ TODO - only query peers if overall master
 		}
 		if (timer_wait(&i2c_poll_timer, 1)) {
 			i2c_poll_timer = timer_reset();
@@ -264,10 +301,9 @@ void splonk_loop() {
 		if (timer_wait(&peer_input_timer, 50)) {
 			peer_input_timer = timer_reset();
 			peer_input_handler();
-			handle_usb();
-		}
-		if (timer_wait(&ttt, 60000)) {
-			soft_reset();
+			update_topology();
+			if (report_master)
+				handle_usb();
 		}
 	}
 }
