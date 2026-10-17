@@ -1,6 +1,7 @@
 #include "input.h"
 #include "input_packets.h"
 #include "input_wiring.h"
+#include "layers.h"
 #include "layout.h"
 #include "lib/key_matrix.h"
 #include "lib/pinout.h"
@@ -35,6 +36,7 @@ bool				 usb_connected = false;
 static bool			 report_master;
 static topology_role roles[I2C_MAX_PEERS];
 static input_source	 inputs[I2C_MAX_PEERS];
+static layer_state	 layers;
 
 // Temporary stage-2 diagnostics. Disable with -DSPLONK_TOPOLOGY_DEBUG=0.
 #ifndef SPLONK_TOPOLOGY_DEBUG
@@ -64,6 +66,39 @@ I2C_SLOT(pad1, dummy, dummy);
 #define SPLONK_INPUT_DEBUG 0
 #endif
 
+// Temporary consumer until the complete HID adapter is connected in stage 5.
+static void resolved_action(u16 code, bool pressed, void *context) {
+	(void)context;
+	if (!report_master)
+		return;
+	u8 usage;
+	switch (code) {
+	case KC_AUDIO_VOL_DOWN:
+		usage = KK_CC_VOL_DOWN;
+		break;
+	case KC_AUDIO_VOL_UP:
+		usage = KK_CC_VOL_UP;
+		break;
+	case KC_AUDIO_MUTE:
+		usage = KK_CC_MUTE;
+		break;
+	case KC_MEDIA_PREV_TRACK:
+		usage = KK_CC_PREVIOUS;
+		break;
+	case KC_MEDIA_NEXT_TRACK:
+		usage = KK_CC_NEXT;
+		break;
+	case KC_MEDIA_PLAY_PAUSE:
+		usage = KK_CC_PAUSE_PLAY;
+		break;
+	default:
+		return;
+	}
+	key k = KK(CC, usage);
+	(pressed ? kk_apply_key : kk_unapply_key)(k);
+	handle_usb();
+}
+
 static void physical_event(const input_event *event, void *context) {
 	(void)context;
 #if SPLONK_INPUT_DEBUG
@@ -75,46 +110,7 @@ static void physical_event(const input_event *event, void *context) {
 		TOPO_PRINT("INPUT source=%u module=%u kind=%u", (unsigned)event->source,
 				   (unsigned)event->module, (unsigned)event->kind);
 #endif
-	// Stage 4 attaches the layer resolver here. Preserve the existing knob HID
-	// behavior in this temporary consumer, not in the transport or decoder.
-	if (!report_master || event->module != INPUT_SPLONKNOB ||
-		(event->kind != INPUT_BUTTON && event->kind != INPUT_STEP))
-		return;
-	u8 position = event->kind == INPUT_STEP ? event->step : event->button.position;
-	u8 code;
-	switch (position) {
-	case 0:
-		code = KK_CC_VOL_DOWN;
-		break;
-	case 1:
-		code = KK_CC_VOL_UP;
-		break;
-	case 2:
-		code = KK_CC_MUTE;
-		break;
-	case 3:
-		code = KK_CC_PREVIOUS;
-		break;
-	case 4:
-		code = KK_CC_NEXT;
-		break;
-	case 5:
-		code = KK_CC_PAUSE_PLAY;
-		break;
-	default:
-		return;
-	}
-	key action = KK(CC, code);
-	if (event->kind == INPUT_STEP) {
-		kk_apply_key(action);
-		handle_usb();
-		kk_unapply_key(action);
-	} else {
-		(event->button.pressed ? kk_apply_key : kk_unapply_key)(action);
-	}
-	// Do not merge adjacent pulse/tap edges into a single final HID state.
-	// Reliable USB retry/ownership of HID usages remains stage 5.
-	handle_usb();
+	layers_input(&layers, event, resolved_action, nullptr);
 }
 
 static input_module module_for_role(topology_role role, ipt type) {
@@ -158,6 +154,14 @@ static u8 wiring_for_module(input_module module) {
 }
 
 static void bind_inputs(i2c_peer *peers, usize count) {
+	for (u8 i = I2C_SELF_IDX; i < count; i++) {
+		u8			 identity = peers[i].io ? peers[i].info.addr : 0;
+		input_module module =
+			report_master && identity ? module_for_role(roles[i], peers[i].info.type) : INPUT_NONE;
+		if (inputs[i].identity != identity || inputs[i].decoder.module != module)
+			(void)input_source_bind(&inputs[i], i, identity, INPUT_NONE, 0, physical_event,
+									nullptr);
+	}
 	for (u8 i = I2C_SELF_IDX; i < count; i++) {
 		u8			 identity = peers[i].io ? peers[i].info.addr : 0;
 		input_module module =
