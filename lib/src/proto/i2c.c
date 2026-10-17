@@ -48,12 +48,23 @@ static i2c_peer peers[I2C_MAX_PEERS] = {};
 static i2c_slot slots[I2C_MAX_SLOTS] = {};
 
 i2c_state state = {};
+#ifdef SPLONK
+static void i2c_bus_enable(void);
+static u8	shared_ports;
+static u8	driven_ports;
+#endif
 
 // define an 'initial' addr that devices can use temporarily? yep
 // just have the devices ask the main mcu using general call? nuh uh
 // other way around, have the main mcu ask the devices with gc? yep
 // devices stop listening to gc after main mcu finds them? nuh uh
 void i2c_set_addr(u8 addr, bool answer_gc) {
+#ifdef SPLONK
+	// Half addresses come from physical E/W sensing. A general call may have
+	// originated beyond an electrically shared enable, so never accept it here.
+	answer_gc = false;
+	(void)answer_gc; // Also compile the hardware-free discovery tests.
+#endif
 	// need to set Slave Receive address here,
 	// and with the LSB we can choose to respond (1) to the General Call or
 	// ignore it (0)
@@ -94,6 +105,9 @@ void i2c_listen(void) {
 	TWI0.SCTRLA = TWI_DIEN_bm | TWI_APIEN_bm | TWI_PIEN_bm | TWI_SMEN_bm | TWI_ENABLE_bm;
 #endif
 	state.mode = TW_YE;
+#ifdef SPLONK
+	i2c_bus_enable();
+#endif
 }
 
 bool i2c_is_listening() {
@@ -120,28 +134,62 @@ void i2c_ignore(void) {
 #ifdef SPLONK
 const pin bus_enable[] = I2C_BE_PINS;
 
-static void i2c_bus_enable(void) {
-	ipd dir = state.peer_idx == I2C_GCALL_IDX ? state.bus_enable : IPD_ALL; //
-	// debug_print("chibrolux%d", dir);
-	for (u8 be = 0; be < tabsize(bus_enable); be++)
-		pin_output(bus_enable[be]),
-			pin_set(bus_enable[be], (bool)(be_logic[dir] & (1 << be))); // true
-
-	// _delay_us(1);
-}
-
-// TODO - test
-static ipd i2c_bus_sense(void) {
-	ipd dir = IPD_NONE;
-	for (u8 d = 0; d < tabsize(ipdirections) - 1; d++) {
-		for (u8 be = 0; be < tabsize(bus_enable); be++) {
-			pin_input(bus_enable[be]);
-			if ((be_logic[d] & (1 << be)) && pin_get(bus_enable[be]))
-				dir = ipdirections[d];
+// Shared enables are wired-OR with external pull-downs: drive HIGH or
+// release, never drive LOW against a peer. Clear PORT after changing to input
+// so the AVR's weak pull-up cannot masquerade as an externally driven line.
+static void drive_bus_ports(u8 mask) {
+	mask &= I2C_BE_ACTIVE_MASK;
+	for (u8 i = 0; i < tabsize(bus_enable); i++) {
+		if (!(I2C_BE_ACTIVE_MASK & (1u << i)))
+			continue;
+		if (mask & (1u << i)) {
+			pin_set(bus_enable[i], true);
+			pin_output(bus_enable[i]);
+		} else {
+			pin_input(bus_enable[i]);
+			pin_set(bus_enable[i], false);
 		}
 	}
-	i2c_bus_enable();
-	return dir;
+	driven_ports = mask;
+}
+
+static void i2c_bus_enable(void) {
+	ipd dir = state.mode == TW_MT && state.peer_idx == I2C_GCALL_IDX ? state.bus_enable : IPD_ALL;
+	drive_bus_ports(be_logic[dir]);
+}
+
+// Only called while idle, before discovery and scheduling a new transaction.
+// Release the sampled pins before reading; retain all asserted directions.
+static u8 i2c_bus_sense(void) {
+	u8 restore = driven_ports;
+	u8 sense_ports = 0;
+	for (u8 i = 0; i < 4; i++) {
+		i2c_peer *child = peers[I2C_SELF_IDX].downstream[i];
+		if (child && child->info.type == IPT_SPLONK)
+			sense_ports |= (u8)(1u << i);
+	}
+	// Once paired, leave local peripheral gates alone: the remote controller
+	// may be addressing one of them while our own TWI peripheral is idle.
+	// Only the known half link needs presence sensing in the two-half topology.
+	if (!sense_ports)
+		sense_ports = I2C_BE_ACTIVE_MASK;
+	u8 sensed = 0;
+	for (u8 i = 0; i < tabsize(bus_enable); i++) {
+		u8 bit = (u8)(1u << i);
+		if (!(I2C_BE_ACTIVE_MASK & bit))
+			continue;
+		// Sample one cardinal slot at a time, restoring before the next slot.
+		// E and W have different slots, so synchronized peers do not both
+		// release the same shared wire for the entire sensing interval. Keep
+		// slot timing even when only the known half pin needs to be sampled.
+		if (sense_ports & bit)
+			drive_bus_ports(restore & (u8)~bit);
+		_delay_us(50);
+		if ((sense_ports & bit) && pin_get(bus_enable[i]))
+			sensed |= bit;
+		drive_bus_ports(restore);
+	}
+	return sensed;
 }
 #elifdef TWI_UNIFIED
 static void i2c_bus_enable(void) {}
@@ -206,11 +254,12 @@ static bool restart_discovery;
 static void select_half_domain(ipd direction) {
 	if (opposite_half == direction)
 		return;
+	bool was_right = opposite_half == IPD_WEST;
 	opposite_half = direction;
-	// Standalone starts in the left domain. On becoming right, discard local
+	// Standalone starts in the left domain. On changing domains, discard local
 	// peripheral identities and buffered samples before rediscovering them on
 	// their isolated ports. Never just relabel an address still used on the wire.
-	if (direction != IPD_WEST)
+	if (was_right == (direction == IPD_WEST))
 		return;
 	for (usize d = 0; d < 4; d++) {
 		i2c_peer *child = peers[I2C_SELF_IDX].downstream[d];
@@ -240,21 +289,11 @@ static void handle_gcall() {
 		// soft_reset();
 		break;
 	case GCI_USE_ADDR:
-#ifdef SPLONK
-		ipd previous_domain = opposite_half;
-		if (call.use_addr.data == i2c_addr_pool[0])
-			select_half_domain(IPD_EAST);
-		else if (call.use_addr.data == i2c_addr_pool[1])
-			select_half_domain(IPD_WEST);
-		if (previous_domain != opposite_half) {
-			restart_discovery = true;
-			grb_clear(&peers[I2C_GCALL_IDX].io->output);
-			peers[I2C_GCALL_IDX].snack = peers[I2C_GCALL_IDX].dnack = 0;
-		}
-#endif
+#ifndef SPLONK
 		i2c_set_addr(call.use_addr.data, 1);
 		peers[I2C_SELF_IDX].info.addr = call.use_addr.data;
 		I2C_DEBUG("NEW ADDR %d", call.use_addr.data);
+#endif
 		break;
 	case GCI_ACK_TYPE:
 		I2C_DEBUG("ACK TYPE %d %d %d", call.ack_type.instruction, call.ack_type.data,
@@ -445,27 +484,74 @@ t_error i2c_unregister(i2c_peer *p) {
 	return ERROR;
 }
 
-// static void i2c_alzheimer(void) {
-// 	for (usize peer = I2C_SELF_IDX + 1; peer < I2C_MAX_PEERS; peer++) {
-//
-// 		if (!peers[peer].io || !peers[peer].snack)
-// 			continue;
-//
-// 		if (peers[peer].snack > 5)
-// 			i2c_unregister(&peers[peer]);
-// 	}
-// }
+#ifdef SPLONK
+static timer_t half_absence;
+
+static bool has_half_link(void) {
+	for (usize d = 0; d < 4; d++) {
+		i2c_peer *child = peers[I2C_SELF_IDX].downstream[d];
+		if (child && child->info.type == IPT_SPLONK)
+			return true;
+	}
+	return false;
+}
+
+static void observe_shared_ports(u8 sensed) {
+	shared_ports = sensed & I2C_BE_ACTIVE_MASK;
+	i2c_peer *self = &peers[I2C_SELF_IDX];
+	// Sense is sufficient only under the current hardware contract: peripheral
+	// enable contacts are isolated, so an external high comes from a Splonk.
+	// Reject ambiguous/non-horizontal layouts rather than assigning a side.
+	ipd direction = shared_ports == be_logic[IPD_EAST]	 ? IPD_EAST
+					: shared_ports == be_logic[IPD_WEST] ? IPD_WEST
+														 : IPD_NONE;
+	for (usize d = 0; d < 4; d++) {
+		i2c_peer *child = self->downstream[d];
+		if (!child || child->info.type != IPT_SPLONK)
+			continue;
+		if (shared_ports & (1u << d))
+			half_absence = timer_reset();
+		else if (timer_wait(&half_absence, 500)) {
+			if (i2c_unregister(child) == SUCCESS) {
+				I2C_DEBUG("Half link absent dir %u", (unsigned)(d + 1));
+				restart_discovery = true;
+			}
+		}
+	}
+	if (direction == IPD_NONE || has_half_link())
+		return;
+	usize d = (usize)direction - 1;
+	if (self->downstream[d] && i2c_unregister(self->downstream[d]) != SUCCESS)
+		return;
+	select_half_domain(direction);
+	u8 own_addr = i2c_addr_pool[direction == IPD_EAST ? 0 : 1];
+	u8 other_addr = i2c_addr_pool[direction == IPD_EAST ? 1 : 0];
+	if (self->info.addr != own_addr) {
+		(void)i2c_free_addr(self->info.addr);
+		self->info.addr = own_addr;
+		i2c_set_addr(own_addr, false);
+		grb_clear(&self->io->output);
+	}
+	addr_used[direction == IPD_EAST ? 0 : 1] = true;
+	i2c_peer *other = nullptr;
+	if (i2c_register(&other, (ipi){other_addr, direction, IPT_SPLONK}) == SUCCESS) {
+		self->downstream[d] = other;
+		half_absence = timer_reset();
+		restart_discovery = true;
+		I2C_DEBUG("Sensed half dir %u self %u peer %u", (unsigned)direction, (unsigned)own_addr,
+				  (unsigned)other_addr);
+	}
+}
+#endif
 
 #ifndef I2C_STATIC_ADDR
-static void i2c_discover(i2c_peer *peer) { // use with &peers[I2C_SELF_IDX]
-										   // send a gcall to use a random addr
-	// then query said addr? how?
-	static usize   p = 0, t = 0;
-	static u8	   addr = 0;
-	static timer_t sense_timer = {};
+// General-call discovery is only used on an isolated standalone component.
+static void i2c_discover(i2c_peer *peer) {
+	static usize p = 0, t = 0;
+	static u8	 addr = 0;
 
 #ifdef SPLONK
-	// An incoming address assignment can invalidate the port currently being
+	// Sensing a changed half link can invalidate the port currently being
 	// scanned. Drop that transaction's reservation/cursor rather than registering
 	// its stale address after select_half_domain() removed the old identity.
 	if (restart_discovery) {
@@ -480,15 +566,33 @@ static void i2c_discover(i2c_peer *peer) { // use with &peers[I2C_SELF_IDX]
 	}
 #endif
 
-	if (timer_wait(&sense_timer, 3000)) {
-		sense_timer = timer_reset();
 #ifdef SPLONK
-		I2C_DEBUG("sensed dir: %d", i2c_bus_sense());
-#endif
+	// A high shared enable defeats local isolation even for a DIFFERENT port.
+	// Without an addressed quiet-window protocol, general calls are unsafe
+	// anywhere on this connected component. Normal addressed traffic continues.
+	if (shared_ports || has_half_link()) {
+		bool registered = false;
+		for (usize i = I2C_SELF_IDX; i < I2C_MAX_PEERS; i++)
+			registered |= peers[i].io && peers[i].info.addr == addr;
+		if (addr && !registered)
+			(void)i2c_free_addr(addr);
+		grb_clear(&peers[I2C_GCALL_IDX].io->output);
+		peers[I2C_GCALL_IDX].snack = peers[I2C_GCALL_IDX].dnack = 0;
+		p = t = addr = 0;
+		state.bus_enable = IPD_ALL;
+		return;
 	}
+#endif
 
 	p %= tabsize(peer->downstream);
 	for (; p < tabsize(peer->downstream); p++, t = 0, addr = 0) {
+#ifdef SPLONK
+		if (!(I2C_BE_ACTIVE_MASK & (1u << p)))
+			continue;
+		// Half detection never uses general-call type probing.
+		if (!t)
+			t = 1;
+#endif
 		if (state.bus_enable != ipdirections[p + 1]) { // start assessing peer type
 			if (!timer_wait(&peer->downtime[p], 0))
 				continue;
@@ -572,6 +676,10 @@ static void i2c_discover(i2c_peer *peer) { // use with &peers[I2C_SELF_IDX]
 #endif
 
 t_error i2c_gcall(gcall *call) {
+#ifdef SPLONK
+	if (shared_ports || has_half_link())
+		return ERROR;
+#endif
 	return i2c_send(&peers[I2C_GCALL_IDX], (u8 *)call, gcall_size[call->base.instruction]);
 }
 
@@ -713,6 +821,12 @@ static void find_peer() {
 		// Keeping snapshots queued there must not starve queries to other peers.
 		if (peer == I2C_SELF_IDX)
 			continue;
+#ifdef SPLONK
+		// General calls get a fresh main-loop sense check, never a chained START
+		// from a transfer ISR with an obsolete isolation decision.
+		if (peer == I2C_GCALL_IDX && state.mode != TW_YE && state.mode != TW_UH)
+			continue;
+#endif
 		grbio *g = peers[peer].io;
 
 		if (!g || (peers[peer].timeout && peers[peer].timeout--) ||
@@ -769,12 +883,19 @@ void i2c_poll(void) {
 	ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {
 		if (state.mode == TW_UH || state.mode == TW_YE) {
 			handle_gcall();
+#if defined(SPLONK) && !defined(I2C_STATIC_ADDR)
+			observe_shared_ports(i2c_bus_sense());
+#endif
 #ifndef I2C_STATIC_ADDR
 			if (peers[I2C_SELF_IDX].info.type == IPT_SPLONK) {
 				i2c_discover(&peers[I2C_SELF_IDX]);
 			}
 #endif
 			i2c_keep_or_rel_bus();
+#ifdef SPLONK
+			if (state.mode == TW_YE || state.mode == TW_UH)
+				i2c_bus_enable();
+#endif
 		}
 		if (timer_wait(&info_timer, 2000)) {
 			info_timer = timer_reset();
