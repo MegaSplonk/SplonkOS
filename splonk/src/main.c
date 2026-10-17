@@ -217,6 +217,7 @@ static void peer_input_handler(void) {
 			switch (peer->info.type) {
 			case IPT_SPLONK:
 				half_rx_packets++;
+				i2c_window_receive(peer, packet.half.discovery);
 				ATOMIC_BLOCK(ATOMIC_RESTORESTATE) { topology_reconcile(peer, packet.half.peers); }
 				update_topology();
 				feed_input(i, packet.half.keys, sizeof(packet.half.keys), false);
@@ -345,6 +346,7 @@ void splonk_loop() {
 				self_data.peers[i] = self->downstream[i] ? self->downstream[i]->info : (ipi){};
 			if (km_scan(self_data.keys, sizeof(self_data.keys)) == SUCCESS)
 				feed_input(I2C_SELF_IDX, self_data.keys, sizeof(self_data.keys), false);
+			self_data.discovery = i2c_window_status();
 			// Publish full snapshots even without key changes, so a new USB owner can
 			// learn topology. Never consume our own transmit buffer locally.
 			(void)i2c_send(self, (u8 *)&self_data, sizeof(self_data));

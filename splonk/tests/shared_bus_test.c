@@ -36,8 +36,6 @@ void pin_set(pin p, bool high) {
 bool pin_get(pin p) {
 	u8 bit = pin_bit(p);
 	assert(!(output & bit) && !(latch & bit)); // released, no pull-up
-	if (has_half_link())
-		assert(output == (I2C_BE_ACTIVE_MASK & (u8)~bit));
 	reads++;
 	return (external & bit) != 0;
 }
@@ -107,4 +105,5 @@ int main(int argc, char **argv) {
 	assert(n == sizeof(gcall_ack_) && queued.ack_type.data == IPT_SPLONKO);
 	assert(I2C_BE_ACTIVE_MASK & be_logic[state.bus_enable]);
 	puts(right ? "shared bus right-half tests passed" : "shared bus left-half tests passed");
+	return 0;
 }

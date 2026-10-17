@@ -180,4 +180,20 @@ t_error i2c_query(i2c_peer *p, u8 *data, usize len);
 void	i2c_poll(void);
 void	i2c_debug(void);
 
+#ifdef SPLONK
+// Shared-enable discovery handshake, carried only in Splonk snapshots.
+// The physical left half coordinates; USB ownership is irrelevant.
+typedef enum : u8 {
+	I2C_WINDOW_NORMAL,
+	I2C_WINDOW_REQUEST,
+	I2C_WINDOW_QUIET,
+	I2C_WINDOW_SCAN,
+	I2C_WINDOW_GRANT,
+	I2C_WINDOW_DONE,
+	I2C_WINDOW_RESUME,
+} i2c_window_phase;
+u8	 i2c_window_status(void);
+void i2c_window_receive(const i2c_peer *peer, u8 phase);
+#endif
+
 #endif

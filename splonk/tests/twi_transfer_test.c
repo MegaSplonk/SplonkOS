@@ -10,6 +10,7 @@ volatile uint8_t TWCR, TWDR, TWAR, TWSR, TWBR;
 GRBIO_INIT(gc, gc_in, gc_out, 8, 8);
 GRBIO_INIT(local, local_in, local_out, 2 * sizeof(splonk), 2 * sizeof(splonk));
 GRBIO_INIT(remote, remote_in, remote_out, 2 * sizeof(splonk), 2 * sizeof(splonk));
+GRBIO_INIT(thumb, thumb_in, thumb_out, 2, 2);
 void pin_input(pin p) { (void)p; }
 void pin_output(pin p) { (void)p; }
 void pin_set(pin p, bool high) {
@@ -46,7 +47,9 @@ int main(int argc, char **argv) {
 	assert(i2c_register_peer(&self, &local, (ipi){own_addr, IPD_ALL, IPT_SPLONK}) == SUCCESS);
 	assert(i2c_register_peer(&other, &remote, (ipi){peer_addr, direction, IPT_SPLONK}) == SUCCESS);
 	self->downstream[direction - 1] = other;
-	splonk packet = {.keys = {0, 0, 0x80}}; // rotated visual position 0
+	assert(i2c_register_slot(&thumb, IPT_SPLONKO) == SUCCESS);
+	splonk packet = {.peers = {[IPD_SOUTH - 1] = {right ? 44 : 45, IPD_SOUTH, IPT_SPLONKO}},
+					 .keys = {0, 0, 0x80}}; // rotated visual position 0
 	assert(i2c_send(self, (u8 *)&packet, sizeof(packet)) == SUCCESS);
 	state.mode = TW_YE;
 	(void)i2c_query(other, nullptr, sizeof(packet));
@@ -91,9 +94,14 @@ int main(int argc, char **argv) {
 	assert(grb_empty(&other->io->input));
 	// The real received frame proceeds through topology, physical coordinates,
 	// layer resolution and report generation with USB on either half.
+	topology_reconcile(other, received.peers);
+	i2c_peer *peripheral = other->downstream[IPD_SOUTH - 1];
+	assert(peripheral && peripheral->info.type == IPT_SPLONKO);
+	assert(peripheral->info.addr == (right ? 44 : 45));
 	topology_role roles[I2C_MAX_PEERS];
 	topology_resolve(peers, I2C_MAX_PEERS, roles);
 	assert(roles[other - peers] == (right ? ROLE_SPLONK_L : ROLE_SPLONK_R));
+	assert(roles[peripheral - peers] == (right ? ROLE_SPLONKO_L : ROLE_SPLONKO_R));
 	input_device device = {};
 	report_init(&layers);
 	report_reset(true);
@@ -128,5 +136,49 @@ int main(int argc, char **argv) {
 	TWDR = 4;
 	i2c_state_machine(TW_MR_DATA_NACK);
 	assert(other->query == 0 && grb_count(&other->io->input) == 1);
-	puts("TWI arbitration, complete snapshots and in-flight polling tests passed");
+	// A quiet half still exchanges snapshots, but cannot address peripherals
+	// or send general calls. The scanner alone may schedule a broadcast.
+	(void)i2c_query(peripheral, nullptr, 1);
+	window_phase = I2C_WINDOW_QUIET;
+	remote_window = I2C_WINDOW_SCAN;
+	state.mode = TW_YE;
+	find_peer();
+	assert(state.peer_idx == I2C_SELF_IDX && peripheral->query == 1);
+	(void)i2c_query(other, nullptr, sizeof(splonk));
+	find_peer();
+	assert(state.peer_idx == (usize)(other - peers));
+	state.mode = TW_MR;
+	find_peer();
+	assert(state.peer_idx == I2C_SELF_IDX); // STOP before main-loop handover.
+	state.mode = TW_YE;
+	gcall probe = {.ack_type = {GCI_ACK_TYPE, IPT_SPLONKO, .more = {1}}};
+	assert(i2c_gcall(&probe) == ERROR);
+	window_phase = I2C_WINDOW_SCAN;
+	opposite_half = direction;
+	remote_window = right ? I2C_WINDOW_GRANT : I2C_WINDOW_QUIET;
+	assert(i2c_gcall(&probe) == SUCCESS);
+	find_peer();
+	assert(state.peer_idx == I2C_GCALL_IDX);
+	grb_clear(&gc.output);
+	other->query = 0;
+	state.mode = TW_MT;
+	state.peer_idx = I2C_GCALL_IDX;
+	state.bus_enable = right ? IPD_EAST : IPD_WEST;
+	i2c_bus_enable();
+	u8 connected = driven_ports;
+	assert(connected == (half_port_mask() | be_logic[state.bus_enable]));
+	i2c_keep_or_rel_bus();
+	assert(state.mode == TW_YE && (TWCR & _BV(TWSTO)));
+	assert(driven_ports == connected); // Keep target connected until STOP completes.
+	TWCR &= (u8)~_BV(TWSTO);		   // Hardware completion, before the next idle poll.
+	i2c_bus_enable();
+	assert(driven_ports == half_port_mask());
+	window_phase = I2C_WINDOW_NORMAL;
+	remote_window = I2C_WINDOW_RESUME;
+	find_peer();
+	assert(state.peer_idx == I2C_SELF_IDX); // Wait for both halves' gates.
+	remote_window = I2C_WINDOW_NORMAL;
+	find_peer();
+	assert(state.peer_idx == (usize)(peripheral - peers));
+	puts("TWI arbitration, snapshots and discovery scheduling tests passed");
 }

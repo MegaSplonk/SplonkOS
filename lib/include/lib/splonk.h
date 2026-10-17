@@ -5,7 +5,7 @@
 
 #if defined(SPLONKLIB_ENABLE_I2C)
 
-I2C_DATA(splonk, u8 keys[3]; u8 led_mode; ipi peers[4];)
+I2C_DATA(splonk, u8 keys[3]; u8 led_mode; ipi peers[4]; u8 discovery;)
 
 // Compatible with feat/splonko: keys only upstream, RGB command downstream.
 I2C_DATA(splonko, u8 keys[1];)

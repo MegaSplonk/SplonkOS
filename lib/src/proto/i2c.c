@@ -49,9 +49,16 @@ static i2c_slot slots[I2C_MAX_SLOTS] = {};
 
 i2c_state state = {};
 #ifdef SPLONK
-static void i2c_bus_enable(void);
-static u8	shared_ports;
-static u8	driven_ports;
+static void				i2c_bus_enable(void);
+static u8				shared_ports;
+static u8				driven_ports;
+static bool				discovery_pass_done;
+static i2c_window_phase window_phase;
+static u8				remote_window;
+static timer_t			window_timer;
+static bool				has_half_link(void);
+static u8				half_port_mask(void);
+static bool				window_can_discover(void);
 #endif
 
 // define an 'initial' addr that devices can use temporarily? yep
@@ -155,7 +162,16 @@ static void drive_bus_ports(u8 mask) {
 
 static void i2c_bus_enable(void) {
 	ipd dir = state.mode == TW_MT && state.peer_idx == I2C_GCALL_IDX ? state.bus_enable : IPD_ALL;
-	drive_bus_ports(be_logic[dir]);
+	u8	mask = be_logic[dir];
+	if (has_half_link() && window_phase != I2C_WINDOW_NORMAL &&
+		window_phase != I2C_WINDOW_REQUEST) {
+		// A quiet half exposes only the other controller, never its peripherals.
+		// A scanner exposes that link plus exactly its selected discovery port.
+		mask = half_port_mask();
+		if (window_phase == I2C_WINDOW_SCAN && dir != IPD_ALL)
+			mask |= be_logic[dir];
+	}
+	drive_bus_ports(mask);
 }
 
 // Only called while idle, before discovery and scheduling a new transaction.
@@ -499,6 +515,116 @@ static bool has_half_link(void) {
 	return false;
 }
 
+static u8 half_port_mask(void) {
+	u8 mask = 0;
+	for (u8 d = 0; d < 4; d++) {
+		i2c_peer *p = peers[I2C_SELF_IDX].downstream[d];
+		if (p && p->info.type == IPT_SPLONK)
+			mask |= (u8)(1u << d);
+	}
+	return mask;
+}
+
+static bool window_can_discover(void) {
+	if (!has_half_link())
+		return !shared_ports;
+	bool quiet = opposite_half == IPD_EAST
+					 ? (remote_window == I2C_WINDOW_QUIET || remote_window == I2C_WINDOW_DONE)
+					 : remote_window == I2C_WINDOW_GRANT;
+	return window_phase == I2C_WINDOW_SCAN && quiet && !(shared_ports & (u8)~half_port_mask());
+}
+
+u8 i2c_window_status(void) { return window_phase; }
+
+void i2c_window_receive(const i2c_peer *peer, u8 phase) {
+	if (phase > I2C_WINDOW_RESUME || peer->info.type != IPT_SPLONK)
+		return;
+	for (u8 d = 0; d < 4; d++)
+		if (peers[I2C_SELF_IDX].downstream[d] == peer)
+			remote_window = phase;
+}
+
+static void window_enter(i2c_window_phase phase) {
+	window_phase = phase;
+	window_timer = timer_reset();
+	if (phase == I2C_WINDOW_SCAN)
+		discovery_pass_done = false;
+	I2C_DEBUG("Discovery window %u", (unsigned)phase);
+}
+
+// Run only between complete transactions. Phase publication happens later in
+// the main loop, after the corresponding GPIO/scheduler restrictions apply.
+static void window_poll(void) {
+	if (restart_discovery) {
+		grb_clear(&peers[I2C_GCALL_IDX].io->output);
+		peers[I2C_GCALL_IDX].snack = peers[I2C_GCALL_IDX].dnack = 0;
+	}
+	if (!has_half_link()) {
+		window_phase = remote_window = I2C_WINDOW_NORMAL;
+		window_timer = timer_reset();
+		return;
+	}
+	bool	left = opposite_half == IPD_EAST;
+	milis_t interval = 500; // Handshake timeout; timeout recovery remains quiet.
+	if (window_phase == I2C_WINDOW_NORMAL)
+		interval = 1000;
+	else if (window_phase == I2C_WINDOW_SCAN)
+		interval = 40; // Finish sooner when the port scan completes.
+	bool expired = timer_wait(&window_timer, interval);
+	switch (window_phase) {
+	case I2C_WINDOW_NORMAL:
+		if (left && (remote_window == I2C_WINDOW_QUIET || remote_window == I2C_WINDOW_DONE))
+			window_enter(I2C_WINDOW_RESUME); // Recover a delayed request/acknowledgement.
+		else if (left && expired && remote_window == I2C_WINDOW_NORMAL)
+			window_enter(I2C_WINDOW_REQUEST);
+		else if (!left && remote_window == I2C_WINDOW_REQUEST)
+			window_enter(I2C_WINDOW_QUIET);
+		break;
+	case I2C_WINDOW_REQUEST:
+		if (remote_window == I2C_WINDOW_QUIET)
+			window_enter(I2C_WINDOW_SCAN);
+		else if (expired)
+			window_enter(I2C_WINDOW_RESUME);
+		break;
+	case I2C_WINDOW_QUIET:
+		if (remote_window == I2C_WINDOW_GRANT)
+			window_enter(I2C_WINDOW_SCAN);
+		else if (remote_window == I2C_WINDOW_RESUME)
+			window_enter(I2C_WINDOW_NORMAL);
+		else if (expired)
+			window_enter(I2C_WINDOW_DONE);
+		break;
+	case I2C_WINDOW_SCAN:
+		if (!window_can_discover()) {
+			// The remote half withdrew its grant or restarted. Discard any
+			// unsent probe and its cursor/reservation before another turn.
+			grb_clear(&peers[I2C_GCALL_IDX].io->output);
+			restart_discovery = true;
+			window_enter(left ? I2C_WINDOW_RESUME : I2C_WINDOW_DONE);
+			break;
+		}
+		// Finish queued broadcasts before handing over; keep the discovery
+		// cursor/reservation so the next window resumes a partially probed port.
+		if ((expired || discovery_pass_done) && grb_empty(&peers[I2C_GCALL_IDX].io->output))
+			window_enter(left ? I2C_WINDOW_GRANT : I2C_WINDOW_DONE);
+		break;
+	case I2C_WINDOW_GRANT:
+		if (remote_window == I2C_WINDOW_DONE || expired)
+			window_enter(I2C_WINDOW_RESUME);
+		break;
+	case I2C_WINDOW_DONE:
+		if (remote_window == I2C_WINDOW_RESUME)
+			window_enter(I2C_WINDOW_NORMAL);
+		break;
+	case I2C_WINDOW_RESUME:
+		// Even on timeout, stay electrically quiet until the other side has
+		// stopped scanning. A lost snapshot must never expose our peripherals.
+		if (remote_window == I2C_WINDOW_NORMAL)
+			window_enter(I2C_WINDOW_NORMAL);
+		break;
+	}
+}
+
 static void observe_shared_ports(u8 sensed) {
 	shared_ports = sensed & I2C_BE_ACTIVE_MASK;
 	i2c_peer *self = &peers[I2C_SELF_IDX];
@@ -541,6 +667,8 @@ static void observe_shared_ports(u8 sensed) {
 		self->downstream[d] = other;
 		half_absence = timer_reset();
 		restart_discovery = true;
+		window_phase = remote_window = I2C_WINDOW_NORMAL;
+		window_timer = timer_reset();
 		I2C_DEBUG("Sensed half dir %u self %u peer %u", (unsigned)direction, (unsigned)own_addr,
 				  (unsigned)other_addr);
 	}
@@ -548,7 +676,7 @@ static void observe_shared_ports(u8 sensed) {
 #endif
 
 #ifndef I2C_STATIC_ADDR
-// General-call discovery is only used on an isolated standalone component.
+// General calls require standalone isolation or a paired discovery turn.
 static void i2c_discover(i2c_peer *peer) {
 	static usize p = 0, t = 0;
 	static u8	 addr = 0;
@@ -563,6 +691,8 @@ static void i2c_discover(i2c_peer *peer) {
 			registered |= peers[i].io && peers[i].info.addr == addr;
 		if (addr && !registered)
 			(void)i2c_free_addr(addr);
+		grb_clear(&peers[I2C_GCALL_IDX].io->output);
+		peers[I2C_GCALL_IDX].snack = peers[I2C_GCALL_IDX].dnack = 0;
 		p = t = addr = 0;
 		state.bus_enable = IPD_ALL;
 		restart_discovery = false;
@@ -570,27 +700,16 @@ static void i2c_discover(i2c_peer *peer) {
 #endif
 
 #ifdef SPLONK
-	// A high shared enable defeats local isolation even for a DIFFERENT port.
-	// Without an addressed quiet-window protocol, general calls are unsafe
-	// anywhere on this connected component. Normal addressed traffic continues.
-	if (shared_ports || has_half_link()) {
-		bool registered = false;
-		for (usize i = I2C_SELF_IDX; i < I2C_MAX_PEERS; i++)
-			registered |= peers[i].io && peers[i].info.addr == addr;
-		if (addr && !registered)
-			(void)i2c_free_addr(addr);
-		grb_clear(&peers[I2C_GCALL_IDX].io->output);
-		peers[I2C_GCALL_IDX].snack = peers[I2C_GCALL_IDX].dnack = 0;
-		p = t = addr = 0;
-		state.bus_enable = IPD_ALL;
+	// Paired discovery is legal only after an explicit quiet acknowledgement.
+	// Preserve the cursor between turns; topology changes reset it above.
+	if (!window_can_discover())
 		return;
-	}
 #endif
 
 	p %= tabsize(peer->downstream);
 	for (; p < tabsize(peer->downstream); p++, t = 0, addr = 0) {
 #ifdef SPLONK
-		if (!(I2C_BE_ACTIVE_MASK & (1u << p)))
+		if (!(I2C_BE_ACTIVE_MASK & (1u << p)) || (half_port_mask() & (1u << p)))
 			continue;
 		// Half detection never uses general-call type probing.
 		if (!t)
@@ -674,13 +793,16 @@ static void i2c_discover(i2c_peer *peer) {
 		// FIXME does weird stuff like finding a nonexistent peer of type 0
 	}
 	state.bus_enable = IPD_ALL;
-	return; // Done interrogating, no peer found
+#ifdef SPLONK
+	discovery_pass_done = true;
+#endif
+	return; // Finished one pass; retain per-port presence/backoff timers.
 }
 #endif
 
 t_error i2c_gcall(gcall *call) {
 #ifdef SPLONK
-	if (shared_ports || has_half_link())
+	if (!window_can_discover())
 		return ERROR;
 #endif
 	return i2c_send(&peers[I2C_GCALL_IDX], (u8 *)call, gcall_size[call->base.instruction]);
@@ -830,8 +952,18 @@ static void find_peer() {
 #ifdef SPLONK
 		// General calls get a fresh main-loop sense check, never a chained START
 		// from a transfer ISR with an obsolete isolation decision.
-		if (peer == I2C_GCALL_IDX && state.mode != TW_YE && state.mode != TW_UH)
+		if (peer == I2C_GCALL_IDX &&
+			((state.mode != TW_YE && state.mode != TW_UH) || !window_can_discover()))
 			continue;
+		if (has_half_link()) {
+			if ((window_phase != I2C_WINDOW_NORMAL || remote_window != I2C_WINDOW_NORMAL) &&
+				peer != I2C_GCALL_IDX && peers[peer].info.type != IPT_SPLONK)
+				continue;
+			// Return to the idle loop during a handshake, allowing phase changes
+			// and gate updates instead of indefinitely chaining controller reads.
+			if (window_phase != I2C_WINDOW_NORMAL && state.mode != TW_YE && state.mode != TW_UH)
+				continue;
+		}
 #endif
 		grbio *g = peers[peer].io;
 
@@ -857,7 +989,8 @@ static void i2c_keep_or_rel_bus() {
 	} else if (state.mode == TW_MR || state.mode == TW_MT) {
 		state.mode = TW_YE;
 		i2c_stop_listen();
-		i2c_bus_enable();
+		// Do not disconnect the selected peripheral before STOP reaches it.
+		// The idle poll restores gates after hardware clears TWSTO.
 		return;
 	} else if (state.mode == TW_SR || state.mode == TW_ST) {
 		state.mode = TW_YE;
@@ -893,10 +1026,16 @@ void i2c_debug() {
 void i2c_poll(void) {
 	static timer_t info_timer = {};
 	ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {
-		if (state.mode == TW_UH || state.mode == TW_YE) {
+		if ((state.mode == TW_UH || state.mode == TW_YE)
+#ifdef TWI_UNIFIED
+			&& !(TWCR & _BV(TWSTO))
+#endif
+		) {
 			handle_gcall();
 #if defined(SPLONK) && !defined(I2C_STATIC_ADDR)
 			observe_shared_ports(i2c_bus_sense());
+			window_poll();
+			i2c_bus_enable();
 #endif
 #ifndef I2C_STATIC_ADDR
 			if (peers[I2C_SELF_IDX].info.type == IPT_SPLONK) {
