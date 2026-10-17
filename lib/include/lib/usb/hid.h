@@ -71,6 +71,9 @@ extern struct hid_desc_node mouse_descriptor;
 extern struct hid_desc_node cc_descriptor;
 extern struct hid_desc_node slider_descriptor;
 
+#define HID_NKRO_USAGE_MAX 0xA4
+#define HID_NKRO_BYTES	   ((HID_NKRO_USAGE_MAX + 8) / 8)
+
 struct HID_NKRO_report {
 	union {
 		u8 mods;
@@ -86,7 +89,7 @@ struct HID_NKRO_report {
 		};
 	};
 	u8 _pad;
-	u8 keys[13];
+	u8 keys[HID_NKRO_BYTES];
 };
 
 struct HID_MOUSE_report {
@@ -100,7 +103,8 @@ struct HID_MOUSE_report {
 		};
 	};
 	i8 x; // negative == left   | positive == right
-	i8 y; // negative == bottom | positive == top
+	i8 y; // negative == up | positive == down
+	i8 wheel;
 };
 
 struct HID_CC_report {

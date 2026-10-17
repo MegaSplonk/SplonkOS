@@ -22,8 +22,11 @@ void kk_apply_key(key k) {
 			return;
 		}
 		struct HID_NKRO_report *nkro = report->report;
-		// we dont currently support scancode over 0x65
-		if (k.payload >= 0x65)
+		if (k.payload >= 0xE0 && k.payload <= 0xE7) {
+			nkro->mods |= (u8)(1u << (k.payload - 0xE0));
+			break;
+		}
+		if (k.payload < 4 || k.payload > HID_NKRO_USAGE_MAX)
 			return;
 		u8 idx = k.payload / 8;
 		u8 bidx = k.payload % 8;
@@ -81,19 +84,19 @@ void kk_apply_key(key k) {
 			return;
 		switch ((enum e_kk_mouse)k.payload) {
 		case KK_MOUSE_UP: {
-			mouse->y += KK_MOUSE_SENSITIVITY;
+			mouse->y = -KK_MOUSE_SENSITIVITY;
 			break;
 		}
 		case KK_MOUSE_DOWN: {
-			mouse->y -= KK_MOUSE_SENSITIVITY;
+			mouse->y = KK_MOUSE_SENSITIVITY;
 			break;
 		}
 		case KK_MOUSE_LEFT: {
-			mouse->x -= KK_MOUSE_SENSITIVITY;
+			mouse->x = -KK_MOUSE_SENSITIVITY;
 			break;
 		}
 		case KK_MOUSE_RIGHT: {
-			mouse->x += KK_MOUSE_SENSITIVITY;
+			mouse->x = KK_MOUSE_SENSITIVITY;
 			break;
 		}
 		case KK_MOUSE_LBTN: {
@@ -154,8 +157,11 @@ void kk_unapply_key(key k) {
 			return;
 		}
 		struct HID_NKRO_report *nkro = report->report;
-		// we dont currently support scancode over 0x65
-		if (k.payload >= 0x65)
+		if (k.payload >= 0xE0 && k.payload <= 0xE7) {
+			nkro->mods &= (u8) ~(1u << (k.payload - 0xE0));
+			break;
+		}
+		if (k.payload < 4 || k.payload > HID_NKRO_USAGE_MAX)
 			return;
 		u8 idx = k.payload / 8;
 		u8 bidx = k.payload % 8;

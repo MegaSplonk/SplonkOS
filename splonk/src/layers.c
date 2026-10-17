@@ -111,3 +111,15 @@ void layers_reset(layer_state *state, action_emit emit, void *context) {
 		release(state, i, emit, context);
 	memset(state, 0, sizeof(*state));
 }
+
+u16 layers_held_code(const layer_state *state, u8 position) {
+	if (position >= KEYMAP_KEY_COUNT || !state->held[position])
+		return KC_NO;
+	return keymap_get(state->held[position] - 1, position);
+}
+bool layers_holds_code(const layer_state *state, u16 code) {
+	for (u8 i = 0; i < KEYMAP_KEY_COUNT; i++)
+		if (layers_held_code(state, i) == code)
+			return true;
+	return false;
+}
