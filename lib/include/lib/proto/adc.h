@@ -179,8 +179,6 @@ static inline void adc_init(e_adc_ref ref, e_adc_prescaler prescaler) {
 	(void)adc_read_pin(ADC_ADC0);
 }
 
-// TODO - setup interrupt-based adc reads
-
 #endif
 
 #endif
