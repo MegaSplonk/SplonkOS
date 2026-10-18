@@ -9,6 +9,7 @@ enum keymap_layer {
 	LAYER_BASE,
 	LAYER_NAV,
 	LAYER_NUM,
+	LAYER_RGB,
 	LAYERS,
 };
 

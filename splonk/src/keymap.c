@@ -4,7 +4,7 @@
 #define TRNS6 ROW(KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS, KC_TRNS)
 #define TRNS3 ROW(KC_TRNS, KC_TRNS, KC_TRNS)
 
-// Adapted from the Lily58 layout previously recorded here. Lighting is deferred.
+// Adapted from the Lily58 layout; hold NAV and NUM together for RGB controls.
 const global_keymap keymaps[LAYERS] PROGMEM = {
 	[LAYER_BASE] = {
 		.splonk_l = {
@@ -65,6 +65,20 @@ const global_keymap keymaps[LAYERS] PROGMEM = {
 		.splonko_l = {TRNS3, TRNS3},
 		// Keep MO(NUM) reachable through transparency; Enter remains available.
 		.splonko_r = {ROW(KC_PENT, KC_PENT, KC_TRNS), ROW(KC_P0, KC_PDOT, KC_TRNS)},
+		.splonkus = {TRNS6, TRNS6, TRNS6, TRNS6},
+		.splonknob = TRNS6,
+	},
+	[LAYER_RGB] = {
+		.splonk_l = {
+			ROW(RM_TOGG, RM_NEXT, RM_PREV, RM_OFF, RM_ON, KC_TRNS),
+			TRNS6, TRNS6, TRNS6,
+		},
+		.splonk_r = {
+			ROW(RM_PREV, RM_NEXT, RM_TOGG, RM_OFF, RM_ON, KC_TRNS),
+			TRNS6, TRNS6, TRNS6,
+		},
+		.splonko_l = {ROW(RM_PREV, RM_NEXT, RM_TOGG), ROW(RM_OFF, RM_ON, KC_TRNS)},
+		.splonko_r = {ROW(RM_TOGG, RM_NEXT, RM_PREV), ROW(RM_ON, RM_OFF, KC_TRNS)},
 		.splonkus = {TRNS6, TRNS6, TRNS6, TRNS6},
 		.splonknob = TRNS6,
 	},
