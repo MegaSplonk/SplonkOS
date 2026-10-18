@@ -7,6 +7,7 @@
 #include "lib/time.h"
 
 #include <avr/io.h>
+#include <avr/interrupt.h>
 #include <util/atomic.h>
 #include <util/delay.h>
 
@@ -15,6 +16,9 @@
 I2C_SLOT(gcall1, gcall, gcall);
 
 i2c_peer *self;
+
+static volatile u16  adc_sample;
+static volatile bool adc_sample_ready;
 
 I2C_SLOT(bar1, dummy, splonkbar);
 
@@ -30,42 +34,43 @@ void splonk_loop() {
 	i2c_listen();
 	debug_print("SELF %d type%d", self->info.addr, self->info.type);
 
-	timer_t	  t = timer_reset();
-	splonkbar sb = {};
-	timer_t	  tt = timer_reset();
-	timer_t	  ttt = timer_reset();
+	ADC0.INTCTRL = ADC_RESRDY_bm;
+	timer_t sample_timer = timer_reset();
+	timer_t debug_timer = timer_reset();
 
-	splonkbar last = {};
 	while (true) {
-		sb.value = adc_read_pin_10bit(ADC_ADC4);
-		if (timer_wait(&t, 5)) {
-			t = timer_reset();
-			// TODO - use ISR instead of timers and only fill buffer when result is available
-			// and only request measure when buffer is emptied/not full
-			if (grb_avail(&self->io->output) >= sizeof(sb)) {
-				i2c_send(self, (void *)&sb, sizeof(sb));
-				// sb = (splonkbar){};
+		bool sample_ready = false;
+		u16 sample = 0;
+		ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {
+			if (adc_sample_ready) {
+				sample = adc_sample;
+				adc_sample_ready = false;
+				sample_ready = true;
 			}
 		}
-		if (timer_wait(&tt, 5)) {
-			tt = timer_reset();
-			bool same = true;
-			for (usize i = 0; i < sizeof(sb); i++)
-				if (((u8 *)&sb)[i] != ((u8 *)&last)[i])
-					same = false;
-			if (!same) {
-				for (usize i = 0; i < sizeof(sb); i++)
-					uart_send_u8_hex(((u8 *)&sb)[i]);
-				uart_sendstring("\t");
-				uart_send_u16(sb.value);
-				uart_sendstring("\r\n");
-				last = sb;
-			}
+
+		if (sample_ready) {
+			splonkbar packet = {.value = sample};
+			(void)i2c_send(self, (u8 *)&packet, sizeof(packet));
 		}
-		if (timer_wait(&ttt, 30000)) { // for debugging purposes
-			soft_reset();
+
+		if (timer_wait(&sample_timer, 5)) {
+			sample_timer = timer_reset();
+			ADC0.MUXPOS = ADC_ADC4;
+			ADC0.COMMAND = ADC_STCONV_bm;
+		}
+
+		if (sample_ready && timer_wait(&debug_timer, 100)) {
+			debug_timer = timer_reset();
+			debug_print("ADC %u\n", sample);
 		}
 	}
+}
+
+ISR(ADC0_RESRDY_vect) {
+	adc_sample = ADC0.RES;
+	adc_sample_ready = true;
+	ADC0.INTFLAGS = ADC_RESRDY_bm;
 }
 
 int main(void) {
