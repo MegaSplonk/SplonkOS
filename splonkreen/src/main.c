@@ -23,12 +23,9 @@ void splonk_loop() {
 	timer_t	   t = timer_reset();
 	splonkreen sk = {};
 	usize	   r;
-	send_sentence("chibrolux ", 4, 0);
-	send_sentence("chibrolax", 5, 0);
-	send_sentence("chibrolynx", 6, 0);
 
-
-	draw(0, 0, maieul);
+	draw(0, 80, numbers_layer);
+	draw(0, 0, hollow_vassal);
 
 	display_screen();
 	// add second ec11 when wired in
