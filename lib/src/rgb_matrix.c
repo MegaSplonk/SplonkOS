@@ -345,8 +345,8 @@ static void rgb_matrix_indicator(void) {
 typedef void (*rgb_matrix_func)(void);
 
 static const rgb_matrix_func rgb_matrix_modes[RM_MODE_COUNT] = {
-	[RM_OFF] = rgb_matrix_off,
-	[RM_ON] = rgb_matrix_on,
+	[RM_MODE_OFF] = rgb_matrix_off,
+	[RM_MODE_ON] = rgb_matrix_on,
 
 	[RM_RAINBOW] = rgb_matrix_rainbow,
 	[RM_GD_HOR] = rgb_matrix_gradient_horizontal,

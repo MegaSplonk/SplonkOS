@@ -36,7 +36,10 @@ static bool module_range(input_module module, u8 *offset, u8 *count) {
 u16 layers_lookup(const layer_state *state, u8 position, u8 *resolved_layer) {
 	for (u8 i = LAYERS; i > 0; i--) {
 		u8 layer = i - 1;
-		if (layer && !state->holds[layer])
+		if (layer == LAYER_RGB) {
+			if (!state->holds[LAYER_NAV] || !state->holds[LAYER_NUM])
+				continue;
+		} else if (layer && !state->holds[layer])
 			continue;
 		u16 code = keymap_get(layer, position);
 		if (code == KC_TRNS)

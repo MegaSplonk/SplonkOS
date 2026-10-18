@@ -14,6 +14,7 @@
 #include "lib/usb/hid.h"
 #include "lib/usb/pu.h"
 #include "report.h"
+#include "rgb_control.h"
 #include "topology.h"
 #include <avr/pgmspace.h>
 #include <string.h>
@@ -53,7 +54,7 @@ static u16			 half_rx_packets;
 
 I2C_SLOT(splonk1, splonk, splonk);
 typedef splonk splonk_;
-I2C_SLOT(splonk2, splonk_, splonk_);
+I2C_SLOT(splonk2, splonk_, rgb_control);
 I2C_SLOT(knob1, splonknob, dummy);
 I2C_SLOT(thumb1, splonko, rgb_control);
 I2C_SLOT(thumb2, splonko, rgb_control);
@@ -67,6 +68,11 @@ I2C_SLOT(pad1, dummy, dummy);
 #define SPLONK_INPUT_DEBUG 0
 #endif
 
+static void key_action(u16 code, bool pressed, void *context) {
+	if (!rgb_control_key(code, pressed))
+		report_action(code, pressed, context);
+}
+
 static void physical_event(const input_event *event, void *context) {
 	(void)context;
 #if SPLONK_INPUT_DEBUG
@@ -78,7 +84,7 @@ static void physical_event(const input_event *event, void *context) {
 		TOPO_PRINT("INPUT source=%u module=%u kind=%u", (unsigned)event->source,
 				   (unsigned)event->module, (unsigned)event->kind);
 #endif
-	layers_input(&layers, event, report_action, nullptr);
+	layers_input(&layers, event, key_action, nullptr);
 }
 
 static input_module module_for_role(topology_role role, ipt type) {
@@ -217,6 +223,8 @@ static void peer_input_handler(void) {
 			switch (peer->info.type) {
 			case IPT_SPLONK:
 				half_rx_packets++;
+				if (!report_master)
+					rgb_control_set_mode(packet.half.led_mode);
 				i2c_window_receive(peer, packet.half.discovery);
 				ATOMIC_BLOCK(ATOMIC_RESTORESTATE) { topology_reconcile(peer, packet.half.peers); }
 				update_topology();
@@ -347,6 +355,7 @@ void splonk_loop() {
 			if (km_scan(self_data.keys, sizeof(self_data.keys)) == SUCCESS)
 				feed_input(I2C_SELF_IDX, self_data.keys, sizeof(self_data.keys), false);
 			self_data.discovery = i2c_window_status();
+			self_data.led_mode = (u8)rgb_control_get_mode();
 			// Publish full snapshots even without key changes, so a new USB owner can
 			// learn topology. Never consume our own transmit buffer locally.
 			(void)i2c_send(self, (u8 *)&self_data, sizeof(self_data));
@@ -360,6 +369,10 @@ void splonk_loop() {
 			peer_input_timer = timer_reset();
 			update_topology();
 			peer_input_handler();
+			i2c_peer *rgb_peers;
+			usize rgb_peer_count;
+			i2c_get_peers(&rgb_peers, &rgb_peer_count);
+			rgb_control_update(rgb_peers, rgb_peer_count);
 			if (report_master)
 				handle_usb();
 		}

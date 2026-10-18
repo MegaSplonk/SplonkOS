@@ -24,8 +24,8 @@ constexpr usize rm_cols_size = RM_COLS_SIZE;
 constexpr usize rm_size = RM_SIZE;
 
 typedef enum led_mode : u8 {
-	RM_OFF,
-	RM_ON,
+	RM_MODE_OFF,
+	RM_MODE_ON,
 	RM_COLOR,
 
 	RM_RAINBOW,

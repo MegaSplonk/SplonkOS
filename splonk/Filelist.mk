@@ -6,6 +6,7 @@ layers                                                                        \
 layout                                                                        \
 main                                                                          \
 report                                                                        \
+rgb_control                                                                   \
 topology                                                                      \
 
 -include ../lib/Filelist.mk
