@@ -6,8 +6,8 @@
 #include "lib/splonk.h"
 #include "lib/time.h"
 
-#include <avr/io.h>
 #include <avr/interrupt.h>
+#include <avr/io.h>
 #include <util/atomic.h>
 #include <util/delay.h>
 
@@ -17,7 +17,7 @@ I2C_SLOT(gcall1, gcall, gcall);
 
 i2c_peer *self;
 
-static volatile u16  adc_sample;
+static volatile u16	 adc_sample;
 static volatile bool adc_sample_ready;
 
 I2C_SLOT(bar1, dummy, splonkbar);
@@ -40,7 +40,7 @@ void splonk_loop() {
 
 	while (true) {
 		bool sample_ready = false;
-		u16 sample = 0;
+		u16	 sample = 0;
 		ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {
 			if (adc_sample_ready) {
 				sample = adc_sample;
