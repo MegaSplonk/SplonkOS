@@ -19,7 +19,7 @@
 #ifdef SPLONKLIB_ENABLE_I2C
 
 // Discovery diagnostics otherwise consume most of the AVR's remaining SRAM.
-#ifndef DEBUG
+#if defined(DEBUG) && defined(__AVR__)
 #define I2C_DEBUG(fmt, ...)                                                                        \
 	do {                                                                                           \
 		snprintf_P(FMT_BUF, sizeof(FMT_BUF), PSTR(fmt "\r\n") __VA_OPT__(, ) __VA_ARGS__);         \
@@ -1490,6 +1490,7 @@ ISR(TWI_INTERRUPT) { i2c_state_machine(TW_STATUS); }
 ISR(TWI_INTERRUPT_S) {
 	u8		  status = TWI0.SSTATUS;
 	u8		  action = 0;
+	bool	  address_event = false;
 	static u8 rxack_mask = 0;
 	if (status & TWI_COLL_bm || status & TWI_BUSERR_bm) {
 		u8 errors = status & (TWI_BUSERR_bm | TWI_COLL_bm);
@@ -1498,6 +1499,10 @@ ISR(TWI_INTERRUPT_S) {
 		action = TWI_SCMD_COMPTRANS_gc;
 	} else if (status & TWI_APIF_bm) {
 		if (status & TWI_AP_bm) { // ADDR
+			// Reading SDATA in smart mode can acknowledge the address before
+			// the selected peer and response have been determined.
+			TWI0.SCTRLA &= (u8)~TWI_SMEN_bm;
+			address_event = true;
 			u8 addr = TWI0.SDATA;
 			// debug_print("ADDR RECV %d", addr);
 			if (addr == 0x00) { // GCALL
@@ -1553,6 +1558,8 @@ ISR(TWI_INTERRUPT_S) {
 		}
 	}
 	TWI0.SCTRLB = action;
+	if (address_event)
+		TWI0.SCTRLA |= TWI_SMEN_bm;
 }
 ISR(TWI_INTERRUPT_M) {
 	// TODO (optional) finish impl master stuff (not that we'll ever use those)

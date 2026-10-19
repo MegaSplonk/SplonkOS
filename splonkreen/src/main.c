@@ -1,3 +1,4 @@
+#include "lib/lib.h"
 #include "lib/pin.h"
 #include "lib/pinout.h"
 #include "lib/proto/i2c.h"
@@ -20,24 +21,25 @@ I2C_SLOT(screen, splonkreen, dummy);
 
 void splonk_loop() {
 
-	timer_t	   t = timer_reset();
+	timer_t t = timer_reset();
 	timer_t i2c_poll_timer = timer_reset();
 	// timer_t	   test = timer_reset();
 	splonkreen sk = {};
 	bool	   mod_layout_horizontal = false;
 	usize	   r;
 
-  clear_screen();
+	clear_screen();
 
 	draw(0, 0, SPLONKREEN_DEFAULT_IMAGE);
 
 	const u8 image_width = SPLONKREEN_DEFAULT_IMAGE.width;
 	const u8 remaining_width = (128 - image_width);
-	const u8 mod_offset = image_width + (remaining_width / 2) - (8 * ((__IMG_MOD_SIZE - 1) / 2));
+	const u8 mod_offset =
+		image_width + (u8)((remaining_width / 2) - (8 * ((__IMG_MOD_SIZE - 1) / 2)));
 	const u8 mod_page_l = 0;
 	const u8 mod_page_r = 6;
 	const u8 lay_offset =
-		image_width + (remaining_width / 2) - (image_layers[IMG_LAY_DEF]->width / 2);
+		image_width + (u8)((remaining_width / 2) - (image_layers[IMG_LAY_DEF]->width / 2));
 	const u8 lay_page = 2;
 
 	draw(lay_page, lay_offset, *image_layers[IMG_LAY_DEF]);
@@ -55,10 +57,11 @@ void splonk_loop() {
 						page = (idx - 1) < (__IMG_MOD_SIZE - 1) / 2 ? mod_page_l : mod_page_r;
 						offset = mod_offset + (u8)(((idx - 1) % ((__IMG_MOD_SIZE - 1) / 2)) * 16);
 					} else {
-						page = mod_page_l + ((idx - 1) % ((__IMG_MOD_SIZE - 1) / 2)) * 2;
-						offset = mod_offset + ((idx - 1) < (__IMG_MOD_SIZE - 1) / 2
-												   ? 0
-												   : image_modifiers[IMG_MOD_ERASE]->width + image_layers[IMG_LAY_DEF]->width);
+						page = mod_page_l + (u8)((idx - 1) % ((__IMG_MOD_SIZE - 1) / 2)) * 2;
+						offset = (u8)(mod_offset + (((idx - 1) < (__IMG_MOD_SIZE - 1) / 2)
+														? 0
+														: image_modifiers[IMG_MOD_ERASE]->width +
+															  image_layers[IMG_LAY_DEF]->width));
 					}
 					if (!(sk.mods & _BV(idx - 1))) {
 						draw(page, offset, *image_modifiers[IMG_MOD_ERASE]);

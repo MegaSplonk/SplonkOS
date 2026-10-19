@@ -255,7 +255,7 @@ static void update_report_master(void) {
 	report_master = next;
 	// Do not replay stale HID state after detaching or changing ownership.
 	report_reset(report_master);
-#if SPLONK_TOPOLOGY_DEBUG
+#ifdef SPLONK_TOPOLOGY_DEBUG
 	TOPO_PRINT("TOPO master=%s usb=%u configured=%u", report_master ? "yes" : "no",
 			   (unsigned)usb_connected, (unsigned)usb_device_configured());
 #endif
@@ -268,7 +268,7 @@ static void update_topology(void) {
 	ATOMIC_BLOCK(ATOMIC_RESTORESTATE) { topology_prune(); }
 	topology_resolve(peers, count, roles);
 	bind_inputs(peers, count);
-#if SPLONK_TOPOLOGY_DEBUG
+#ifdef SPLONK_TOPOLOGY_DEBUG
 	// Emit one line at a time so a topology dump does not overflow the UART ring.
 	static timer_t log_timer = {};
 	static usize   log_peer = I2C_SELF_IDX;
