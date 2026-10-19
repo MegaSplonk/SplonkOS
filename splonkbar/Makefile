@@ -11,6 +11,9 @@ F_CPU            = 20000000UL
 BOARD            = splonkbar
 CPPFLAGS_ADD     = -DSPLONKBAR
 
+SERIAL_PORT      = /dev/ttyACM0
+SERIAL_BAUD_RATE = 115200
+
 
 TARGET           = $(PROJECT_NAME)
 
