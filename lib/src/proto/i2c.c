@@ -935,7 +935,8 @@ t_error i2c_query(i2c_peer *p, u8 *data, usize len) {
 // Half reads are independent snapshots, not a byte stream. Keep a response
 // even when the other controller polls faster than the main loop publishes.
 // Latch only at SLA+R so publication cannot change an in-flight response.
-static splonk half_response;
+// Zero means LEDs off: an unpublished response must not override lighting.
+static splonk half_response = {.led_mode = SPLONK_LED_MODE_UNSET};
 static u8	  half_response_offset;
 
 static void begin_half_response(void) {

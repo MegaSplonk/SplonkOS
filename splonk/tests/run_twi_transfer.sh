@@ -9,6 +9,6 @@ trap 'rm -f "$test_binary"' EXIT
     -DDEBUG -DSPLONK -DBOARD_splonk -DPINOUT_splonk -DMCU_atmega32u4 -DF_CPU=16000000UL \
     -Itests/twi_stubs -Itests/avr_stubs -Iinclude -I../lib/include -include lib/lib.h \
     tests/twi_transfer_test.c src/input_packets.c src/input.c src/topology.c \
-    src/layers.c src/keymap.c src/report.c src/layout.c ../lib/src/grb.c -Wl,--gc-sections -o "$test_binary"
+    src/layers.c src/keymap.c src/report.c src/layout.c src/rgb_control.c ../lib/src/grb.c -Wl,--gc-sections -o "$test_binary"
 "$test_binary" left
 "$test_binary" right

@@ -2,6 +2,7 @@
 #include "input_packets.h"
 #include "input_wiring.h"
 #include "report.h"
+#include "rgb_control.h"
 #include "topology.h"
 #include <assert.h>
 #include <string.h>
@@ -35,6 +36,12 @@ bool pin_get(pin p) {
 	return false;
 }
 
+static led_mode rendered_mode;
+void			rm_init(void) { rendered_mode = default_led_mode; }
+void			rm_set_mode(led_mode mode) { rendered_mode = mode; }
+void			rm_set_keys(u8 *keys) { (void)keys; }
+void			rm_update(void) {}
+
 static layer_state			  layers;
 static struct HID_NKRO_report keyboard;
 static unsigned				  keyboard_reports;
@@ -64,7 +71,7 @@ int main(int argc, char **argv) {
 	self->downstream[direction - 1] = other;
 	assert(i2c_register_slot(&thumb, IPT_SPLONKO) == SUCCESS);
 	splonk packet = {.peers = {[IPD_SOUTH - 1] = {right ? 44 : 45, IPD_SOUTH, IPT_SPLONKO}},
-					 .keys = {0, 0, 0x80}}; // rotated visual position 0
+					 .keys = {0, 0, 0x02}}; // rotated visual position 6 (outside RGB controls)
 	// Hardware can accept SLA+R while interrupts are masked in the poll loop.
 	// Foreground scheduling must leave that event for the slave ISR.
 	state.mode = TW_YE;
@@ -86,16 +93,27 @@ int main(int argc, char **argv) {
 	assert(TWCR == pending_control && TWDR == 0x55);
 	other->query = 0;
 	TWCR &= (u8)~_BV(TWINT);
-	// A read before publication must send a released snapshot, not stale SLA+R.
+	// A read before publication releases keys without turning off local lighting.
+	u8 local_keys[3] = {};
+	rgb_control_init(local_keys);
+	splonk startup = {.led_mode = SPLONK_LED_MODE_UNSET};
 	state.mode = TW_YE;
 	TWDR = 0x55;
 	i2c_state_machine(TW_ST_SLA_ACK);
 	for (usize i = 0; i < sizeof(packet); i++) {
-		assert(state.mode == TW_ST && TWDR == 0);
+		assert(state.mode == TW_ST && TWDR == ((const u8 *)&startup)[i]);
 		if (i + 1 < sizeof(packet))
 			i2c_state_machine(TW_ST_DATA_ACK);
 	}
 	i2c_state_machine(TW_ST_DATA_NACK);
+
+	rgb_control_set_mode(startup.led_mode);
+	assert(rgb_control_get_mode() == default_led_mode && rendered_mode == default_led_mode);
+	// An explicit off command from a published snapshot still takes effect.
+	rgb_control_set_mode(RM_MODE_OFF);
+	assert(rgb_control_get_mode() == RM_MODE_OFF && rendered_mode == RM_MODE_OFF);
+	rgb_control_set_mode(RM_TOUCH);
+	assert(rgb_control_get_mode() == RM_TOUCH && rendered_mode == RM_TOUCH);
 
 	// An early NACK must not shift the next response into the middle of a frame.
 	assert(i2c_send(self, (u8 *)&packet, sizeof(packet)) == SUCCESS);
@@ -195,7 +213,7 @@ int main(int argc, char **argv) {
 					  right ? INPUT_SPLONK_L_WIRING : INPUT_SPLONK_R_WIRING, physical, nullptr));
 	unsigned before = keyboard_reports;
 	assert(input_feed(&device, 2, received.keys, sizeof(received.keys), physical, nullptr));
-	u8 code = right ? KC_ESCAPE : KC_6;
+	u8 code = right ? KC_TAB : KC_Y;
 	assert(keyboard_reports == before + 1);
 	assert(keyboard.keys[code / 8] & (1u << (code % 8)));
 	// Receive and decode a second full frame containing the key release.
