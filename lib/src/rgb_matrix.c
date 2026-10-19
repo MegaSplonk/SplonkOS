@@ -37,11 +37,13 @@ rgb rm_color = RED;
 rgb rm_color2 = BLUE;
 u32 rm_anim_speed = 4u;
 
+/*
 static u8 rm_lerp_u8(u8 a, u8 b, u32 t) { return (u8)(((u32)a * (255u - t) + (u32)b * t) / 255u); }
 
 static rgb rm_lerp(rgb a, rgb b, u32 t) {
 	return RGB(rm_lerp_u8(a.r, b.r, t), rm_lerp_u8(a.g, b.g, t), rm_lerp_u8(a.b, b.b, t));
 }
+
 
 static u32 rm_normalize(usize index, usize count) {
 	if (count <= 1)
@@ -50,21 +52,26 @@ static u32 rm_normalize(usize index, usize count) {
 	return (u32)(index * 255u / (count - 1u));
 }
 
+*/
+
 static void rm_fill(rgb color) {
 	for (usize i = 0; i < rm_size; i++)
 		leds[i] = color;
 }
 
+/*
 static void rm_scale_color(rgb color, u32 brightness, rgb *out) {
 	out->r = (u8)((u32)color.r * brightness / 255u);
 	out->g = (u8)((u32)color.g * brightness / 255u);
 	out->b = (u8)((u32)color.b * brightness / 255u);
 }
+*/
 
 static void rgb_matrix_off(void) { rm_fill(OFF); }
 
 static void rgb_matrix_on(void) { rm_fill(rm_color); }
 
+/*
 static rgb rm_hsv_to_rgb(u32 hue, u8 saturation, u8 value) {
 	hue %= RM_HUE_MAX;
 
@@ -93,10 +100,8 @@ static rgb rm_hsv_to_rgb(u32 hue, u8 saturation, u8 value) {
 		return RGB(v, p, q);
 	}
 }
-
 static void rgb_matrix_rainbow(void) {
-	return;
-	/*static u32 offset = 0;
+	static u32 offset = 0;
 
 	for (usize i = 0; i < rm_size; i++) {
 		u32 hue = (u32)(i * RM_HUE_MAX / (rm_size ? rm_size : 1u));
@@ -104,7 +109,6 @@ static void rgb_matrix_rainbow(void) {
 	}
 
 	offset = (offset + rm_anim_speed) % RM_HUE_MAX;
-	*/
 }
 
 static void rgb_matrix_gradient_horizontal(void) {
@@ -265,7 +269,7 @@ static void rgb_matrix_rain(void) {
 		}
 	}
 }
-
+*/
 static void rgb_matrix_touch(void) {
 	if (!keys)
 		return;
@@ -275,7 +279,7 @@ static void rgb_matrix_touch(void) {
 		leds[i] = pressed ? rm_color : OFF;
 	}
 }
-
+/*
 static void rgb_matrix_reactive(void) {
 	static u8 brightness[24];
 
@@ -343,7 +347,7 @@ static void rgb_matrix_indicator(void) {
 	if (rm_indicator_active && rm_size)
 		leds[0] = GREEN;
 }
-
+*/
 typedef void (*rgb_matrix_func)(void);
 
 static const rgb_matrix_func rgb_matrix_modes[RM_MODE_COUNT] = {

@@ -3,7 +3,6 @@ PROJECTS =                                                                     \
 	test-rgb                                                                   \
 	test-usb                                                                   \
 	test-splonkreen                                                            \
-	test-i2c                                                                   \
 	splonk                                                                     \
 	splonko                                                                    \
 	splonknob                                                                  \
