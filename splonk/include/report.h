@@ -20,6 +20,7 @@ bool report_translate(u16 code, key *action);
 void report_init(const layer_state *state);
 void report_reset(bool active);
 void report_action(u16 code, bool pressed, void *context);
+void report_slider_value(u16 value);
 // Overflow is bounded: send all-up, then reconstruct retained held actions.
 // Transient taps/steps beyond capacity are discarded, never stuck down.
 extern u16 report_overflows;

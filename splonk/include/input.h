@@ -76,8 +76,8 @@ bool input_bind(input_device *device, u8 source, input_module module, u8 wiring,
 // change state. Matrix positions are visual row * columns + column.
 bool input_feed(input_device *device, u8 source, const u8 *bytes, usize length, input_emit emit,
 				void *context);
-// Typed extension points for unmerged bar/pad firmware. They intentionally do
-// not define an I2C wire ABI. A future packet adapter calls these after decoding.
+// Typed input paths. The bar packet adapter supplies ADC values directly; pad
+// packet decoding remains to be implemented.
 bool input_absolute(input_device *device, u8 source, u16 value, input_emit emit, void *context);
 bool input_pointer(input_device *device, u8 source, i16 dx, i16 dy, u8 buttons, input_emit emit,
 				   void *context);
