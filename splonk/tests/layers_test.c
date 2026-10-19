@@ -41,23 +41,49 @@ int main(void) {
 	button(INPUT_SPLONK_L, 1, true);  // base 1
 	button(INPUT_SPLONKO_L, 2, true); // NAV
 	button(INPUT_SPLONK_L, 2, true);  // F3
-	button(INPUT_SPLONKO_R, 5, true); // NUM wins over NAV
-	button(INPUT_SPLONK_L, 3, true);  // F16
+	button(INPUT_SPLONKO_R, 5, true); // NAV + NUM activates RGB
+	button(INPUT_SPLONK_L, 3, true);  // RGB off
 	button(INPUT_SPLONK_L, 13, true); // transparent A
 	assert(actions[0].code == KC_1 && actions[1].code == KC_F3);
-	assert(actions[2].code == KC_F16 && actions[3].code == KC_A);
+	assert(actions[2].code == RM_OFF && actions[3].code == KC_A);
 	button(INPUT_SPLONKO_L, 2, false);
 	button(INPUT_SPLONKO_R, 5, false);
 	button(INPUT_SPLONK_L, 2, false);
 	assert(actions[4].code == KC_F3 && !actions[4].pressed);
 	button(INPUT_SPLONK_L, 1, false);
 	assert(actions[5].code == KC_1 && !actions[5].pressed);
+	button(INPUT_SPLONK_L, 3, false); // Release retains RGB action after layers change.
+	assert(actions[6].code == RM_OFF && !actions[6].pressed);
 	unsigned before = count;
 	button(INPUT_SPLONK_L, 1, false); // duplicate release
 	button(INPUT_SPLONK_L, 24, true); // invalid position
 	assert(count == before);
 	layers_reset(&state, emit, nullptr);
 	assert(!state.holds[LAYER_NAV] && !state.holds[LAYER_NUM]);
+	// Exercise both activation orders and leaving RGB by releasing either hold.
+	for (u8 order = 0; order < 2; order++) {
+		input_module first = order ? INPUT_SPLONKO_R : INPUT_SPLONKO_L;
+		input_module second = order ? INPUT_SPLONKO_L : INPUT_SPLONKO_R;
+		u8			 first_pos = order ? 5 : 2;
+		u8			 second_pos = order ? 2 : 5;
+		u8			 resolved;
+		button(first, first_pos, true);
+		assert(layers_lookup(&state, KEYMAP_SPLONK_L, &resolved) == (order ? KC_F13 : KC_F1));
+		assert(resolved == (order ? LAYER_NUM : LAYER_NAV));
+		button(second, second_pos, true);
+		assert(layers_lookup(&state, KEYMAP_SPLONK_L, &resolved) == RM_TOGG);
+		assert(resolved == LAYER_RGB);
+		// Transparent RGB positions still resolve through NUM before NAV.
+		assert(layers_lookup(&state, KEYMAP_SPLONK_L + 5, &resolved) == KC_F18);
+		assert(resolved == LAYER_NUM);
+		button(first, first_pos, false);
+		assert(layers_lookup(&state, KEYMAP_SPLONK_L, &resolved) == (order ? KC_F1 : KC_F13));
+		assert(resolved == (order ? LAYER_NAV : LAYER_NUM));
+		button(second, second_pos, false);
+		assert(layers_lookup(&state, KEYMAP_SPLONK_L, &resolved) == KC_ESC);
+		assert(resolved == LAYER_BASE);
+		assert(!state.holds[LAYER_NAV] && !state.holds[LAYER_NUM]);
+	}
 	fixture = true;
 	count = 0;
 	button(INPUT_SPLONK_L, 0, true);

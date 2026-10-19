@@ -43,10 +43,19 @@ int main(void) {
 	assert(!report_translate(KC_NO, &k) && !report_translate(KC_TRNS, &k));
 	assert(!report_translate(MO(1), &k) && !report_translate(KC_SYSTEM_POWER, &k));
 	assert(report_translate(KC_AUDIO_VOL_UP, &k) && k.kind == KK_CC && k.payload == KK_CC_VOL_UP);
-	// Every entry in the actual keymap is either executable, transparent, disabled or a layer.
+	// RGB actions are handled before HID; only the five implemented controls are allowed.
 	for (u8 layer = 0; layer < LAYERS; layer++)
 		for (u8 pos = 0; pos < KEYMAP_KEY_COUNT; pos++) {
 			u16 code = keymap_get(layer, pos);
+			if (IS_RGB_MATRIX_KEYCODE(code)) {
+				assert(code == RM_ON || code == RM_OFF || code == RM_TOGG || code == RM_NEXT ||
+					   code == RM_PREV);
+				assert(!report_translate(code, &k));
+				report_action(code, true, nullptr);
+				report_action(code, false, nullptr);
+				assert(sent == 0); // RGB must never leak into a USB report.
+				continue;
+			}
 			assert(code == KC_NO || code == KC_TRNS ||
 				   (code >= QK_MOMENTARY && code <= QK_MOMENTARY_MAX) ||
 				   report_translate(code, &k));
