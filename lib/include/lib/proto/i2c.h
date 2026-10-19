@@ -20,8 +20,13 @@
 
 constexpr u8 i2c_addr_pool[] = I2C_ADDR_POOL;
 
-#define I2C_MAX_PEERS 9 // gcall and self use 2 spots already
-#define I2C_MAX_SLOTS 7
+#ifdef SPLONK
+#define I2C_MAX_PEERS 10 // gcall, self, and all eight discoverable devices
+#define I2C_MAX_SLOTS 8
+#else
+#define I2C_MAX_PEERS 2 // general call and this peripheral
+#define I2C_MAX_SLOTS 1 // peripherals do not register discovery slots
+#endif
 
 #define I2C_GCALL_IDX 0
 #define I2C_SELF_IDX  1
