@@ -1,5 +1,6 @@
 PROJECTS =                                                                     \
 	splonk                                                                     \
+	splonkus                                                                  \
 	splonko                                                                    \
 	splonknob                                                                  \
 	splonkpad                                                                  \

@@ -144,6 +144,7 @@ typedef struct i2c_state {
 	ipd		 bus_enable;
 } i2c_state;
 
+#ifndef SPLONKLIB_I2C_SLAVE_ONLY
 #if !defined(BUS_ENABLE1) && !defined(BUS_ENABLE2) && !defined(BUS_ENABLE3) && !defined(BUS_ENABLE4)
 #define BUS_ENABLE1 D4
 #define BUS_ENABLE2 D5
@@ -161,6 +162,8 @@ constexpr u8 be_logic[] = {
 	[IPD_NONE] = 0b00000000,  [IPD_NORTH] = 0b00000001, [IPD_EAST] = 0b00000010,
 	[IPD_SOUTH] = 0b00000100, [IPD_WEST] = 0b00001000,	[IPD_ALL] = 0b00001111,
 };
+
+#endif
 
 void i2c_set_addr(u8 addr, bool answer_gc);
 void i2c_init(void);

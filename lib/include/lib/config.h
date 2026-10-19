@@ -91,6 +91,15 @@
 #define SPLONKLIB_UART_FORCE_HARDWARE
 #endif
 
+#elif defined(BOARD_splonkus)
+
+#define SPLONKLIB_ENABLE_I2C
+#define SPLONKLIB_I2C_SLAVE_ONLY
+#define SPLONKLIB_ENABLE_UART
+#define SPLONKLIB_ENABLE_LED
+#define SPLONKLIB_ENABLE_SPI
+#define SPLONKLIB_LED_SPI
+
 #elif defined(BOARD_splonkpad)
 
 #define SPLONKLIB_ENABLE_I2C

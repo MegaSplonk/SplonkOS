@@ -8,6 +8,8 @@
 #include "lib/pinout/attiny.h"
 #elif defined(PINOUT_splonk)
 #include "lib/pinout/splonk.h"
+#elif defined(PINOUT_splonkus)
+#include "lib/pinout/splonkus.h"
 #elif defined(PINOUT_splonko)
 #include "lib/pinout/splonko.h"
 #elif defined(PINOUT_splonknob)

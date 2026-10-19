@@ -11,7 +11,7 @@
 #include "lib/pinout.h"
 #include "lib/proto/i2c.h"
 #include "lib/proto/uart.h"
-#ifdef SPLONK
+#if defined(SPLONK) || defined(SPLONKUS)
 #include "lib/splonk.h"
 #endif
 #include "lib/time.h"
@@ -216,11 +216,12 @@ static u8 i2c_bus_sense(void) {
 	}
 	return sensed;
 }
-#elifdef TWI_UNIFIED
+#elif defined(TWI_UNIFIED) && !defined(SPLONKLIB_I2C_SLAVE_ONLY)
 static void i2c_bus_enable(void) {}
 #endif
 
 #ifdef TWI_UNIFIED
+#ifndef SPLONKLIB_I2C_SLAVE_ONLY
 static void i2c_start(bool complete_event) {
 	i2c_bus_enable();
 	// Both halves are controllers AND targets. Keep own-address recognition
@@ -248,6 +249,8 @@ static void i2c_stop_listen(void) {
 	// debug_print("stop %d", state.mode);
 }
 
+#endif
+
 static void i2c_int(void) {
 	//     CLR INT    | ENABLE    | INTERRUPT;
 	TWCR = _BV(TWINT) | _BV(TWEN) | _BV(TWIE);
@@ -258,6 +261,7 @@ static void i2c_int_listen(void) {
 	TWCR = _BV(TWINT) | _BV(TWEA) | _BV(TWEN) | _BV(TWIE);
 }
 
+#ifndef SPLONKLIB_I2C_SLAVE_ONLY
 static void i2c_select() {
 	// set addr to write
 	TWDR = (u8)I2C_ADDR(peers[state.peer_idx].info.addr, state.mode == TW_MR ? TW_READ : TW_WRITE);
@@ -266,6 +270,8 @@ static void i2c_select() {
 	i2c_int_listen();
 	// debug_print("select %d", peers[state.peer_idx].snack);
 }
+#endif
+
 #endif
 
 static void discard_failed_transfer(void) {
@@ -320,7 +326,12 @@ static void handle_bus_error() {
 	// software state now, or i2c_poll never resumes presence sensing after an
 	// unplug-induced bus error. Polling still waits for TWSTO to clear before
 	// touching enable gates; retain own-address ACKs for the other controller.
+#ifdef SPLONKLIB_I2C_SLAVE_ONLY
+	state.mode = TW_YE;
+	i2c_int_listen();
+#else
 	i2c_stop_listen();
+#endif
 #endif
 }
 
@@ -409,6 +420,7 @@ static void handle_gcall() {
 
 bool addr_used[tabsize(i2c_addr_pool)] = {};
 
+#ifndef SPLONKLIB_I2C_SLAVE_ONLY
 static t_error i2c_new_addr(u8 *addr, ipt type, ipd direction) {
 	if (!addr)
 		return ERROR;
@@ -447,6 +459,8 @@ static t_error i2c_new_addr(u8 *addr, ipt type, ipd direction) {
 	}
 	return ERROR;
 }
+
+#endif
 
 static t_error i2c_free_addr(u8 addr) {
 	for (usize a = 0; a < tabsize(i2c_addr_pool); a++) {
@@ -525,6 +539,7 @@ t_error i2c_register_slot(grbio *io, ipt type) {
 	return ERROR;
 }
 
+#ifndef SPLONKLIB_I2C_SLAVE_ONLY
 static bool i2c_has_slot(ipt type) {
 	for (usize slot = 0; slot < I2C_MAX_SLOTS; slot++) {
 
@@ -535,6 +550,8 @@ static bool i2c_has_slot(ipt type) {
 	}
 	return false;
 }
+
+#endif
 
 t_error i2c_register(i2c_peer **p, ipi info) {
 	for (usize slot = 0; slot < I2C_MAX_SLOTS; slot++) {
@@ -762,7 +779,7 @@ static void observe_shared_ports(u8 sensed) {
 }
 #endif
 
-#ifndef I2C_STATIC_ADDR
+#if !defined(I2C_STATIC_ADDR) && !defined(SPLONKLIB_I2C_SLAVE_ONLY)
 // General calls require standalone isolation or a paired discovery turn.
 static void i2c_discover(i2c_peer *peer) {
 	static usize p = 0, t = 0;
@@ -888,11 +905,16 @@ static void i2c_discover(i2c_peer *peer) {
 #endif
 
 t_error i2c_gcall(gcall *call) {
+#ifdef SPLONKLIB_I2C_SLAVE_ONLY
+	(void)call;
+	return ERROR;
+#else
 #ifdef SPLONK
 	if (!window_can_discover())
 		return ERROR;
 #endif
 	return i2c_send(&peers[I2C_GCALL_IDX], (u8 *)call, gcall_size[call->base.instruction]);
+#endif
 }
 
 t_error i2c_send(i2c_peer *p, u8 *data, usize len) {
@@ -912,6 +934,12 @@ t_error i2c_send(i2c_peer *p, u8 *data, usize len) {
 }
 
 t_error i2c_query(i2c_peer *p, u8 *data, usize len) {
+#ifdef SPLONKLIB_I2C_SLAVE_ONLY
+	(void)p;
+	(void)data;
+	(void)len;
+	return ERROR;
+#else
 	grbio  *g = p->io;
 	t_error e = ERROR;
 
@@ -929,15 +957,20 @@ t_error i2c_query(i2c_peer *p, u8 *data, usize len) {
 			e = grb_read(&g->input, data, len, &useless);
 	}
 	return e;
+#endif
 }
 
-#if defined(SPLONK) && defined(TWI_UNIFIED)
-// Half reads are independent snapshots, not a byte stream. Keep a response
-// even when the other controller polls faster than the main loop publishes.
+#if (defined(SPLONK) || defined(SPLONKUS)) && defined(TWI_UNIFIED)
+// Matrix reads are independent snapshots, not a byte stream. Keep a response
+// even when the host polls faster than the main loop publishes.
 // Latch only at SLA+R so publication cannot change an in-flight response.
+#ifdef SPLONKUS
+static splonkus half_response;
+#else
 // Zero means LEDs off: an unpublished response must not override lighting.
 static splonk half_response = {.led_mode = SPLONK_LED_MODE_UNSET};
-static u8	  half_response_offset;
+#endif
+static u8 half_response_offset;
 
 static void begin_half_response(void) {
 	grb *output = &peers[I2C_SELF_IDX].io->output;
@@ -948,7 +981,7 @@ static void begin_half_response(void) {
 #endif
 
 static t_error i2c_write(i2c_peer *p) {
-#if defined(SPLONK) && defined(TWI_UNIFIED)
+#if (defined(SPLONK) || defined(SPLONKUS)) && defined(TWI_UNIFIED)
 	if (state.mode == TW_ST && p == &peers[I2C_SELF_IDX]) {
 		// Always load TWDR while addressed, including before the first scan.
 		// An oversized read gets zero padding until the controller ends it.
@@ -1063,7 +1096,7 @@ static t_error i2c_read(i2c_peer *p) {
 #endif
 	return ret;
 }
-#ifdef TWI_UNIFIED
+#if defined(TWI_UNIFIED) && !defined(SPLONKLIB_I2C_SLAVE_ONLY)
 static void find_peer() {
 	for (usize peer = 0; peer < I2C_MAX_PEERS; peer++) {
 		// Self's output is a slave response, not a pending master transmission.
@@ -1118,6 +1151,14 @@ static void i2c_keep_or_rel_bus() {
 		state.mode = TW_YE;
 		i2c_int_listen();
 		return;
+	}
+}
+#elif defined(TWI_UNIFIED)
+static void i2c_keep_or_rel_bus(void) {
+	// A target only releases the current slave event; never request START.
+	if (state.mode == TW_SR || state.mode == TW_ST) {
+		state.mode = TW_YE;
+		i2c_int_listen();
 	}
 }
 #else
@@ -1175,7 +1216,7 @@ void i2c_poll(void) {
 			window_poll();
 			i2c_bus_enable();
 #endif
-#ifndef I2C_STATIC_ADDR
+#if !defined(I2C_STATIC_ADDR) && !defined(SPLONKLIB_I2C_SLAVE_ONLY)
 			if (peers[I2C_SELF_IDX].info.type == IPT_SPLONK) {
 				i2c_discover(&peers[I2C_SELF_IDX]);
 			}
@@ -1203,6 +1244,7 @@ static void i2c_state_machine(u8 status) {
 #endif
 	const char *data = nullptr;
 	switch (status) {
+#ifndef SPLONKLIB_I2C_SLAVE_ONLY
 	case (TW_START): {
 		// data = "start condition tx";
 		// if (state.mode != TW_MR)
@@ -1321,12 +1363,13 @@ static void i2c_state_machine(u8 status) {
 		i2c_read(&peers[state.peer_idx]);
 		break;
 	}
+#endif
 	case (TW_ST_SLA_ACK): {
 		// data = "SLA+R rx, ACK returned";
 		// debug_print("%s", data);
 		state.mode = TW_ST;
 		state.peer_idx = I2C_SELF_IDX;
-#ifdef SPLONK
+#if defined(SPLONK) || defined(SPLONKUS)
 		begin_half_response();
 #endif
 		// Load data byte and either set TWEA to signify more data is coming
@@ -1341,7 +1384,7 @@ static void i2c_state_machine(u8 status) {
 		// debug_print("%s", data);
 		state.mode = TW_ST;
 		state.peer_idx = I2C_SELF_IDX;
-#ifdef SPLONK
+#if defined(SPLONK) || defined(SPLONKUS)
 		begin_half_response();
 #endif
 		// Load data byte and either set TWEA to signify more data is coming
