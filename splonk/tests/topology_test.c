@@ -70,6 +70,23 @@ int main(void) {
 	add(2, IPT_SPLONK, 1, IPD_NORTH);
 	resolve();
 	assert(roles[1] == ROLE_UNKNOWN && roles[2] == ROLE_UNKNOWN);
+	// Same-port diagonal connectors infer the side from discovery's address
+	// domain; the reciprocal backlink must use that same connector.
+	for (ipd direction = IPD_NORTH; direction <= IPD_SOUTH; direction += 2) {
+		for (unsigned right = 0; right < 2; right++) {
+			reset();
+			peers[1].info.addr = right ? 43 : 42;
+			add(2, IPT_SPLONK, 1, direction);
+			peers[2].downstream[direction - 1] = &peers[1];
+			resolve();
+			assert(roles[1] == (right ? ROLE_SPLONK_R : ROLE_SPLONK_L));
+			assert(roles[2] == (right ? ROLE_SPLONK_L : ROLE_SPLONK_R));
+			peers[2].downstream[direction - 1] = nullptr;
+			peers[2].downstream[IPD_EAST - 1] = &peers[1];
+			resolve();
+			assert(roles[1] == ROLE_UNKNOWN && roles[2] == ROLE_UNKNOWN);
+		}
+	}
 
 	reset();
 	add(2, IPT_SPLONK, 1, IPD_EAST);

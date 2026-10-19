@@ -144,15 +144,8 @@ typedef struct i2c_state {
 #define BUS_ENABLE4 D7
 #endif
 
-// USB port points NORTH. Hardware UART occupies BUS_ENABLE2/3.
-#ifdef SPLONK_FULL_BUS_PINS
 #define I2C_BE_PINS		   {BUS_ENABLE3, BUS_ENABLE4, BUS_ENABLE2, BUS_ENABLE1}
 #define I2C_BE_ACTIVE_MASK 0x0F
-#else
-// Hardware-debug wiring: only east/west are available for discovery.
-#define I2C_BE_PINS		   {BUS_ENABLE1, BUS_ENABLE4, BUS_ENABLE1, BUS_ENABLE1}
-#define I2C_BE_ACTIVE_MASK 0x0A
-#endif
 
 // Bus enable logic, i.e. what bus enable pins get enabled
 // wrt which IPD_* the i2c state is in,
@@ -194,6 +187,7 @@ typedef enum : u8 {
 } i2c_window_phase;
 u8	 i2c_window_status(void);
 void i2c_window_receive(const i2c_peer *peer, u8 phase);
+void i2c_set_usb_present(bool present);
 #endif
 
 #endif

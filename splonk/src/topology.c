@@ -43,7 +43,45 @@ void topology_resolve(i2c_peer *peers, usize count, topology_role *roles) {
 			usize child = peer_index(peers, count, peers[i].downstream[d]);
 			if (child == count || peers[child].info.type != IPT_SPLONK)
 				continue;
-			if (child == i || (d != IPD_EAST - 1 && d != IPD_WEST - 1)) {
+			if (child == i) {
+				conflict = true;
+				continue;
+			}
+			if (i != I2C_SELF_IDX && child == I2C_SELF_IDX) {
+				// E/W cables join opposite connector names; diagonal N/N and
+				// S/S cables join matching names. Reject an inconsistent backlink.
+				for (usize local = 0; local < 4; local++) {
+					if (peers[I2C_SELF_IDX].downstream[local] != &peers[i])
+						continue;
+					usize expected = local == IPD_EAST - 1	? IPD_WEST - 1
+									 : local == IPD_WEST - 1 ? IPD_EAST - 1
+																 : local;
+					if (d != expected)
+						conflict = true;
+				}
+				if (conflict)
+					continue;
+			}
+			if (d == IPD_NORTH - 1 || d == IPD_SOUTH - 1) {
+				if (i == I2C_SELF_IDX) {
+					// Same-port N/N and S/S links take their side from the local
+					// half address, which discovery assigned using USB presence.
+					if (peers[i].info.addr == i2c_addr_pool[0]) {
+						sides[i] |= 1;
+						sides[child] |= 2;
+					} else if (peers[i].info.addr == i2c_addr_pool[1]) {
+						sides[i] |= 2;
+						sides[child] |= 1;
+					} else
+						conflict = true;
+				} else if (child != I2C_SELF_IDX ||
+						   peers[I2C_SELF_IDX].downstream[d] != &peers[i]) {
+					// The opposite half must advertise the same connector.
+					conflict = true;
+				}
+				continue;
+			}
+			if (d != IPD_EAST - 1 && d != IPD_WEST - 1) {
 				conflict = true;
 				continue;
 			}
@@ -56,7 +94,7 @@ void topology_resolve(i2c_peer *peers, usize count, topology_role *roles) {
 		conflict |= sides[i] == 3;
 	conflict |= halves > 2;
 	// Without a second half, use a left-hand layout for standalone operation.
-	// A horizontal half edge overrides this; malformed multi-half graphs do not.
+	// A recognized half edge overrides this; malformed multi-half graphs do not.
 	if (halves == 1 && !conflict)
 		sides[I2C_SELF_IDX] = 1;
 	if (!conflict) {

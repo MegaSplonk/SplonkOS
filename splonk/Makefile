@@ -10,7 +10,7 @@ PROGRAMMER       = avr109
 MCU              = atmega32u4
 F_CPU            = 16000000
 BOARD            = splonk
-CPPFLAGS_ADD     = -DSPLONK
+CPPFLAGS_ADD     = -DSPLONK -DDEBUG
 #-DI2C_STATIC_ADDR
 
 SERIAL_PORT = /dev/ttyACM1

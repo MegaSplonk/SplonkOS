@@ -14,4 +14,8 @@ for config in uart full; do
         tests/shared_bus_test.c ../lib/src/grb.c -Wl,--gc-sections -o "$test_binary"
     "$test_binary" left
     "$test_binary" right
+    "$test_binary" north usb
+    "$test_binary" north
+    "$test_binary" south usb
+    "$test_binary" south
 done

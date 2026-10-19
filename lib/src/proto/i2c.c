@@ -11,6 +11,9 @@
 #include "lib/pinout.h"
 #include "lib/proto/i2c.h"
 #include "lib/proto/uart.h"
+#ifdef SPLONK
+#include "lib/splonk.h"
+#endif
 #include "lib/time.h"
 
 #ifdef SPLONKLIB_ENABLE_I2C
@@ -59,6 +62,8 @@ static timer_t			window_timer;
 static bool				has_half_link(void);
 static u8				half_port_mask(void);
 static bool				window_can_discover(void);
+static bool				local_usb_present;
+static bool				half_right;
 #endif
 
 // define an 'initial' addr that devices can use temporarily? yep
@@ -190,7 +195,11 @@ static u8 i2c_bus_sense(void) {
 	if (!sense_ports)
 		sense_ports = I2C_BE_ACTIVE_MASK;
 	u8 sensed = 0;
-	for (u8 i = 0; i < tabsize(bus_enable); i++) {
+	for (u8 slot = 0; slot < tabsize(bus_enable); slot++) {
+		// N/N and S/S links use the same pin on both halves. Sample their
+		// shared line in opposite time slots so both sides do not release it
+		// together. E/W links also retain distinct sampling slots.
+		u8 i = local_usb_present ? (u8)(tabsize(bus_enable) - 1u - slot) : slot;
 		u8 bit = (u8)(1u << i);
 		if (!(I2C_BE_ACTIVE_MASK & bit))
 			continue;
@@ -212,12 +221,16 @@ static void i2c_bus_enable(void) {}
 #endif
 
 #ifdef TWI_UNIFIED
-static void i2c_start(void) {
+static void i2c_start(bool complete_event) {
 	i2c_bus_enable();
 	// Both halves are controllers AND targets. Keep own-address recognition
 	// enabled while requesting the bus so an arbitration loser can answer the
 	// winner's read instead of making both halves repeatedly see address NACKs.
-	TWCR = _BV(TWINT) | _BV(TWSTA) | _BV(TWEA) | _BV(TWEN) | _BV(TWIE);
+	// Foreground START requests must not acknowledge an incoming slave event
+	// that arrived while interrupts were masked. TWINT is write-one-to-clear;
+	// only an ISR scheduling the next transfer has handled the current event.
+	TWCR = (complete_event ? _BV(TWINT) : 0) | _BV(TWSTA) | _BV(TWEA) | _BV(TWEN) |
+		   _BV(TWIE);
 	// debug_print("start %d", peers[state.peer_idx].timeout);
 }
 
@@ -316,15 +329,34 @@ static void handle_bus_error() {
 static ipd	opposite_half = IPD_NONE;
 static bool restart_discovery;
 
+void i2c_set_usb_present(bool present) { local_usb_present = present; }
+
+static bool half_is_right(ipd direction) {
+	switch (direction) {
+	case IPD_WEST:
+		return true;
+	case IPD_EAST:
+		return false;
+	case IPD_NORTH:
+		return !local_usb_present;
+	case IPD_SOUTH:
+		return local_usb_present;
+	default:
+		return false;
+	}
+}
+
 static void select_half_domain(ipd direction) {
-	if (opposite_half == direction)
+	bool next_right = half_is_right(direction);
+	if (opposite_half == direction && half_right == next_right)
 		return;
-	bool was_right = opposite_half == IPD_WEST;
+	bool was_right = half_right;
 	opposite_half = direction;
+	half_right = next_right;
 	// Standalone starts in the left domain. On changing domains, discard local
 	// peripheral identities and buffered samples before rediscovering them on
 	// their isolated ports. Never just relabel an address still used on the wire.
-	if (was_right == (direction == IPD_WEST))
+	if (was_right == next_right)
 		return;
 	for (usize d = 0; d < 4; d++) {
 		i2c_peer *child = peers[I2C_SELF_IDX].downstream[d];
@@ -388,16 +420,16 @@ static t_error i2c_new_addr(u8 *addr, ipt type, ipd direction) {
 	// entries belong to peripherals discovered by left/right respectively.
 	static_assert(tabsize(i2c_addr_pool) >= 4, "split discovery needs at least four addresses");
 	if (type == IPT_SPLONK) {
-		if (direction != IPD_EAST && direction != IPD_WEST)
+		if (direction < IPD_NORTH || direction > IPD_WEST)
 			return ERROR;
 		if (opposite_half != IPD_NONE && opposite_half != direction)
 			return ERROR;
 		select_half_domain(direction);
-		first = direction == IPD_EAST ? 1 : 0;
+		first = half_right ? 0 : 1;
 		end = first + 1;
 	} else {
 		// A standalone board defaults to left; physical evidence overrides it.
-		first = opposite_half == IPD_WEST ? 3 : 2;
+		first = half_right ? 3 : 2;
 		step = 2;
 	}
 #else
@@ -551,6 +583,7 @@ t_error i2c_unregister(i2c_peer *p) {
 
 #ifdef SPLONK
 static timer_t half_absence;
+static timer_t north_south_ready;
 
 static bool has_half_link(void) {
 	for (usize d = 0; d < 4; d++) {
@@ -574,7 +607,7 @@ static u8 half_port_mask(void) {
 static bool window_can_discover(void) {
 	if (!has_half_link())
 		return !shared_ports;
-	bool quiet = opposite_half == IPD_EAST
+	bool quiet = !half_right
 					 ? (remote_window == I2C_WINDOW_QUIET || remote_window == I2C_WINDOW_DONE)
 					 : remote_window == I2C_WINDOW_GRANT;
 	return window_phase == I2C_WINDOW_SCAN && quiet && !(shared_ports & (u8)~half_port_mask());
@@ -610,7 +643,7 @@ static void window_poll(void) {
 		window_timer = timer_reset();
 		return;
 	}
-	bool	left = opposite_half == IPD_EAST;
+	bool	left = !half_right;
 	milis_t interval = 500; // Handshake timeout; timeout recovery remains quiet.
 	if (window_phase == I2C_WINDOW_NORMAL)
 		interval = 1000;
@@ -676,10 +709,12 @@ static void observe_shared_ports(u8 sensed) {
 	i2c_peer *self = &peers[I2C_SELF_IDX];
 	// Sense is sufficient only under the current hardware contract: peripheral
 	// enable contacts are isolated, so an external high comes from a Splonk.
-	// Reject ambiguous/non-horizontal layouts rather than assigning a side.
-	ipd direction = shared_ports == be_logic[IPD_EAST]	 ? IPD_EAST
-					: shared_ports == be_logic[IPD_WEST] ? IPD_WEST
-														 : IPD_NONE;
+	// A single asserted connector identifies a half. N/N and S/S use USB
+	// presence to decide which of the two fixed address domains is local.
+	ipd direction = IPD_NONE;
+	for (ipd d = IPD_NORTH; d <= IPD_WEST; d++)
+		if (shared_ports == be_logic[d])
+			direction = d;
 	for (usize d = 0; d < 4; d++) {
 		i2c_peer *child = self->downstream[d];
 		if (!child || child->info.type != IPT_SPLONK)
@@ -693,21 +728,29 @@ static void observe_shared_ports(u8 sensed) {
 			}
 		}
 	}
-	if (direction == IPD_NONE || has_half_link())
+	if (direction == IPD_NONE)
+		return;
+	if ((direction == IPD_NORTH || direction == IPD_SOUTH) &&
+		!timer_wait(&north_south_ready, 100))
+		return;
+	bool linked = has_half_link();
+	if (linked && (direction != opposite_half || half_right == half_is_right(direction)))
 		return;
 	usize d = (usize)direction - 1;
+	if (linked && i2c_unregister(self->downstream[d]) != SUCCESS)
+		return;
 	if (self->downstream[d] && i2c_unregister(self->downstream[d]) != SUCCESS)
 		return;
 	select_half_domain(direction);
-	u8 own_addr = i2c_addr_pool[direction == IPD_EAST ? 0 : 1];
-	u8 other_addr = i2c_addr_pool[direction == IPD_EAST ? 1 : 0];
+	u8 own_addr = i2c_addr_pool[half_right ? 1 : 0];
+	u8 other_addr = i2c_addr_pool[half_right ? 0 : 1];
 	if (self->info.addr != own_addr) {
 		(void)i2c_free_addr(self->info.addr);
 		self->info.addr = own_addr;
 		i2c_set_addr(own_addr, false);
 		grb_clear(&self->io->output);
 	}
-	addr_used[direction == IPD_EAST ? 0 : 1] = true;
+	addr_used[half_right ? 1 : 0] = true;
 	i2c_peer *other = nullptr;
 	if (i2c_register(&other, (ipi){other_addr, direction, IPT_SPLONK}) == SUCCESS) {
 		self->downstream[d] = other;
@@ -890,7 +933,32 @@ t_error i2c_query(i2c_peer *p, u8 *data, usize len) {
 	return e;
 }
 
+#if defined(SPLONK) && defined(TWI_UNIFIED)
+// Half reads are independent snapshots, not a byte stream. Keep a response
+// even when the other controller polls faster than the main loop publishes.
+// Latch only at SLA+R so publication cannot change an in-flight response.
+static splonk half_response;
+static u8 half_response_offset;
+
+static void begin_half_response(void) {
+	grb *output = &peers[I2C_SELF_IDX].io->output;
+	if (grb_count(output) >= sizeof(half_response))
+		(void)grb_read(output, &half_response, sizeof(half_response), nullptr);
+	half_response_offset = 0;
+}
+#endif
+
 static t_error i2c_write(i2c_peer *p) {
+#if defined(SPLONK) && defined(TWI_UNIFIED)
+	if (state.mode == TW_ST && p == &peers[I2C_SELF_IDX]) {
+		// Always load TWDR while addressed, including before the first scan.
+		// An oversized read gets zero padding until the controller ends it.
+		TWDR = half_response_offset < sizeof(half_response)
+			   ? ((const u8 *)&half_response)[half_response_offset++] : 0;
+		TWCR = _BV(TWINT) | _BV(TWEN) | _BV(TWIE) | _BV(TWEA);
+		return SUCCESS;
+	}
+#endif
 	grbio *g = p->io;
 	if (grb_empty(&g->output)) {
 		// debug_print("OUTBUFEMPTY");
@@ -926,8 +994,15 @@ static bool read_should_nack(i2c_peer *p) {
 		u8	  peek[sizeof(gcall_ack_)];
 		usize p_bytes = 0;
 		grb_peek(&peers[I2C_GCALL_IDX].io->input, peek, sizeof(peek), &p_bytes);
-		if (p_bytes <
-			sizeof(peek) - 1) // FIXME NEEDS TO BEHAVE DIFFERENTLY ATMEGA (size-1) VS ATTINY (size)
+		// ATmega prepares the ACK for the NEXT byte. ATtiny, with smart
+		// mode disabled in i2c_read(), decides for the byte just received.
+		// Reject only the final padding byte so a mismatched probe still
+		// reaches handle_gcall() as a complete command.
+#ifdef TWI_SPLIT
+		if (p_bytes < sizeof(peek))
+#else
+		if (p_bytes < sizeof(peek) - 1)
+#endif
 			return false;
 		bool ret = ((gcall_instruction)peek[0] == GCI_ACK_TYPE &&
 					(ipt)peek[1] != peers[I2C_SELF_IDX].info.type) ||
@@ -1024,14 +1099,15 @@ static void find_peer() {
 }
 
 static void i2c_keep_or_rel_bus() {
+	bool complete_event = state.mode != TW_YE && state.mode != TW_UH;
 	find_peer();
 	grbio *g = peers[state.peer_idx].io;
 	if (state.peer_idx != I2C_SELF_IDX && !grb_empty(&g->output)) {
 		state.mode = TW_MT;
-		i2c_start();
+		i2c_start(complete_event);
 	} else if (peers[state.peer_idx].query) {
 		state.mode = TW_MR;
-		i2c_start();
+		i2c_start(complete_event);
 	} else if (state.mode == TW_MR || state.mode == TW_MT) {
 		state.mode = TW_YE;
 		i2c_stop_listen();
@@ -1072,17 +1148,30 @@ void i2c_debug() {
 void i2c_poll(void) {
 	static timer_t info_timer = {};
 	ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {
+#ifdef TWI_UNIFIED
+		// Service a hardware event before watchdog recovery or foreground work.
+		if (TWCR & _BV(TWINT))
+			return;
+#endif
 #if defined(TWI_UNIFIED) && defined(SPLONK)
 		recover_stalled_twi();
 #endif
 		if ((state.mode == TW_UH || state.mode == TW_YE)
 #ifdef TWI_UNIFIED
-			&& !(TWCR & _BV(TWSTO))
+			&& !(TWCR & (_BV(TWSTO) | _BV(TWINT)))
 #endif
 		) {
 			handle_gcall();
 #if defined(SPLONK) && !defined(I2C_STATIC_ADDR)
-			observe_shared_ports(i2c_bus_sense());
+			u8 sensed = i2c_bus_sense();
+#ifdef TWI_UNIFIED
+			// Sensing masks interrupts for ~200 us. The hardware still accepts
+			// addresses: let its pending ISR run before changing peer identities,
+			// discovery gates, or scheduling our own transaction.
+			if (TWCR & _BV(TWINT))
+				return;
+#endif
+			observe_shared_ports(sensed);
 			window_poll();
 			i2c_bus_enable();
 #endif
@@ -1237,6 +1326,9 @@ static void i2c_state_machine(u8 status) {
 		// debug_print("%s", data);
 		state.mode = TW_ST;
 		state.peer_idx = I2C_SELF_IDX;
+#ifdef SPLONK
+		begin_half_response();
+#endif
 		// Load data byte and either set TWEA to signify more data is coming
 		// or unset it to signify last byte (in which case NACK is expected from
 		// master)
@@ -1249,6 +1341,9 @@ static void i2c_state_machine(u8 status) {
 		// debug_print("%s", data);
 		state.mode = TW_ST;
 		state.peer_idx = I2C_SELF_IDX;
+#ifdef SPLONK
+		begin_half_response();
+#endif
 		// Load data byte and either set TWEA to signify more data is coming
 		// or unset it to signify last byte (in which case NACK is expected)
 		if (i2c_write(&peers[state.peer_idx]))
