@@ -5,6 +5,9 @@
 
 #if defined(SPLONKLIB_ENABLE_I2C)
 
+// Before the first published snapshot, no lighting mode is available.
+constexpr u8 SPLONK_LED_MODE_UNSET = 0xff;
+
 I2C_DATA(splonk, u8 keys[3]; u8 led_mode; ipi peers[4]; u8 discovery;)
 
 // Compatible with feat/splonko: keys only upstream, RGB command downstream.

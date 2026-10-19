@@ -342,6 +342,7 @@ void splonk_loop() {
 	timer_t i2c_poll_timer = timer_reset();
 	timer_t peer_input_timer = timer_reset();
 	splonk	self_data = {.keys = {}, .led_mode = 0, .peers = {}};
+	rgb_control_init(self_data.keys);
 
 #ifdef PINOUT_splonk
 	pin_output((pin)ACT_LED);
