@@ -41,9 +41,9 @@ static layer_state	 layers;
 static u16			 half_rx_packets;
 
 // Temporary stage-2 diagnostics. Disable with -DSPLONK_TOPOLOGY_DEBUG=0.
-#ifndef SPLONK_TOPOLOGY_DEBUG
-#define SPLONK_TOPOLOGY_DEBUG 1
-#endif
+// #ifndef SPLONK_TOPOLOGY_DEBUG
+// #define SPLONK_TOPOLOGY_DEBUG 1
+// #endif
 
 // Keep temporary diagnostic format strings in flash on the 2.5 KiB SRAM MCU.
 #define TOPO_PRINT(fmt, ...)                                                                       \
@@ -59,6 +59,7 @@ I2C_SLOT(knob1, splonknob, dummy);
 I2C_SLOT(thumb1, splonko, rgb_control);
 I2C_SLOT(thumb2, splonko, rgb_control);
 I2C_SLOT(numpad1, splonkus, rgb_control);
+I2C_SLOT(screen1, dummy, splonkreen);
 // Discover these modules, but do not query guessed wire formats. Their future
 // firmware adapters will replace these slots and call the typed input APIs.
 I2C_SLOT(bar1, dummy, dummy);
@@ -68,8 +69,105 @@ I2C_SLOT(pad1, dummy, dummy);
 #define SPLONK_INPUT_DEBUG 0
 #endif
 
+splonkreen screen_data;
+
+static bool modifier_or_layer_key(u16 code, bool pressed) {
+	if (!IS_MODIFIER_KEYCODE(code) && !IS_QK_MOMENTARY(code))
+		return false;
+
+	switch (code) {
+	case KC_LEFT_GUI:
+		if (pressed)
+			screen_data.mods |= _BV(IMG_MOD_LSUPER - 1);
+		else
+			screen_data.mods &= (u8)~_BV(IMG_MOD_LSUPER - 1);
+		break;
+	case KC_RIGHT_GUI:
+		if (pressed)
+			screen_data.mods |= _BV(IMG_MOD_RSUPER - 1);
+		else
+			screen_data.mods &= (u8)~_BV(IMG_MOD_RSUPER - 1);
+		break;
+	case KC_LEFT_SHIFT:
+		if (pressed)
+			screen_data.mods |= _BV(IMG_MOD_LSHIFT - 1);
+		else
+			screen_data.mods &= (u8)~_BV(IMG_MOD_LSHIFT - 1);
+		break;
+	case KC_RIGHT_SHIFT:
+		if (pressed)
+			screen_data.mods |= _BV(IMG_MOD_RSHIFT - 1);
+		else
+			screen_data.mods &= (u8)~_BV(IMG_MOD_RSHIFT - 1);
+		break;
+	case KC_LEFT_ALT:
+		if (pressed)
+			screen_data.mods |= _BV(IMG_MOD_LALT - 1);
+		else
+			screen_data.mods &= (u8)~_BV(IMG_MOD_LALT - 1);
+		break;
+	case KC_RIGHT_ALT:
+		if (pressed)
+			screen_data.mods |= _BV(IMG_MOD_RALT - 1);
+		else
+			screen_data.mods &= (u8)~_BV(IMG_MOD_RALT - 1);
+		break;
+	case KC_LCTL:
+		if (pressed)
+			screen_data.mods |= _BV(IMG_MOD_LCTRL - 1);
+		else
+			screen_data.mods &= (u8)~_BV(IMG_MOD_LCTRL - 1);
+		break;
+	case KC_RCTL:
+		if (pressed)
+			screen_data.mods |= _BV(IMG_MOD_RCTRL - 1);
+		else
+			screen_data.mods &= (u8)~_BV(IMG_MOD_RCTRL - 1);
+		break;
+	case MO(LAYER_BASE):
+		screen_data.layers = IMG_LAY_DEF;
+		break;
+	case MO(LAYER_NAV):
+		screen_data.layers = IMG_LAY_NAV;
+		break;
+	case MO(LAYER_NUM):
+		screen_data.layers = IMG_LAY_NUM;
+		break;
+	case MO(LAYER_RGB):
+		screen_data.layers = IMG_LAY_RGB;
+		break;
+	default:
+		break;
+	}
+	return true;
+}
+
+static void splonkreen_update() {
+	static timer_t refresh_timer = {};
+	if (!timer_wait(&refresh_timer, 10))
+		return;
+	refresh_timer = timer_reset();
+
+	i2c_peer *screen;
+	i2c_get_peer(&screen, (ipi){.type = IPT_SPLONKREEN});
+	if (!screen)
+		return;
+
+	static splonkreen last_data = {};
+	bool			  same = true;
+	for (u8 i = 0; same && i < sizeof(screen_data); i++)
+		if (((u8 *)&screen_data)[i] != ((u8 *)&last_data)[i])
+			same = false;
+	if (same)
+		return;
+	last_data = screen_data;
+
+	if (i2c_send(screen, (u8 *)&screen_data, sizeof(screen_data)) == SUCCESS) {
+	}
+}
+
 static void key_action(u16 code, bool pressed, void *context) {
-	if (!rgb_control_key(code, pressed))
+	if (!rgb_control_key(code, pressed) && !modifier_or_layer_key(code, pressed))
 		report_action(code, pressed, context);
 }
 
@@ -330,6 +428,7 @@ void splonk_loop() {
 	i2c_register_slot(&numpad1, IPT_SPLONKUS);
 	i2c_register_slot(&bar1, IPT_SPLONKBAR);
 	i2c_register_slot(&pad1, IPT_SPLONKPAD);
+	i2c_register_slot(&screen1, IPT_SPLONKREEN);
 #else
 	i2c_register_peer(nullptr, &splonk2, (ipi){PEER_ADDR, IPD_ALL, IPT_SPLONK});
 	i2c_register_peer(nullptr, &knob1, (ipi){KNOB_ADDR, IPD_ALL, IPT_SPLONKNOB});
@@ -378,6 +477,7 @@ void splonk_loop() {
 			usize	  rgb_peer_count;
 			i2c_get_peers(&rgb_peers, &rgb_peer_count);
 			rgb_control_update(rgb_peers, rgb_peer_count);
+			splonkreen_update();
 			if (report_master)
 				handle_usb();
 		}

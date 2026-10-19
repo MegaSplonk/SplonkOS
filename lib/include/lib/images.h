@@ -22,10 +22,14 @@ extern const t_image hollow_vassal;
 
 typedef enum image_mod_types : u8 {
 	IMG_MOD_ERASE,
-	IMG_MOD_CTRL,
-	IMG_MOD_SHIFT,
-	IMG_MOD_ALT,
-	IMG_MOD_SUPER,
+	IMG_MOD_LCTRL,
+	IMG_MOD_LSHIFT,
+	IMG_MOD_LALT,
+	IMG_MOD_LSUPER,
+	IMG_MOD_RCTRL,
+	IMG_MOD_RSHIFT,
+	IMG_MOD_RALT,
+	IMG_MOD_RSUPER,
 	__IMG_MOD_SIZE,
 } image_mod_types;
 

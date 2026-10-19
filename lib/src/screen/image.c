@@ -159,10 +159,14 @@ const t_image maieul = {.data = maieul_data, .height = 64, .width = 64};
 
 const t_image *image_modifiers[] = {
 	[IMG_MOD_ERASE] = &erase_modifier,
-	[IMG_MOD_CTRL] = &ctrl_modifier,
-	[IMG_MOD_SHIFT] = &shift_modifier,
-	[IMG_MOD_ALT] = &alt_modifier,
-	[IMG_MOD_SUPER] = &super_modifier,
+	[IMG_MOD_LCTRL] = &ctrl_modifier,
+	[IMG_MOD_LSHIFT] = &shift_modifier,
+	[IMG_MOD_LALT] = &alt_modifier,
+	[IMG_MOD_LSUPER] = &super_modifier,
+	[IMG_MOD_RCTRL] = &ctrl_modifier,
+	[IMG_MOD_RSHIFT] = &shift_modifier,
+	[IMG_MOD_RALT] = &alt_modifier,
+	[IMG_MOD_RSUPER] = &super_modifier,
 };
 
 const t_image *image_layers[] = {

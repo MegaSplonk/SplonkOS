@@ -21,19 +21,24 @@ I2C_SLOT(screen, splonkreen, dummy);
 void splonk_loop() {
 
 	timer_t	   t = timer_reset();
-	timer_t	   test = timer_reset();
+	timer_t i2c_poll_timer = timer_reset();
+	// timer_t	   test = timer_reset();
 	splonkreen sk = {};
+	bool	   mod_layout_horizontal = false;
 	usize	   r;
+
+  clear_screen();
 
 	draw(0, 0, SPLONKREEN_DEFAULT_IMAGE);
 
 	const u8 image_width = SPLONKREEN_DEFAULT_IMAGE.width;
 	const u8 remaining_width = (128 - image_width);
-	const u8 mod_offset = image_width + (remaining_width / 2) - (8 * (__IMG_MOD_SIZE - 1));
-	const u8 mod_page = 1;
+	const u8 mod_offset = image_width + (remaining_width / 2) - (8 * ((__IMG_MOD_SIZE - 1) / 2));
+	const u8 mod_page_l = 0;
+	const u8 mod_page_r = 6;
 	const u8 lay_offset =
 		image_width + (remaining_width / 2) - (image_layers[IMG_LAY_DEF]->width / 2);
-	const u8 lay_page = 4;
+	const u8 lay_page = 2;
 
 	draw(lay_page, lay_offset, *image_layers[IMG_LAY_DEF]);
 	display_screen();
@@ -45,25 +50,39 @@ void splonk_loop() {
 			r = 0;
 			if (!grb_read(&self->io->input, &sk, sizeof(sk), &r) && r == sizeof(sk)) {
 				for (u8 idx = IMG_MOD_ERASE + 1; idx < __IMG_MOD_SIZE; idx++) {
-					u8 offset = mod_offset + (u8)((idx - 1) * 16);
+					u8 page, offset;
+					if (mod_layout_horizontal) {
+						page = (idx - 1) < (__IMG_MOD_SIZE - 1) / 2 ? mod_page_l : mod_page_r;
+						offset = mod_offset + (u8)(((idx - 1) % ((__IMG_MOD_SIZE - 1) / 2)) * 16);
+					} else {
+						page = mod_page_l + ((idx - 1) % ((__IMG_MOD_SIZE - 1) / 2)) * 2;
+						offset = mod_offset + ((idx - 1) < (__IMG_MOD_SIZE - 1) / 2
+												   ? 0
+												   : image_modifiers[IMG_MOD_ERASE]->width + image_layers[IMG_LAY_DEF]->width);
+					}
 					if (!(sk.mods & _BV(idx - 1))) {
-						draw(mod_page, offset, *image_modifiers[IMG_MOD_ERASE]);
+						draw(page, offset, *image_modifiers[IMG_MOD_ERASE]);
 						continue;
 					}
-					draw(mod_page, offset, *image_modifiers[idx]);
+					draw(page, offset, *image_modifiers[idx]);
 				}
 				draw(lay_page, lay_offset, *image_layers[sk.layers]);
 				display_screen();
 			}
 		}
-		if (timer_wait(&test, 2000)) {
-			test = timer_reset();
-			usize			  w;
-			static splonkreen testkreen;
-			grb_write(&self->io->input, &testkreen, sizeof(testkreen), &w);
-			testkreen.mods = (u8)(testkreen.mods + 1) % _BV(__IMG_MOD_SIZE - 1);
-			testkreen.layers = (u8)(testkreen.layers + 1) % __IMG_LAY_SIZE;
+		if (timer_wait(&i2c_poll_timer, 1)) {
+			i2c_poll_timer = timer_reset();
+			i2c_poll();
 		}
+		// if (timer_wait(&test, 500)) {
+		// 	test = timer_reset();
+		// 	usize			  w;
+		// 	static splonkreen testkreen;
+		// 	grb_write(&self->io->input, &testkreen, sizeof(testkreen), &w);
+		// 	testkreen.mods = (u8)(testkreen.mods + 1) % _BV(__IMG_MOD_SIZE - 1);
+		// 	testkreen.layers = (u8)(testkreen.layers + 1) % __IMG_LAY_SIZE;
+		//     mod_layout_horizontal = !mod_layout_horizontal;
+		// }
 	}
 }
 
