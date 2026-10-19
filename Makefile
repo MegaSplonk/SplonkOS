@@ -1,8 +1,4 @@
 PROJECTS =                                                                     \
-	test-matrix                                                                \
-	test-rgb                                                                   \
-	test-usb                                                                   \
-	test-splonkreen                                                            \
 	splonk                                                                     \
 	splonko                                                                    \
 	splonknob                                                                  \
