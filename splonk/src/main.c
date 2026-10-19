@@ -71,8 +71,8 @@ I2C_SLOT(pad1, dummy, dummy);
 
 splonkreen screen_data;
 
-static bool modifier_or_layer_key(u16 code, bool pressed) {
-	if (!IS_MODIFIER_KEYCODE(code) && !IS_QK_MOMENTARY(code))
+static bool modifier_key(u16 code, bool pressed) {
+	if (!IS_MODIFIER_KEYCODE(code))
 		return false;
 
 	switch (code) {
@@ -124,18 +124,6 @@ static bool modifier_or_layer_key(u16 code, bool pressed) {
 		else
 			screen_data.mods &= (u8)~_BV(IMG_MOD_RCTRL - 1);
 		break;
-	case MO(LAYER_BASE):
-		screen_data.layers = IMG_LAY_DEF;
-		break;
-	case MO(LAYER_NAV):
-		screen_data.layers = IMG_LAY_NAV;
-		break;
-	case MO(LAYER_NUM):
-		screen_data.layers = IMG_LAY_NUM;
-		break;
-	case MO(LAYER_RGB):
-		screen_data.layers = IMG_LAY_RGB;
-		break;
 	default:
 		break;
 	}
@@ -160,15 +148,25 @@ static void splonkreen_update() {
 			same = false;
 	if (same)
 		return;
-	last_data = screen_data;
 
-	if (i2c_send(screen, (u8 *)&screen_data, sizeof(screen_data)) == SUCCESS) {
-	}
+	if (i2c_send(screen, (u8 *)&screen_data, sizeof(screen_data)) == SUCCESS)
+		last_data = screen_data;
 }
 
 static void key_action(u16 code, bool pressed, void *context) {
-	if (!rgb_control_key(code, pressed) && !modifier_or_layer_key(code, pressed))
+	if (!rgb_control_key(code, pressed) && !modifier_key(code, pressed))
 		report_action(code, pressed, context);
+}
+
+static void update_screen_layer(void) {
+	if (layers.holds[LAYER_NAV] && layers.holds[LAYER_NUM])
+		screen_data.layers = IMG_LAY_RGB;
+	else if (layers.holds[LAYER_NUM])
+		screen_data.layers = IMG_LAY_NUM;
+	else if (layers.holds[LAYER_NAV])
+		screen_data.layers = IMG_LAY_NAV;
+	else
+		screen_data.layers = IMG_LAY_DEF;
 }
 
 static void physical_event(const input_event *event, void *context) {
@@ -183,6 +181,7 @@ static void physical_event(const input_event *event, void *context) {
 				   (unsigned)event->module, (unsigned)event->kind);
 #endif
 	layers_input(&layers, event, key_action, nullptr);
+	update_screen_layer();
 }
 
 static input_module module_for_role(topology_role role, ipt type) {
