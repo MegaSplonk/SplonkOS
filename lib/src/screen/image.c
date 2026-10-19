@@ -42,6 +42,10 @@ static const u8 maieul_data[] PROGMEM = {
 
 };
 
+static const u8 erase_modifier_data[] PROGMEM = {
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+
 static const u8 alt_modifier_data[] PROGMEM = {
 	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x80, 0x80, 0x90, 0xa0, 0xc0, 0x80,
 	0x40, 0x40, 0x40, 0x40, 0x20, 0x10, 0x08, 0x44, 0x42, 0x41, 0x40, 0x40, 0x44, 0x42, 0x01, 0x00};
@@ -136,9 +140,11 @@ static const u8 meta_data[8] PROGMEM = {
 	0xE7, 0xA5, 0xFF, 0x24, 0x24, 0xFF, 0xA5, 0xE7,
 };
 
+const t_image erase_modifier = {.data = erase_modifier_data, .height = 16, .width = 16};
 const t_image shift_modifier = {.data = shift_modifier_data, .height = 16, .width = 16};
 const t_image super_modifier = {.data = super_modifier_data, .height = 16, .width = 16};
 const t_image ctrl_modifier = {.data = ctrl_modifier_data, .height = 16, .width = 16};
+const t_image alt_modifier = {.data = alt_modifier_data, .height = 16, .width = 16};
 
 const t_image default_layer = {.data = default_layer_data, .height = 32, .width = 32};
 const t_image nav_layer = {.data = nav_layer_data, .height = 32, .width = 32};
@@ -150,5 +156,20 @@ const t_image hollow_vassal = {.data = hollow_vassal_data, .height = 64, .width 
 const t_image meta_image = {.data = meta_data, .height = 8, .width = 8};
 
 const t_image maieul = {.data = maieul_data, .height = 64, .width = 64};
+
+const t_image *image_modifiers[] = {
+	[IMG_MOD_ERASE] = &erase_modifier,
+	[IMG_MOD_CTRL] = &ctrl_modifier,
+	[IMG_MOD_SHIFT] = &shift_modifier,
+	[IMG_MOD_ALT] = &alt_modifier,
+	[IMG_MOD_SUPER] = &super_modifier,
+};
+
+const t_image *image_layers[] = {
+	[IMG_LAY_DEF] = &default_layer,
+	[IMG_LAY_NAV] = &nav_layer,
+	[IMG_LAY_NUM] = &numbers_layer,
+	[IMG_LAY_RGB] = &rgb_layer,
+};
 
 #endif

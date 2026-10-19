@@ -1,6 +1,7 @@
 #pragma once
 
 #include "lib/config.h"
+#include "lib/images.h"
 #include "lib/proto/i2c.h"
 
 #if defined(SPLONKLIB_ENABLE_I2C)
