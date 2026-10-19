@@ -78,6 +78,18 @@ void report_init(const layer_state *state) {
 	report_reset(false);
 }
 
+void report_slider_value(u16 value) {
+	if (!active)
+		return;
+	struct HID_SLIDER_report *slider = report_slider.report;
+	u16						  next = value > 1023 ? 1023 : value;
+	if (slider->slider1 == next)
+		return;
+	slider->slider1 = next & 0x03ffu;
+	report_slider.pending = true;
+	handle_usb();
+}
+
 void report_action(u16 code, bool pressed, void *context) {
 	(void)context;
 	key action;

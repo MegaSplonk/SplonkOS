@@ -143,5 +143,23 @@ int main(void) {
 	kk_apply_key((key)KK(MOUSE, KK_MOUSE_LBTN));
 	handle_usb();
 	assert(frames[1].bytes[0] == 1 && frames[1].bytes[1] == 0);
+	// The bar uses the 40-bit absolute slider report and retains the latest
+	// sample while USB is blocked.
+	fresh();
+	blocked = true;
+	report_slider_value(341);
+	report_slider_value(682);
+	assert(sent == 0);
+	blocked = false;
+	handle_usb();
+	assert(sent == 1 && frames[0].id == HID_REPORT_ID_SLIDER);
+	assert(frames[0].length == 5);
+	assert(((u16)frames[0].bytes[0] | ((u16)(frames[0].bytes[1] & 3) << 8)) == 682);
+	assert(frames[0].bytes[2] == 0 && frames[0].bytes[3] == 0 && frames[0].bytes[4] == 0);
+	report_slider_value(682);
+	assert(sent == 1);
+	report_slider_value(1200);
+	assert(sent == 2 && frames[1].id == HID_REPORT_ID_SLIDER);
+	assert(((u16)frames[1].bytes[0] | ((u16)(frames[1].bytes[1] & 3) << 8)) == 1023);
 	puts("HID translation, ownership, retry and overflow tests passed");
 }

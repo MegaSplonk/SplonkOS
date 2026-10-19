@@ -117,9 +117,10 @@ struct HID_CC_report {
 	u8 _pad : 2;
 };
 
-struct HID_SLIDER_report {
+struct __attribute__((packed)) HID_SLIDER_report {
 	u16 slider1 : 10;
 	u16 slider2 : 10;
 	u16 slider3 : 10;
 	u16 slider4 : 10;
 };
+_Static_assert(sizeof(struct HID_SLIDER_report) == 5, "slider HID payload must be 40 bits");

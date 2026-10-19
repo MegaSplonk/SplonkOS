@@ -11,6 +11,8 @@ usize input_packet_size(ipt type) {
 		return sizeof(splonkus);
 	case IPT_SPLONKNOB:
 		return sizeof(splonknob);
+	case IPT_SPLONKBAR:
+		return sizeof(splonkbar);
 	default:
 		return 0;
 	}

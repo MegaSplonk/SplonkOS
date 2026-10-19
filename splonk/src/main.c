@@ -60,9 +60,8 @@ I2C_SLOT(thumb1, splonko, rgb_control);
 I2C_SLOT(thumb2, splonko, rgb_control);
 I2C_SLOT(numpad1, splonkus, rgb_control);
 I2C_SLOT(screen1, dummy, splonkreen);
-// Discover these modules, but do not query guessed wire formats. Their future
-// firmware adapters will replace these slots and call the typed input APIs.
-I2C_SLOT(bar1, dummy, dummy);
+// Splonkpad's wire format is not defined yet.
+I2C_SLOT(bar1, splonkbar, dummy);
 I2C_SLOT(pad1, dummy, dummy);
 
 #ifndef SPLONK_INPUT_DEBUG
@@ -180,6 +179,13 @@ static void physical_event(const input_event *event, void *context) {
 		TOPO_PRINT("INPUT source=%u module=%u kind=%u", (unsigned)event->source,
 				   (unsigned)event->module, (unsigned)event->kind);
 #endif
+	if (event->module == INPUT_SPLONKBAR) {
+		if (event->kind == INPUT_ABSOLUTE)
+			report_slider_value(event->absolute);
+		else if (event->kind == INPUT_RESET)
+			report_slider_value(0);
+		return;
+	}
 	layers_input(&layers, event, key_action, nullptr);
 	update_screen_layer();
 }
@@ -316,6 +322,7 @@ static void peer_input_handler(void) {
 				splonko	  thumb;
 				splonkus  numpad;
 				splonknob knob;
+				splonkbar bar;
 			} packet;
 			if (!input_packet_read(&peer->io->input, &packet, size))
 				break;
@@ -337,6 +344,10 @@ static void peer_input_handler(void) {
 				break;
 			case IPT_SPLONKNOB:
 				feed_input(i, &packet.knob.raw, sizeof(packet.knob.raw), true);
+				break;
+			case IPT_SPLONKBAR:
+				(void)input_absolute(&inputs[i].decoder, i, packet.bar.value, physical_event,
+									 nullptr);
 				break;
 			default:
 				break;
