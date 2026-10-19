@@ -9,7 +9,7 @@ static u8 sent_mode[I2C_MAX_PEERS];
 static timer_t refresh_timer;
 
 static bool valid_mode(u8 mode) {
-	return mode < RM_MODE_COUNT && mode != RM_COLOR && mode != RM_INDICATOR;
+	return mode < RM_MODE_COUNT /*&& mode != RM_COLOR && mode != RM_INDICATOR*/;
 }
 
 static void set_mode(led_mode mode) {

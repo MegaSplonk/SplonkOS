@@ -18,6 +18,7 @@ GRBIO_INIT(gc, gc_in, gc_out, 8, 8);
 GRBIO_INIT(local, local_in, local_out, 2 * sizeof(splonk), 2 * sizeof(splonk));
 GRBIO_INIT(remote, remote_in, remote_out, 2 * sizeof(splonk), 2 * sizeof(splonk));
 GRBIO_INIT(thumb, thumb_in, thumb_out, 2, 2);
+static bool address_during_sense;
 void pin_input(pin p) { (void)p; }
 void pin_output(pin p) { (void)p; }
 void pin_set(pin p, bool high) {
@@ -26,6 +27,11 @@ void pin_set(pin p, bool high) {
 }
 bool pin_get(pin p) {
 	(void)p;
+	if (address_during_sense) {
+		address_during_sense = false;
+		TWSR = TW_ST_SLA_ACK;
+		TWCR |= _BV(TWINT);
+	}
 	return false;
 }
 
@@ -47,6 +53,7 @@ static void physical(const input_event *event, void *context) {
 }
 int main(int argc, char **argv) {
 	bool	  right = argc > 1 && strcmp(argv[1], "right") == 0;
+	half_right = right;
 	u8		  own_addr = right ? 43 : 42, peer_addr = right ? 42 : 43;
 	ipd		  direction = right ? IPD_WEST : IPD_EAST;
 	i2c_peer *self, *other;
@@ -58,11 +65,81 @@ int main(int argc, char **argv) {
 	assert(i2c_register_slot(&thumb, IPT_SPLONKO) == SUCCESS);
 	splonk packet = {.peers = {[IPD_SOUTH - 1] = {right ? 44 : 45, IPD_SOUTH, IPT_SPLONKO}},
 					 .keys = {0, 0, 0x80}}; // rotated visual position 0
+	// Hardware can accept SLA+R while interrupts are masked in the poll loop.
+	// Foreground scheduling must leave that event for the slave ISR.
+	state.mode = TW_YE;
+	state.peer_idx = I2C_SELF_IDX;
+	(void)i2c_query(other, nullptr, sizeof(packet));
+	TWDR = 0x55;
+	TWSR = TW_ST_SLA_ACK;
+	TWCR = _BV(TWINT) | _BV(TWEA) | _BV(TWEN) | _BV(TWIE);
+	u8 pending_control = TWCR;
+	i2c_poll();
+	assert(state.mode == TW_YE && state.peer_idx == I2C_SELF_IDX);
+	assert(TWCR == pending_control && TWDR == 0x55);
+	// Also cover an address arriving during the 200 us GPIO sensing interval.
+	TWCR &= (u8)~_BV(TWINT);
+	address_during_sense = true;
+	i2c_poll();
+	assert(!address_during_sense);
+	assert(state.mode == TW_YE && state.peer_idx == I2C_SELF_IDX);
+	assert(TWCR == pending_control && TWDR == 0x55);
+	other->query = 0;
+	TWCR &= (u8)~_BV(TWINT);
+	// A read before publication must send a released snapshot, not stale SLA+R.
+	state.mode = TW_YE;
+	TWDR = 0x55;
+	i2c_state_machine(TW_ST_SLA_ACK);
+	for (usize i = 0; i < sizeof(packet); i++) {
+		assert(state.mode == TW_ST && TWDR == 0);
+		if (i + 1 < sizeof(packet))
+			i2c_state_machine(TW_ST_DATA_ACK);
+	}
+	i2c_state_machine(TW_ST_DATA_NACK);
+
+	// An early NACK must not shift the next response into the middle of a frame.
+	assert(i2c_send(self, (u8 *)&packet, sizeof(packet)) == SUCCESS);
+	i2c_state_machine(TW_ST_SLA_ACK);
+	i2c_state_machine(TW_ST_DATA_ACK);
+	i2c_state_machine(TW_ST_DATA_ACK);
+	i2c_state_machine(TW_ST_DATA_NACK);
+	for (u8 repeat = 0; repeat < 3; repeat++) {
+		i2c_state_machine(TW_ST_SLA_ACK);
+		for (usize i = 0; i < sizeof(packet); i++) {
+			assert(state.mode == TW_ST && TWDR == ((u8 *)&packet)[i]);
+			if (i + 1 < sizeof(packet))
+				i2c_state_machine(TW_ST_DATA_ACK);
+		}
+		i2c_state_machine(TW_ST_DATA_NACK);
+	}
+	assert(i2c_send(self, (u8 *)&packet, sizeof(packet)) == SUCCESS);
+	// Publishing a release during a read cannot tear the current snapshot.
+	i2c_state_machine(TW_ST_SLA_ACK);
+	splonk released = {};
+	assert(i2c_send(self, (u8 *)&released, sizeof(released)) == SUCCESS);
+	for (usize i = 0; i < sizeof(packet); i++) {
+		assert(TWDR == ((u8 *)&packet)[i]);
+		if (i + 1 < sizeof(packet))
+			i2c_state_machine(TW_ST_DATA_ACK);
+	}
+	// Over-reading also stays in slave mode and never leaks a stale register.
+	i2c_state_machine(TW_ST_DATA_ACK);
+	assert(state.mode == TW_ST && TWDR == 0);
+	i2c_state_machine(TW_ST_DATA_NACK);
+	i2c_state_machine(TW_ST_SLA_ACK);
+	for (usize i = 0; i < sizeof(released); i++) {
+		assert(TWDR == 0);
+		if (i + 1 < sizeof(released))
+			i2c_state_machine(TW_ST_DATA_ACK);
+	}
+	i2c_state_machine(TW_ST_DATA_NACK);
 	assert(i2c_send(self, (u8 *)&packet, sizeof(packet)) == SUCCESS);
 	state.mode = TW_YE;
 	(void)i2c_query(other, nullptr, sizeof(packet));
 	i2c_keep_or_rel_bus();
 	assert(state.mode == TW_MR && (TWCR & _BV(TWSTA)));
+	// Writing zero preserves a hardware event arriving just before START.
+	assert(!(TWCR & _BV(TWINT)));
 	// Arbitration loser must be able to ACK its own address in both phases.
 	assert(TWCR & _BV(TWEA));
 	i2c_state_machine(TW_START);
@@ -133,6 +210,35 @@ int main(int argc, char **argv) {
 	assert(input_packet_read(&other->io->input, &received, sizeof(received)));
 	assert(input_feed(&device, 2, received.keys, sizeof(received.keys), physical, nullptr));
 	assert(keyboard_reports == before + 2);
+	assert(!(keyboard.keys[code / 8] & (1u << (code % 8))));
+
+	// The USB half addresses a Splonko advertised only by the remote half.
+	// Its one-byte packet must reach the remote-side keymap and HID report.
+	assert(i2c_query(peripheral, nullptr, sizeof(splonko)) == ERROR);
+	find_peer();
+	assert(state.peer_idx == (usize)(peripheral - peers));
+	i2c_bus_enable();
+	assert(driven_ports == I2C_BE_ACTIVE_MASK);
+	i2c_keep_or_rel_bus();
+	i2c_state_machine(TW_START);
+	assert(TWDR == I2C_ADDR(peripheral->info.addr, TW_READ));
+	i2c_state_machine(TW_MR_SLA_ACK);
+	TWDR = right ? 8 : 1;
+	i2c_state_machine(TW_MR_DATA_NACK);
+	splonko remote_thumb;
+	assert(input_packet_read(&peripheral->io->input, &remote_thumb, sizeof(remote_thumb)));
+	input_device thumb_device = {};
+	assert(input_bind(&thumb_device, (u8)(peripheral - peers),
+					  right ? INPUT_SPLONKO_L : INPUT_SPLONKO_R, INPUT_ROWS_FIRST,
+					  physical, nullptr));
+	before = keyboard_reports;
+	assert(input_feed(&thumb_device, (u8)(peripheral - peers), remote_thumb.keys,
+					  sizeof(remote_thumb.keys), physical, nullptr));
+	code = right ? KC_SPC : KC_ENT;
+	assert(keyboard_reports == before + 1);
+	assert(keyboard.keys[code / 8] & (1u << (code % 8)));
+	assert(input_feed(&thumb_device, (u8)(peripheral - peers), (u8[]){0}, 1,
+					  physical, nullptr));
 	assert(!(keyboard.keys[code / 8] & (1u << (code % 8))));
 
 	// Single-byte knob reads still NACK their only byte.
@@ -260,5 +366,11 @@ int main(int argc, char **argv) {
 		recover_stalled_twi();
 		assert(state.mode == TW_SR);
 	}
+	// A pending event takes priority even when the watchdog deadline expired.
+	now += 100;
+	TWCR |= _BV(TWINT);
+	u8 pending = TWCR;
+	i2c_poll();
+	assert(state.mode == TW_SR && TWCR == pending);
 	puts("TWI arbitration, discovery scheduling and disconnect recovery tests passed");
 }

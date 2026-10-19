@@ -26,26 +26,26 @@ constexpr usize rm_size = RM_SIZE;
 typedef enum led_mode : u8 {
 	RM_MODE_OFF,
 	RM_MODE_ON,
-	RM_COLOR,
-
-	RM_RAINBOW,
-	RM_GD_HOR,
-	RM_GD_VER,
-	RM_GD_DIA,
-	RM_GD_RADIAL,
-
-	RM_SNAKE,
-	RM_BREATHING,
-	RM_WAVE,
-	RM_CHASE,
-	RM_FIRE,
-	RM_RAIN,
-
 	RM_TOUCH,
-	RM_REACTIVE,
-	RM_RIPPLE,
+	//RM_COLOR,
 
-	RM_INDICATOR,
+	// RM_RAINBOW,
+	// RM_GD_HOR,
+	// RM_GD_VER,
+	// RM_GD_DIA,
+	// RM_GD_RADIAL,
+	//
+	// RM_SNAKE,
+	// RM_BREATHING,
+	// RM_WAVE,
+	// RM_CHASE,
+	// RM_FIRE,
+	// RM_RAIN,
+	//
+	// RM_REACTIVE,
+	// RM_RIPPLE,
+	//
+	// RM_INDICATOR,
 
 	RM_MODE_COUNT
 

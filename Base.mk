@@ -17,6 +17,7 @@ CC            = avr-gcc
 CXX           = avr-g++
 OBJCOPY       = avr-objcopy
 AR            = avr-gcc-ar
+SIZE          ?= avr-size
 
 FUCKNIXOS_LDFLAGS = 
 ifeq ($(MCU), attiny1614)
@@ -127,6 +128,21 @@ LIB_DEP=$(addsuffix .d,$(addprefix $(OBJ_DIR)/lib/,$(LIB_SRC_FILES)))
 ELF_FILE     = $(OBJ_DIR)/$(TARGET).elf
 HEX_FILE     = $(OBJ_DIR)/$(TARGET).hex
 
+
+# Conservative application limits in bytes, including bootloader headroom.
+# Override for a board only after checking its actual application region.
+SAFE_FLASH_SIZE = 0
+ifeq ($(MCU),atmega32u4)
+SAFE_FLASH_SIZE = 28000
+endif
+ifeq ($(MCU),atmega328p)
+SAFE_FLASH_SIZE = 28000
+endif
+ifeq ($(MCU),attiny1614)
+SAFE_FLASH_SIZE = 15000
+endif
+
+
 .DEFAULT_GOAL = all
 
 ifeq ($(USE_LIB),1)
@@ -169,8 +185,42 @@ wait-device:
 	echo "ERROR: $(PORT) not found after $(TIMEOUT)s" >&2; \
 	exit 1
 
+# Check the actual image sent to avrdude, including initialized data and gaps.
+# The exclusive end address must fit the application region; errors abort flash.
+.PHONY: check-flash-size
+check-flash-size: $(HEX_FILE)
+	@set -eu; \
+	limit='$(SAFE_FLASH_SIZE)'; \
+	case "$$limit" in ''|*[!0-9]*) echo "Invalid SAFE_FLASH_SIZE: $$limit" >&2; exit 1;; esac; \
+	if ! [ "$$limit" -gt 0 ]; then \
+		echo "No positive SAFE_FLASH_SIZE configured for $(MCU)" >&2; exit 1; \
+	fi; \
+	if ! sizes=$$(LC_ALL=C $(SIZE) --format=sysv --radix=10 "$(HEX_FILE)"); then \
+		echo "Cannot measure flash image: $(HEX_FILE)" >&2; exit 1; \
+	fi; \
+	if ! end=$$(printf '%s\n' "$$sizes" | awk '\
+		/^\.sec[0-9]+[[:space:]]/ { \
+			if (NF != 3 || $$2 !~ /^[0-9]+$$/ || $$3 !~ /^[0-9]+$$/) exit 1; \
+			sections++; bytes += $$2; \
+			if ($$3 + $$2 > end) end = $$3 + $$2; \
+		} \
+		/^Total[[:space:]]/ { \
+			if (NF != 2 || $$2 !~ /^[0-9]+$$/) exit 1; \
+			totals++; total = $$2; \
+		} \
+		END { \
+			if (!sections || totals != 1 || bytes != total || bytes <= 0) exit 1; \
+			printf "%.0f\n", end; \
+		}'); then \
+		echo "Cannot parse flash image size: $(HEX_FILE)" >&2; exit 1; \
+	fi; \
+	if [ "$$end" -gt "$$limit" ]; then \
+		echo "FLASH TOO BIG: image ends at $$end bytes; limit is $$limit for $(MCU)" >&2; exit 1; \
+	fi; \
+	printf ' Flash image end: %s / %s bytes (%s)\n' "$$end" "$$limit" '$(MCU)'
+
 .PHONY: flash
-flash: hex
+flash: check-flash-size
 	@$(MAKE) --no-print-directory wait-device
 ifeq ($(MCU)$(PROGRAMMER), atmega32u4avr109)
 	@printf " STTY $(PORT) 1200\n"

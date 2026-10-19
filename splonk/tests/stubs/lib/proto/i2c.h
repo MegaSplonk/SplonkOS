@@ -27,6 +27,7 @@ typedef struct i2c_peer {
 } i2c_peer;
 #define I2C_MAX_PEERS 9
 #define I2C_SELF_IDX  1
+static const u8 i2c_addr_pool[] = {42, 43};
 void	i2c_get_peers(i2c_peer **peers, usize *count);
 t_error i2c_register(i2c_peer **peer, ipi info);
 t_error i2c_unregister(i2c_peer *peer);

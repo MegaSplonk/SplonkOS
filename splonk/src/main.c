@@ -180,9 +180,11 @@ static void update_topology(void) {
 			log_peer = I2C_SELF_IDX;
 		i2c_peer *p = &peers[log_peer];
 		if (p == self) {
-			TOPO_PRINT("TOPO self=%u master=%s role=%s hid_overflow=%u", (unsigned)p->info.addr,
+			TOPO_PRINT("TOPO self=%u master=%s role=%s hid_overflow=%u keys=%02x%02x%02x",
+					   (unsigned)p->info.addr,
 					   report_master ? "yes" : "no", topology_role_name(roles[log_peer]),
-					   (unsigned)report_overflows);
+					   (unsigned)report_overflows, (unsigned)inputs[log_peer].cached[0],
+					   (unsigned)inputs[log_peer].cached[1], (unsigned)inputs[log_peer].cached[2]);
 		} else if (p->io && p->info.type == IPT_SPLONK) {
 			usize pending;
 			ATOMIC_BLOCK(ATOMIC_RESTORESTATE) { pending = p->query; }
@@ -354,6 +356,7 @@ void splonk_loop() {
 				self_data.peers[i] = self->downstream[i] ? self->downstream[i]->info : (ipi){};
 			if (km_scan(self_data.keys, sizeof(self_data.keys)) == SUCCESS)
 				feed_input(I2C_SELF_IDX, self_data.keys, sizeof(self_data.keys), false);
+
 			self_data.discovery = i2c_window_status();
 			self_data.led_mode = (u8)rgb_control_get_mode();
 			// Publish full snapshots even without key changes, so a new USB owner can
@@ -363,6 +366,7 @@ void splonk_loop() {
 		}
 		if (timer_wait(&i2c_poll_timer, 1)) {
 			i2c_poll_timer = timer_reset();
+			i2c_set_usb_present(USBConnected());
 			i2c_poll();
 		}
 		if (timer_wait(&peer_input_timer, 1)) {
@@ -370,7 +374,7 @@ void splonk_loop() {
 			update_topology();
 			peer_input_handler();
 			i2c_peer *rgb_peers;
-			usize rgb_peer_count;
+			usize	  rgb_peer_count;
 			i2c_get_peers(&rgb_peers, &rgb_peer_count);
 			rgb_control_update(rgb_peers, rgb_peer_count);
 			if (report_master)

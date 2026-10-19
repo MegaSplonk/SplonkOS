@@ -47,8 +47,14 @@ bool	timer_wait(timer_t *timer, milis_t delay) {
 }
 
 int main(int argc, char **argv) {
-	bool right = argc > 1 && strcmp(argv[1], "right") == 0;
-	ipd	 direction = right ? IPD_WEST : IPD_EAST;
+	ipd direction = argc > 1 && strcmp(argv[1], "north") == 0   ? IPD_NORTH
+				  : argc > 1 && strcmp(argv[1], "south") == 0 ? IPD_SOUTH
+				  : argc > 1 && strcmp(argv[1], "right") == 0 ? IPD_WEST
+																	 : IPD_EAST;
+	bool usb = argc > 2 && strcmp(argv[2], "usb") == 0;
+	bool right = direction == IPD_WEST || (direction == IPD_NORTH && !usb) ||
+				 (direction == IPD_SOUTH && usb);
+	i2c_set_usb_present(usb);
 	u8	 bit = be_logic[direction];
 	assert(i2c_register_peer(nullptr, &gc, (ipi){}) == SUCCESS);
 	assert(i2c_register_peer(nullptr, &local, (ipi){31, IPD_ALL, IPT_SPLONK}) == SUCCESS);
@@ -71,10 +77,28 @@ int main(int argc, char **argv) {
 	assert(i2c_gcall(&probe) == SUCCESS);
 	// A half appearing before a queued GCALL starts cancels it.
 	external = bit;
+	if (direction == IPD_NORTH || direction == IPD_SOUTH) {
+		observe_shared_ports(i2c_bus_sense());
+		assert(!has_half_link()); // Let USB frame detection settle at startup.
+		now += 101;
+	}
 	observe_shared_ports(i2c_bus_sense());
 	assert(peers[I2C_SELF_IDX].info.addr == (right ? 43 : 42));
+	assert(half_right == right);
 	i2c_peer *half = peers[I2C_SELF_IDX].downstream[direction - 1];
 	assert(half && half->info.type == IPT_SPLONK && half->info.addr == (right ? 42 : 43));
+	if (direction == IPD_NORTH || direction == IPD_SOUTH) {
+		// USB can enumerate after the shared line is first sensed. Reassign the
+		// fixed half addresses without waiting for a physical disconnect.
+		i2c_set_usb_present(!usb);
+		observe_shared_ports(bit);
+		assert(peers[I2C_SELF_IDX].info.addr == (right ? 42 : 43));
+		assert(peers[I2C_SELF_IDX].downstream[direction - 1]->info.addr ==
+			   (right ? 43 : 42));
+		i2c_set_usb_present(usb);
+		observe_shared_ports(bit);
+		assert(peers[I2C_SELF_IDX].info.addr == (right ? 43 : 42));
+	}
 	i2c_discover(&peers[I2C_SELF_IDX]);
 	assert(grb_empty(&gc.output));
 	assert(i2c_gcall(&probe) == ERROR);

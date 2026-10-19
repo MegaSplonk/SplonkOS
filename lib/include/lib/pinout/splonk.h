@@ -4,8 +4,8 @@
 #include "lib/pinout/promicro.h"
 
 #define BUS_ENABLE1 _P(C, 6)
-#define BUS_ENABLE2 _P(D, 3)
-#define BUS_ENABLE3 _P(D, 2)
+#define BUS_ENABLE2 _P(D, 5)
+#define BUS_ENABLE3 _P(B, 7)
 #define BUS_ENABLE4 _P(E, 6)
 
 #define ACT_LED _P(C, 7)

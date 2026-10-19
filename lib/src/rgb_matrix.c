@@ -95,7 +95,8 @@ static rgb rm_hsv_to_rgb(u32 hue, u8 saturation, u8 value) {
 }
 
 static void rgb_matrix_rainbow(void) {
-	static u32 offset = 0;
+	return;
+	/*static u32 offset = 0;
 
 	for (usize i = 0; i < rm_size; i++) {
 		u32 hue = (u32)(i * RM_HUE_MAX / (rm_size ? rm_size : 1u));
@@ -103,6 +104,7 @@ static void rgb_matrix_rainbow(void) {
 	}
 
 	offset = (offset + rm_anim_speed) % RM_HUE_MAX;
+	*/
 }
 
 static void rgb_matrix_gradient_horizontal(void) {
@@ -347,6 +349,11 @@ typedef void (*rgb_matrix_func)(void);
 static const rgb_matrix_func rgb_matrix_modes[RM_MODE_COUNT] = {
 	[RM_MODE_OFF] = rgb_matrix_off,
 	[RM_MODE_ON] = rgb_matrix_on,
+	[RM_TOUCH] = rgb_matrix_touch,
+	// [RM_INDICATOR] = rgb_matrix_indicator,
+
+	/*[RM_MODE_OFF] = rgb_matrix_off,
+	[RM_MODE_ON] = rgb_matrix_on,
 
 	[RM_RAINBOW] = rgb_matrix_rainbow,
 	[RM_GD_HOR] = rgb_matrix_gradient_horizontal,
@@ -365,7 +372,7 @@ static const rgb_matrix_func rgb_matrix_modes[RM_MODE_COUNT] = {
 	[RM_REACTIVE] = rgb_matrix_reactive,
 	[RM_RIPPLE] = rgb_matrix_ripple,
 
-	[RM_INDICATOR] = rgb_matrix_indicator,
+	*/
 
 };
 

@@ -15,7 +15,13 @@ int main(int argc, char **argv) {
 	assert(i2c_new_addr(&address, IPT_SPLONKNOB, IPD_EAST) == SUCCESS);
 	assert(address == 44);
 	assert(i2c_free_addr(address) == SUCCESS);
-	assert(i2c_new_addr(&address, IPT_SPLONK, IPD_NORTH) == ERROR);
+	i2c_set_usb_present(true);
+	assert(i2c_new_addr(&address, IPT_SPLONK, IPD_NORTH) == SUCCESS);
+	assert(address == 43); // USB on a north-linked board selects the left half.
+	assert(i2c_free_addr(address) == SUCCESS);
+	opposite_half = IPD_NONE;
+	half_right = false;
+	i2c_set_usb_present(false);
 	assert(i2c_new_addr(&address, IPT_SPLONK, right ? IPD_WEST : IPD_EAST) == SUCCESS);
 	assert(address == (right ? 42 : 43));
 	assert(i2c_new_addr(&address, IPT_SPLONKO, IPD_SOUTH) == SUCCESS);
@@ -54,6 +60,7 @@ int main(int argc, char **argv) {
 	assert(peers[I2C_SELF_IDX].downstream[1] == nullptr);
 	// Real standalone identity is released when physical evidence selects right.
 	opposite_half = IPD_NONE;
+	half_right = false;
 	peers[I2C_SELF_IDX].downstream[0] = device;
 	gcall assignment = {.use_addr = {GCI_USE_ADDR, 43}};
 	usize written;
