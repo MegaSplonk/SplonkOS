@@ -3,10 +3,10 @@
 #include <stdio.h>
 
 static bool pressed[4][6];
-static int active = -1;
+static int	active = -1;
 
 timer_t timer_reset(void) { return (timer_t){}; }
-bool timer_wait(timer_t *timer, milis_t delay) {
+bool	timer_wait(timer_t *timer, milis_t delay) {
 	(void)timer;
 	(void)delay;
 	return true;

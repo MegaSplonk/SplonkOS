@@ -27,7 +27,7 @@ static void sense(usize p, u8 *keys, usize m_size) {
 
 t_error km_scan(u8 *keys, usize m_size) {
 	static timer_t scan_timer = {};
-	static u8 previous[2][(km_size + 7) / 8];
+	static u8	   previous[2][(km_size + 7) / 8];
 	if (!keys || m_size > tabsize(previous[0]))
 		return ERROR;
 	if (!timer_wait(&scan_timer, DEBOUNCE))
@@ -44,7 +44,7 @@ t_error km_scan(u8 *keys, usize m_size) {
 	for (usize i = 0; i < m_size; i++) {
 		// A key changes only after three identical scans. Each bit settles
 		// independently, so chatter on one switch cannot stall another.
-		u8 stable = (u8)~((raw[i] ^ previous[0][i]) | (raw[i] ^ previous[1][i]));
+		u8 stable = (u8) ~((raw[i] ^ previous[0][i]) | (raw[i] ^ previous[1][i]));
 		keys[i] = (keys[i] & (u8)~stable) | (raw[i] & stable);
 		previous[1][i] = previous[0][i];
 		previous[0][i] = raw[i];

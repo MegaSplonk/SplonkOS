@@ -181,10 +181,10 @@ static void update_topology(void) {
 		i2c_peer *p = &peers[log_peer];
 		if (p == self) {
 			TOPO_PRINT("TOPO self=%u master=%s role=%s hid_overflow=%u keys=%02x%02x%02x",
-					   (unsigned)p->info.addr,
-					   report_master ? "yes" : "no", topology_role_name(roles[log_peer]),
-					   (unsigned)report_overflows, (unsigned)inputs[log_peer].cached[0],
-					   (unsigned)inputs[log_peer].cached[1], (unsigned)inputs[log_peer].cached[2]);
+					   (unsigned)p->info.addr, report_master ? "yes" : "no",
+					   topology_role_name(roles[log_peer]), (unsigned)report_overflows,
+					   (unsigned)inputs[log_peer].cached[0], (unsigned)inputs[log_peer].cached[1],
+					   (unsigned)inputs[log_peer].cached[2]);
 		} else if (p->io && p->info.type == IPT_SPLONK) {
 			usize pending;
 			ATOMIC_BLOCK(ATOMIC_RESTORESTATE) { pending = p->query; }

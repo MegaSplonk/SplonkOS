@@ -47,15 +47,15 @@ bool	timer_wait(timer_t *timer, milis_t delay) {
 }
 
 int main(int argc, char **argv) {
-	ipd direction = argc > 1 && strcmp(argv[1], "north") == 0   ? IPD_NORTH
-				  : argc > 1 && strcmp(argv[1], "south") == 0 ? IPD_SOUTH
-				  : argc > 1 && strcmp(argv[1], "right") == 0 ? IPD_WEST
-																	 : IPD_EAST;
+	ipd	 direction = argc > 1 && strcmp(argv[1], "north") == 0	 ? IPD_NORTH
+					 : argc > 1 && strcmp(argv[1], "south") == 0 ? IPD_SOUTH
+					 : argc > 1 && strcmp(argv[1], "right") == 0 ? IPD_WEST
+																 : IPD_EAST;
 	bool usb = argc > 2 && strcmp(argv[2], "usb") == 0;
 	bool right = direction == IPD_WEST || (direction == IPD_NORTH && !usb) ||
 				 (direction == IPD_SOUTH && usb);
 	i2c_set_usb_present(usb);
-	u8	 bit = be_logic[direction];
+	u8 bit = be_logic[direction];
 	assert(i2c_register_peer(nullptr, &gc, (ipi){}) == SUCCESS);
 	assert(i2c_register_peer(nullptr, &local, (ipi){31, IPD_ALL, IPT_SPLONK}) == SUCCESS);
 	assert(i2c_register_slot(&remote, IPT_SPLONK) == SUCCESS);
@@ -93,8 +93,7 @@ int main(int argc, char **argv) {
 		i2c_set_usb_present(!usb);
 		observe_shared_ports(bit);
 		assert(peers[I2C_SELF_IDX].info.addr == (right ? 42 : 43));
-		assert(peers[I2C_SELF_IDX].downstream[direction - 1]->info.addr ==
-			   (right ? 43 : 42));
+		assert(peers[I2C_SELF_IDX].downstream[direction - 1]->info.addr == (right ? 43 : 42));
 		i2c_set_usb_present(usb);
 		observe_shared_ports(bit);
 		assert(peers[I2C_SELF_IDX].info.addr == (right ? 43 : 42));

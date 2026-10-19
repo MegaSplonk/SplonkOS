@@ -19,9 +19,9 @@ GRBIO_INIT(local, local_in, local_out, 2 * sizeof(splonk), 2 * sizeof(splonk));
 GRBIO_INIT(remote, remote_in, remote_out, 2 * sizeof(splonk), 2 * sizeof(splonk));
 GRBIO_INIT(thumb, thumb_in, thumb_out, 2, 2);
 static bool address_during_sense;
-void pin_input(pin p) { (void)p; }
-void pin_output(pin p) { (void)p; }
-void pin_set(pin p, bool high) {
+void		pin_input(pin p) { (void)p; }
+void		pin_output(pin p) { (void)p; }
+void		pin_set(pin p, bool high) {
 	(void)p;
 	(void)high;
 }
@@ -52,7 +52,7 @@ static void physical(const input_event *event, void *context) {
 	layers_input(&layers, event, report_action, nullptr);
 }
 int main(int argc, char **argv) {
-	bool	  right = argc > 1 && strcmp(argv[1], "right") == 0;
+	bool right = argc > 1 && strcmp(argv[1], "right") == 0;
 	half_right = right;
 	u8		  own_addr = right ? 43 : 42, peer_addr = right ? 42 : 43;
 	ipd		  direction = right ? IPD_WEST : IPD_EAST;
@@ -229,16 +229,15 @@ int main(int argc, char **argv) {
 	assert(input_packet_read(&peripheral->io->input, &remote_thumb, sizeof(remote_thumb)));
 	input_device thumb_device = {};
 	assert(input_bind(&thumb_device, (u8)(peripheral - peers),
-					  right ? INPUT_SPLONKO_L : INPUT_SPLONKO_R, INPUT_ROWS_FIRST,
-					  physical, nullptr));
+					  right ? INPUT_SPLONKO_L : INPUT_SPLONKO_R, INPUT_ROWS_FIRST, physical,
+					  nullptr));
 	before = keyboard_reports;
 	assert(input_feed(&thumb_device, (u8)(peripheral - peers), remote_thumb.keys,
 					  sizeof(remote_thumb.keys), physical, nullptr));
 	code = right ? KC_SPC : KC_ENT;
 	assert(keyboard_reports == before + 1);
 	assert(keyboard.keys[code / 8] & (1u << (code % 8)));
-	assert(input_feed(&thumb_device, (u8)(peripheral - peers), (u8[]){0}, 1,
-					  physical, nullptr));
+	assert(input_feed(&thumb_device, (u8)(peripheral - peers), (u8[]){0}, 1, physical, nullptr));
 	assert(!(keyboard.keys[code / 8] & (1u << (code % 8))));
 
 	// Single-byte knob reads still NACK their only byte.
