@@ -23,6 +23,17 @@ I2C_DATA(
 		};
 	};)
 
+I2C_DATA(
+	splonkpad, union {
+		u8 raw;
+		struct {
+			u8 stap : 1;
+			u8 dtap : 1;
+			u8 ttap : 1;
+			u8 _pad : 5;
+		};
+	};)
+
 I2C_DATA(dummy, u8 junk;)
 
 I2C_DATA(rgb_control, u8 led_mode;)

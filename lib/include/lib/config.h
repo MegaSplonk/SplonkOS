@@ -87,6 +87,10 @@
 #define SPLONKLIB_UART_FORCE_HARDWARE
 
 #elif defined(BOARD_splonkpad)
+
+#define SPLONKLIB_ENABLE_I2C
+#define SPLONKLIB_ENABLE_UART
+
 #elif defined(BOARD_splonkreen)
 #elif defined(BOARD_splonknob)
 
