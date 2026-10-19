@@ -53,9 +53,9 @@ void topology_resolve(i2c_peer *peers, usize count, topology_role *roles) {
 				for (usize local = 0; local < 4; local++) {
 					if (peers[I2C_SELF_IDX].downstream[local] != &peers[i])
 						continue;
-					usize expected = local == IPD_EAST - 1	? IPD_WEST - 1
+					usize expected = local == IPD_EAST - 1	 ? IPD_WEST - 1
 									 : local == IPD_WEST - 1 ? IPD_EAST - 1
-																 : local;
+															 : local;
 					if (d != expected)
 						conflict = true;
 				}

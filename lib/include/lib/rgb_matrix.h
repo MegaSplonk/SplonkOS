@@ -27,7 +27,7 @@ typedef enum led_mode : u8 {
 	RM_MODE_OFF,
 	RM_MODE_ON,
 	RM_TOUCH,
-	//RM_COLOR,
+	// RM_COLOR,
 
 	// RM_RAINBOW,
 	// RM_GD_HOR,

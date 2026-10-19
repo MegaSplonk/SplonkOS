@@ -4,9 +4,9 @@
 
 static led_mode current_mode = default_led_mode;
 static led_mode last_mode = default_led_mode;
-static u8 sent_addr[I2C_MAX_PEERS];
-static u8 sent_mode[I2C_MAX_PEERS];
-static timer_t refresh_timer;
+static u8		sent_addr[I2C_MAX_PEERS];
+static u8		sent_mode[I2C_MAX_PEERS];
+static timer_t	refresh_timer;
 
 static bool valid_mode(u8 mode) {
 	return mode < RM_MODE_COUNT /*&& mode != RM_COLOR && mode != RM_INDICATOR*/;
@@ -82,7 +82,7 @@ void rgb_control_update(i2c_peer *peers, usize count) {
 
 	for (usize i = I2C_SELF_IDX + 1; i < count; i++) {
 		i2c_peer *peer = &peers[i];
-		bool downstream = false;
+		bool	  downstream = false;
 		for (usize d = 0; d < 4; d++)
 			downstream |= peers[I2C_SELF_IDX].downstream[d] == peer;
 		if (!peer->io || !downstream ||

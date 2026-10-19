@@ -229,8 +229,7 @@ static void i2c_start(bool complete_event) {
 	// Foreground START requests must not acknowledge an incoming slave event
 	// that arrived while interrupts were masked. TWINT is write-one-to-clear;
 	// only an ISR scheduling the next transfer has handled the current event.
-	TWCR = (complete_event ? _BV(TWINT) : 0) | _BV(TWSTA) | _BV(TWEA) | _BV(TWEN) |
-		   _BV(TWIE);
+	TWCR = (complete_event ? _BV(TWINT) : 0) | _BV(TWSTA) | _BV(TWEA) | _BV(TWEN) | _BV(TWIE);
 	// debug_print("start %d", peers[state.peer_idx].timeout);
 }
 
@@ -730,8 +729,7 @@ static void observe_shared_ports(u8 sensed) {
 	}
 	if (direction == IPD_NONE)
 		return;
-	if ((direction == IPD_NORTH || direction == IPD_SOUTH) &&
-		!timer_wait(&north_south_ready, 100))
+	if ((direction == IPD_NORTH || direction == IPD_SOUTH) && !timer_wait(&north_south_ready, 100))
 		return;
 	bool linked = has_half_link();
 	if (linked && (direction != opposite_half || half_right == half_is_right(direction)))
@@ -938,7 +936,7 @@ t_error i2c_query(i2c_peer *p, u8 *data, usize len) {
 // even when the other controller polls faster than the main loop publishes.
 // Latch only at SLA+R so publication cannot change an in-flight response.
 static splonk half_response;
-static u8 half_response_offset;
+static u8	  half_response_offset;
 
 static void begin_half_response(void) {
 	grb *output = &peers[I2C_SELF_IDX].io->output;
@@ -954,7 +952,8 @@ static t_error i2c_write(i2c_peer *p) {
 		// Always load TWDR while addressed, including before the first scan.
 		// An oversized read gets zero padding until the controller ends it.
 		TWDR = half_response_offset < sizeof(half_response)
-			   ? ((const u8 *)&half_response)[half_response_offset++] : 0;
+				   ? ((const u8 *)&half_response)[half_response_offset++]
+				   : 0;
 		TWCR = _BV(TWINT) | _BV(TWEN) | _BV(TWIE) | _BV(TWEA);
 		return SUCCESS;
 	}
